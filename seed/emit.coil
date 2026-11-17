@@ -37,7 +37,9 @@
     (push-str! (mut b)
                "(module rewrite.generated)\n(import \"coil.arraylist\" :use *)\n")
     (push-str! (mut b)
-               "(defsum Judgment (Typed [(type i64)]) (Mismatch [(node i64) (field i64) (expected i64) (actual i64) (rule-lo i64) (rule-hi i64)]) (InvalidReference [(node i64)]) (CyclicInput [(node i64)]))\n")
+               "(defsum Judgment (Typed [(type i64)]) (Mismatch [(node i64) (field i64) (expected i64) (actual i64) (rule-lo i64) (rule-hi i64)]) (InvalidReference [(node i64)]) (CyclicInput [(node i64)]) (UnboundName [(node i64) (name (slice u8))]))\n")
+    (push-str! (mut b)
+               "(defstruct Context [(present bool) (name (slice u8)) (type i64) (parent (ptr Context))])\n(defn context-lookup [(context (ptr Context)) (name (slice u8)) (node i64)] (-> Judgment) (block :found (let [(mut cursor) context] (loop (unless (.present cursor) (break)) (when (= (.name cursor) name) (break :found (Typed (.type cursor)))) (set! cursor (.parent cursor)))) (UnboundName node name)))\n")
     (for [i 0 (len (.nodes s))]
       (let [n (elem (field s nodes) i)]
         (push-str! (mut b) "(defstruct N")

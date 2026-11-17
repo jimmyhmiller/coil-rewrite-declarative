@@ -54,3 +54,16 @@ Rule-local inference variables use a `?` prefix:
 The first premise naming a variable binds it to that child's synthesized type. Later premises using the variable require equality with the binding; the rule result may return it. Distinct variables bind independently. Variables are scoped to one variant rule, and a result variable without a premise binding is rejected at its source span. Rule compilation assigns local slots by first occurrence, so variable spelling does not enter generated identifiers. Premises still execute in source order and preserve first-failure behavior.
 
 This implements local inference over concrete scalar types, not general unification of type constructors or polymorphic type schemes. The conditional fixture exercises both Int and Bool results, disagreeing branches, and an invalid condition. A separate projection rule exercises independent variables. Contexts for variables/lets/functions and bidirectional checking remain required for the frontend slice.
+
+Lexical contexts are expressed through lookup and premise-local extension:
+
+```
+(Variable (lookup name))
+(Let ?body
+  (value ?value)
+  (body ?body (bind name ?value)))
+```
+
+`lookup` requires a Text field and returns the nearest binding's type, or `UnboundName` with the expression ID and name. `bind` also requires a Text field. Its type must be a scalar or a variable bound by an earlier premise; it cannot depend on the premise whose context it extends. Each extension exists only for that recursive premise. The implementation uses immutable linked stack frames, so returning from a child restores the parent's context without mutation or cleanup bookkeeping. The empty root context is a sentinel and is never followed to its null parent.
+
+This lets the rules specify non-recursive let scope: value in the outer context, body in the extended context. Tests check unresolved names, shadowing, outer-name use in an initializer, and sibling isolation. Binding Text is borrowed from the expression table; the table and its strings must outlive a judgment call. General namespace resolution, mutually recursive bindings, function types and environment-dependent caching remain unimplemented.

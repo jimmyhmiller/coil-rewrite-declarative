@@ -19,12 +19,22 @@
         wrong-branch (append-0 (mut rows) (N0V3 boolean integer boolean))
         wrong-condition (append-0 (mut rows) (N0V3 integer integer integer))
         projection (append-0 (mut rows) (N0V4 integer boolean))
+        variable (append-0 (mut rows) (N0V5 "x"))
+        local (append-0 (mut rows) (N0V6 "x" integer variable))
+        shadow (append-0 (mut rows) (N0V6 "x" boolean variable))
+        nested-shadow (append-0 (mut rows) (N0V6 "x" integer shadow))
+        outer-init (append-0 (mut rows) (N0V6 "x" variable variable))
+        outer (append-0 (mut rows) (N0V6 "x" boolean outer-init))
+        sibling (append-0 (mut rows) (N0V4 local variable))
         (mut ok) (and (typed? (judge-0 (mut rows) integer) 1)
                       (typed? (judge-0 (mut rows) boolean) 2)
                       (typed? (judge-0 (mut rows) good) 1)
                       (typed? (judge-0 (mut rows) int-choice) 1)
                       (typed? (judge-0 (mut rows) bool-choice) 2)
-                      (typed? (judge-0 (mut rows) projection) 2))]
+                      (typed? (judge-0 (mut rows) projection) 2)
+                      (typed? (judge-0 (mut rows) local) 1)
+                      (typed? (judge-0 (mut rows) nested-shadow) 2)
+                      (typed? (judge-0 (mut rows) outer) 2))]
     (for id [bad nested]
       (unless (match (judge-0 (mut rows) id)
                 (Mismatch [node field expected actual lo hi]
@@ -49,5 +59,10 @@
               (Mismatch [node field expected actual lo hi]
                 (and (= field 0) (= expected 2) (= actual 1))) (_ false))
       (set! ok false))
+    (for id [variable outer-init sibling]
+      (unless (match (judge-0 (mut rows) id)
+                (UnboundName [node name] (and (= node (.index variable)) (= name "x")))
+                (_ false))
+        (set! ok false)))
     (free! (mut rows))
     (if ok 0 1)))

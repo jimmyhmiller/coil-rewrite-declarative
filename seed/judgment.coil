@@ -19,7 +19,7 @@
     (for [p 2 (sexp-count rule)]
       (let [premise (sexp-nth rule p)]
         (when (and (sexp-list? premise)
-                   (= (sexp-count premise) 2)
+                   (or (= (sexp-count premise) 2) (= (sexp-count premise) 3))
                    (sexp-sym-is (sexp-nth premise 1) name))
           (break :found p))))
     (- 0 1)))
@@ -30,6 +30,52 @@
       (do (push-str! (mut b) "t") (number! (mut b) (binding-index rule name)))
       (number! (mut b) (tag name))))
 
+(defn text-field [(v (ptr Variant)) (name (ptr Sexp))] (-> i64)
+  (block :found
+    (for [i 0 (len (.fields v))]
+      (let [f (elem (field v fields) i)]
+        (when (and (sexp-sym-is name (.name f)) (= (.type-name f) "Text"))
+          (break :found i))))
+    (- 0 1)))
+
+(defn scope! [(b (mut StrBuf))
+              (v (ptr Variant))
+              (rule (ptr Sexp))
+              (premise (ptr Sexp))
+              (p i64)] (-> (Result i64 Diag))
+  (block
+    :done
+      (if (= (sexp-count premise) 2)
+          (do (push-str! (mut b) "(let [") (Ok 0))
+          (let [binding (sexp-nth premise 2)]
+            (unless (and (sexp-list? binding)
+                         (= (sexp-count binding) 3)
+                         (sexp-sym-is (sexp-nth binding 0) "bind"))
+              (break
+                :done (Err (problem binding "expected (bind name-field Type)"))))
+            (let [name (sexp-nth binding 1)
+                  ty (sexp-nth binding 2)
+                  index (text-field v name)]
+              (when (< index 0)
+                (break
+                  :done (Err (problem name "binding requires a Text field"))))
+              (unless (and (sexp-sym? ty)
+                           (or (scalar? (sexp-sym ty))
+                               (and (variable? (sexp-sym ty))
+                                    (>= (binding-index rule (sexp-sym ty)) 2)
+                                    (< (binding-index rule (sexp-sym ty)) p))))
+                (break
+                  :done
+                    (Err (problem ty
+                                  "binding type must be known before this premise"))))
+              (push-str! (mut b)
+                         "(let [(mut scope) (Context :present true :name f")
+              (number! (mut b) index)
+              (push-str! (mut b) " :type ")
+              (type-expression! (mut b) rule (sexp-sym ty))
+              (push-str! (mut b) " :parent context) ")
+              (Ok 0))))))
+
 (defn compile-rule [(b (mut StrBuf))
                     (n (ptr Node))
                     (ni i64)
@@ -39,15 +85,21 @@
     (unless (and (sexp-list? rule) (>= (sexp-count rule) 2))
       (break :done (Err (problem rule "expected (Variant Result premises...)"))))
     (let [result (sexp-nth rule 1)
-          v (elem (field n variants) vi)]
-      (unless (and (sexp-sym? result)
-                   (or (scalar? (sexp-sym result))
-                       (variable? (sexp-sym result))))
+          v (elem (field n variants) vi)
+          lookup?
+            (and (sexp-list? result)
+                 (= (sexp-count result) 2)
+                 (sexp-sym-is (sexp-nth result 0) "lookup"))]
+      (unless (or lookup?
+                  (and (sexp-sym? result)
+                       (or (scalar? (sexp-sym result))
+                           (variable? (sexp-sym result)))))
         (break
           :done
             (Err (problem result
                           "judgment result must be a scalar or bound type variable"))))
-      (when (and (variable? (sexp-sym result))
+      (when (and (not lookup?)
+                 (variable? (sexp-sym result))
                  (< (binding-index rule (sexp-sym result)) 0))
         (break :done (Err (problem result "unbound result type variable"))))
       (push-str! (mut b) "(N")
@@ -60,7 +112,7 @@
       (for [p 2 (sexp-count rule)]
         (let [premise (sexp-nth rule p)]
           (when (and (sexp-list? premise)
-                     (= (sexp-count premise) 2)
+                     (or (= (sexp-count premise) 2) (= (sexp-count premise) 3))
                      (sexp-sym? (sexp-nth premise 1)))
             (let [name (sexp-sym (sexp-nth premise 1))]
               (when (and (variable? name) (= (binding-index rule name) p))
@@ -70,7 +122,9 @@
       (push-str! (mut b) "] ")
       (for [p 2 (sexp-count rule)]
         (let [premise (sexp-nth rule p)]
-          (unless (and (sexp-list? premise) (= (sexp-count premise) 2))
+          (unless (and (sexp-list? premise)
+                       (or (= (sexp-count premise) 2)
+                           (= (sexp-count premise) 3)))
             (break
               :done
                 (Err (problem premise "expected (child-field ExpectedType)"))))
@@ -91,12 +145,20 @@
                       :done
                         (Err (problem field-name
                                       "premise field must reference the judged sum"))))
-                  (push-str! (mut b) "(let [answer (judge-worker-")
+                  (match (scope! (mut b) v rule premise p)
+                    (Err [d] (break :done (Err d)))
+                    (Ok [_] 0))
+                  (push-str! (mut b) "answer (judge-worker-")
                   (number! (mut b) ni)
                   (push-str! (mut b) " rows f")
                   (number! (mut b) f)
                   (push-str! (mut b)
-                             " (- fuel 1))] (match answer (Typed [actual] (do ")
+                             " (- fuel 1) ")
+                  (push-str! (mut b)
+                             (if (= (sexp-count premise) 3)
+                                 "(mut scope)"
+                                 "context"))
+                  (push-str! (mut b) ")] (match answer (Typed [actual] (do ")
                   (when (and (variable? (sexp-sym expected))
                              (= (binding-index rule (sexp-sym expected)) p))
                     (push-str! (mut b) "(set! t")
@@ -117,9 +179,19 @@
                   (push-str! (mut b) "))))) (_ (break :rule answer)))) "))))
             (unless found
               (break :done (Err (problem field-name "unknown premise field")))))))
-      (push-str! (mut b) "(Typed ")
-      (type-expression! (mut b) rule (sexp-sym result))
-      (push-str! (mut b) "))))\n")
+      (if lookup?
+          (let [index (text-field v (sexp-nth result 1))]
+            (when (< index 0)
+              (break
+                :done (Err (problem result "lookup requires a Text field"))))
+            (push-str! (mut b) "(context-lookup context f")
+            (number! (mut b) index)
+            (push-str! (mut b) " (.index id))"))
+          (do
+            (push-str! (mut b) "(Typed ")
+            (type-expression! (mut b) rule (sexp-sym result))
+            (push-str! (mut b) ")")))
+      (push-str! (mut b) ")))\n")
       (Ok 0))))
 
 (defn compile-one [(a (dyn Allocator)) (s (ptr Schema)) (form (ptr Sexp))]
@@ -145,7 +217,7 @@
         (push-str! (mut b) "Row))) (id N")
         (number! (mut b) ni)
         (push-str! (mut b)
-                   "Id) (fuel i64)] (-> Judgment) (match (lookup-")
+                   "Id) (fuel i64) (context (ptr Context))] (-> Judgment) (match (lookup-")
         (number! (mut b) ni)
         (push-str! (mut b)
                    " rows id) (None [] (InvalidReference (.index id))) (Some [row] (if (<= fuel 0) (CyclicInput (.index id)) (match row ")
@@ -173,7 +245,8 @@
         (number! (mut b) ni)
         (push-str! (mut b) "Row))) (id N")
         (number! (mut b) ni)
-        (push-str! (mut b) "Id)] (-> Judgment) (judge-worker-")
+        (push-str! (mut b)
+                   "Id)] (-> Judgment) (let [(mut context) (zeroed Context)] (judge-worker-")
         (number! (mut b) ni)
-        (push-str! (mut b) " rows id (len (load rows))))\n")
+        (push-str! (mut b) " rows id (len (load rows)) (mut context))))\n")
         (Ok (str (load b)))))))

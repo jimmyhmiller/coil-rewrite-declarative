@@ -75,6 +75,9 @@ with tempfile.TemporaryDirectory(prefix='rewrite-judgment-') as directory:
         (typing.replace(b'(Integer Int)', b'(Integer Int (value Int))'), b'premise field'),
         (typing.replace(b'(Integer Int)', b'(Integer Mystery)'), b'judgment result'),
         (typing.replace(b'(Integer Int)', b'(Integer ?unbound)'), b'unbound result'),
+        (typing.replace(b'(lookup name)', b'(lookup missing)'), b'lookup requires'),
+        (typing.replace(b'(bind name ?value)', b'(bind value ?value)'), b'binding requires'),
+        (typing.replace(b'(bind name ?value)', b'(bind name ?body)'), b'known before'),
     ]:
         result = subprocess.run([str(ROOT / 'build/schema-seed')], input=invalid, capture_output=True)
         assert result.returncode != 0 and not result.stdout and diagnostic in result.stderr, result
