@@ -1,5 +1,7 @@
 (module rewrite.testmacrohead)
 (import "rewrite.macrohead" :as head)
+(import "rewrite.sourceroutes" :as routes)
+(import "rewrite.observedresolution" :as observed)
 (import "rewrite.headprotocol" :as protocol)
 (import "rewrite.code" :as code)
 (import "rewrite.codeforms" :as syntax)
@@ -15,6 +17,7 @@
 (import "coil.debug-allocator" :use [DebugAllocator])
 
 (defn expect [(a (dyn Allocator))
+              (table (ptr routes/Table))
               (view (ptr namespace/View))
               (world (ptr facts/World))
               (input (ptr code/Syntax))
@@ -25,7 +28,8 @@
               (owner (slice u8))] (-> void)
   (set! (.f0 (elem (field input contexts) 0)) scope)
   (set! (.f1 (elem (field input contexts) 0)) module)
-  (let [(mut output) (head/resolve a view world input id (Some "caller"))]
+  (let [(mut output)
+          (observed/macro-head! a table view world input id (Some "caller"))]
     (defer (head/release! (mut output)))
     (match (.result output)
       (Err [_] (panic "head failure"))
@@ -41,7 +45,7 @@
                                (= (.f2 route) expected))
                     (panic "generated spelling lifetime or route"))))))))
 
-(defn check [(a (dyn Allocator))] (-> void)
+(defn check [(a (dyn Allocator)) (table (ptr routes/Table))] (-> void)
   (let [(mut scratch) (zeroed ScratchArena)
         initialized (init (mut scratch) a)
         sa (allocator (mut scratch))
@@ -88,8 +92,18 @@
               (Err [_] (panic "world")))]
       (defer (namespace/release! (mut view)))
       (defer (facts/release! (mut world)))
-      (expect a (mut view) (mut world) (mut input) id 0 "def" "caller.m" "")
       (expect a
+              table
+              (mut view)
+              (mut world)
+              (mut input)
+              id
+              0
+              "def"
+              "caller.m"
+              "")
+      (expect a
+              table
               (mut view)
               (mut world)
               (mut input)
@@ -98,8 +112,9 @@
               "def"
               "def.$scope7@def$m"
               "")
-      (expect a (mut view) (mut world) (mut input) id 8 "def" "def.m" "")
+      (expect a table (mut view) (mut world) (mut input) id 8 "def" "def.m" "")
       (expect a
+              table
               (mut view)
               (mut world)
               (mut input)
@@ -108,33 +123,45 @@
               "def"
               "lib.$scope9@def$m"
               "lib")
-      (expect a (mut view) (mut world) (mut input) id 7 "" "m" "")
-      (expect a (mut view) (mut world) (mut input) id -1 "def" "caller.m" "")
+      (expect a table (mut view) (mut world) (mut input) id 7 "" "m" "")
+      (expect a
+              table
+              (mut view)
+              (mut world)
+              (mut input)
+              id
+              -1
+              "def"
+              "caller.m"
+              "")
       (let [(mut first)
-              (head/resolve a
-                            (mut view)
-                            (mut world)
-                            (mut input)
-                            id
-                            (Some "caller"))
+              (observed/macro-head! a
+                                    table
+                                    (mut view)
+                                    (mut world)
+                                    (mut input)
+                                    id
+                                    (Some "caller"))
             (mut second)
-              (head/resolve a
-                            (mut view)
-                            (mut world)
-                            (mut input)
-                            id
-                            (Some "caller"))]
+              (observed/macro-head! a
+                                    table
+                                    (mut view)
+                                    (mut world)
+                                    (mut input)
+                                    id
+                                    (Some "caller"))]
         (defer (head/release! (mut first)))
         (defer (head/release! (mut second)))
         (when (= (str (.lexical first)) (str (.lexical second)))
           (panic "constructed occurrence reused lexical identity")))
       (let [(mut invalid)
-              (head/resolve a
-                            (mut view)
-                            (mut world)
-                            (mut input)
-                            (syntax/N0Id :index 999)
-                            (None))]
+              (observed/macro-head! a
+                                    table
+                                    (mut view)
+                                    (mut world)
+                                    (mut input)
+                                    (syntax/N0Id :index 999)
+                                    (None))]
         (defer (head/release! (mut invalid)))
         (match (.result invalid)
           (Ok [_] (panic "invalid head accepted"))
@@ -149,7 +176,13 @@
               (syntax/append-0 (mut (.rows0 (.store input)))
                                (syntax/N0V2 "missing"))
             (mut output)
-              (head/resolve a (mut view) (mut world) (mut input) missing (None))]
+              (observed/macro-head! a
+                                    table
+                                    (mut view)
+                                    (mut world)
+                                    (mut input)
+                                    missing
+                                    (None))]
         (defer (head/release! (mut output)))
         (match (.result output)
           (Ok [_] (panic "missing context accepted"))
@@ -163,7 +196,13 @@
       (let [integer
               (syntax/append-0 (mut (.rows0 (.store input))) (syntax/N0V0 7))
             (mut output)
-              (head/resolve a (mut view) (mut world) (mut input) integer (None))]
+              (observed/macro-head! a
+                                    table
+                                    (mut view)
+                                    (mut world)
+                                    (mut input)
+                                    integer
+                                    (None))]
         (defer (head/release! (mut output)))
         (match (.result output)
           (Ok [_] (panic "integer head accepted"))
@@ -177,7 +216,18 @@
 
 (defn main [] (-> i64)
   (let [debug (DebugAllocator::new (malloc-allocator))]
-    (check (DebugAllocator::view debug))
+    (let [(mut table) (routes/create (DebugAllocator::view debug))]
+      (routes/start! (mut table))
+      (check (DebugAllocator::view debug) (mut table))
+      ; Every input store and head outcome has been released before this lookup.
+      (match (routes/lookup (mut table) "def" "$scope9@def$m" 6)
+        (Some [route]
+              (unless (and (= (.f0 route) "lib")
+                           (= (.f1 route) "$scope9@def$m")
+                           (= (.f2 route) "lib.$scope9@def$m"))
+                (panic "published route lost ownership")))
+        (None [] (panic "scoped route not published")))
+      (routes/release! (mut table)))
     (unless (= (DebugAllocator::deinit! debug) 0) (panic "macro-head leak")))
   (println "macro heads: scoped preference, definition/caller context, raw fallback, fresh constructed occurrences, owned route spelling and invalid syntax passed")
   0)

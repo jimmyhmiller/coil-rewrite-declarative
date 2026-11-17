@@ -15,6 +15,7 @@
 (node Namespace (declarations (many Declaration)) (aliases (many Alias)) (modules (many ExportModule)))
 
 (node Candidate (owner Text) (exported Text) (target Text))
+(equivalence same-route Candidate owner exported target)
 (selection macro-use Candidate first)
 (selection unique-use Candidate (agree-any owner target))
 (node Imports (uses (many Reexport)))

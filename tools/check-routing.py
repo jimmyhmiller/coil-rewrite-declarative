@@ -30,6 +30,9 @@ def world_data(g):
 
 HEADER='''(module fixture.main)
 (import "rewrite.routing" :as routing)
+(import "rewrite.sourceroutes" :as records)
+(import "rewrite.observedresolution" :as observed)
+(import "coil.hashmap" :use *)
 (import "rewrite.resolveprotocol" :as protocol)
 (import "rewrite.routingfacts" :as facts)
 (import "rewrite.namespace" :as namespace)
@@ -46,27 +49,40 @@ HEADER='''(module fixture.main)
     (Some [target] (match (.route answer)
       (None [] (println "hit|{}" target))
       (Some [r] (println "hit|{}|{}|{}|{}|{}|{}" target (match module (Some [m] m) (None [] "")) spelling (.f0 r) (.f1 r) (.f2 r)))))))
+(defn check-record [(table (ptr records/Table)) (spelling (slice u8)) (module (Option (slice u8))) (answer routing/Answer)] (-> void)
+  (match (.route answer)
+    (None [] (unless (= (len (.routes table)) 0) (panic "unexpected published route")))
+    (Some [candidate]
+      (unless (= (len (.routes table)) 1) (panic "wrong route count"))
+      (match (records/lookup table (match module (Some [m] m) (None [] "")) spelling 6)
+        (None [] (panic "missing published route"))
+        (Some [value] (unless (and (= (.f0 value) (.f0 candidate)) (= (.f1 value) (.f1 candidate)) (= (.f2 value) (.f2 candidate))) (panic "wrong published provenance")))))))
 (defn query [(a (dyn Allocator)) (view (ptr namespace/View)) (world (ptr facts/World))
              (spelling (slice u8)) (module (Option (slice u8))) (macro? bool)] (-> void)
-  (match (routing/resolve a view world spelling module macro?)
-    (Ok [answer] (print-answer answer spelling module))
-    (Err [e] (match e
-      (protocol/HandlerError [_ error] (match error
-        (routing/Use [error] (match error
-          (namespace/Ambiguous [first next] (println "ambiguous|{}|{}" (.f0 first) (.f0 next)))
-          (_ (panic "wrong use error"))))
-        (_ (panic "wrong route error"))))
-      (_ (panic "protocol failure"))))))
+  (let [(mut table) (records/create a)]
+    (defer (records/release! (mut table))) (records/start! (mut table))
+    (match (observed/resolve! a (mut table) view world spelling module macro?)
+      (Ok [answer] (check-record (mut table) spelling module answer) (print-answer answer spelling module))
+      (Err [e]
+        (unless (= (len (.routes table)) 0) (panic "error published a route"))
+        (match e
+          (protocol/HandlerError [_ error] (match error
+            (routing/Use [error] (match error
+              (namespace/Ambiguous [first next] (println "ambiguous|{}|{}" (.f0 first) (.f0 next)))
+              (_ (panic "wrong use error"))))
+            (_ (panic "wrong route error"))))
+          (_ (panic "protocol failure")))))))
 (defn query-head [(a (dyn Allocator)) (view (ptr namespace/View)) (world (ptr facts/World))
                   (name (slice u8)) (scope i64) (definition (slice u8)) (fallback (Option (slice u8)))] (-> void)
-  (let [(mut input) (code/create a)
+  (let [(mut table) (records/create a) (mut input) (code/create a)
         id (syntax/append-0 (mut (.rows0 (.store input))) (syntax/N0V2 (syntax/store-text! (mut (.store input)) name)))]
     (defer (code/release! (mut input)))
+    (defer (records/release! (mut table))) (records/start! (mut table))
     (push! (mut (.contexts input)) (syntax/N1Row :f0 scope :f1 (syntax/store-text! (mut (.store input)) definition) :f2 0 :f3 0 :f4 0 :f5 0))
-    (let [(mut output) (head/resolve a view world (mut input) id fallback)]
+    (let [(mut output) (observed/macro-head! a (mut table) view world (mut input) id fallback)]
       (defer (head/release! (mut output)))
       (match (.result output) (Err [_] (panic "head error"))
-        (Ok [answer] (print-answer answer (.spelling output) (.module output)))))))
+        (Ok [answer] (check-record (mut table) (.spelling output) (.module output) answer) (print-answer answer (.spelling output) (.module output)))))))
 (defn check [(a (dyn Allocator))] (-> void)
 '''
 
@@ -101,7 +117,7 @@ def main():
     reference=ROOT/'evidence/routing-reference.json';graphs=json.loads(reference.read_text())['cases']
     assert graphs and all(len(g['answers'])==len(g['route_queries'])+len(g['head_queries']) for g in graphs)
     expected=[v for g in graphs for v in g['answers']];driver=fixture(graphs)
-    runtime=['types','scope','resolution','source','sequence','refer_runtime','selection_runtime','namespace','search_runtime','routing','routing_facts','macro_head','code','equality_runtime']
+    runtime=['types','scope','resolution','source','sequence','refer_runtime','selection_runtime','namespace','search_runtime','routing','routing_facts','macro_head','code','equality_runtime','source_routes','observed_resolution']
     generated=['name_forms','export_search','resolve_protocol','head_protocol','code_forms']
     inputs=[ROOT/f'seed/{n}.coil' for n in runtime]+[ROOT/f'seed/generated/{n}.coil' for n in generated]
     with tempfile.TemporaryDirectory(prefix='rewrite-routing-') as directory:
@@ -113,7 +129,7 @@ def main():
             assert r.returncode==0,r.stdout+r.stderr
             actual=r.stdout.splitlines();assert len(actual)==len(expected),(flags,len(actual),len(expected))
             for i,(a,b) in enumerate(zip(actual,expected)): assert a==b,(flags,i,a,b)
-    report=dict(scope='Resolver/head helper replay including selected route metadata. No source parser, diagnostic text, memo or route-publication parity claim.',graphs=len(graphs),outcomes=len(expected),reference_sha256=hashlib.sha256(reference.read_bytes()).hexdigest(),driver_sha256=hashlib.sha256(driver.encode()).hexdigest(),implementation_sha256={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs},configurations_passed=['default','debug-checks','release'])
+    report=dict(scope='Resolver/head helper replay including selected route metadata. Published route contents checked per query. Source parsing, diagnostic text, memo invalidation and complete source-facts lifecycle parity remain outside scope.',graphs=len(graphs),outcomes=len(expected),reference_sha256=hashlib.sha256(reference.read_bytes()).hexdigest(),driver_sha256=hashlib.sha256(driver.encode()).hexdigest(),implementation_sha256={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs},configurations_passed=['default','debug-checks','release'])
     (ROOT/'evidence/routing-replay.json').write_text(json.dumps(report,indent=2)+'\n')
     print(f'Routing/head replay: {len(graphs)} graphs, {len(expected)} matching outcomes/provenance records; three configurations; no allocator leaks')
 

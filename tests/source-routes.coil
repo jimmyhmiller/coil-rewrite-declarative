@@ -1,0 +1,108 @@
+(module rewrite.testsourceroutes)
+(import "rewrite.sourceroutes" :as routes)
+(import "rewrite.nameforms" :as forms)
+(import "coil.alloc" :use *)
+(import "coil.arraylist" :use *)
+(import "coil.result" :use *)
+(import "coil.str" :use *)
+(import "coil.debug-allocator" :use [DebugAllocator])
+
+(defn candidate [(target (slice u8))] (-> forms/N8Row)
+  (forms/N8Row
+    :f0 "facade"
+    :f1 "renamed"
+    :f2 target))
+
+(defn expect [(table (ptr routes/Table))
+              (module (slice u8))
+              (raw (slice u8))
+              (kind i64)
+              (target (slice u8))] (-> void)
+  (unless (= (match (routes/lookup table module raw kind)
+               (None [] "")
+               (Some [route] (.f2 route)))
+             target)
+    (panic "wrong stored route")))
+
+(defn check [(a (dyn Allocator))] (-> void)
+  (let [(mut table) (routes/create a)
+        (mut selected) (ArrayList::new [(slice u8)] a)]
+    (defer (routes/release! (mut table)))
+    (defer (free! (mut selected)))
+    (when (routes/record! (mut table) "app" "x" 6 (candidate "impl.x"))
+      (panic "disabled recording"))
+    (unless (= (len (.strings (.strings table))) 0)
+      (panic "disabled allocation"))
+    (routes/start! (mut table))
+    (unless (routes/record! (mut table) "app" "x" 6 (candidate "impl.x"))
+      (panic "first record"))
+    (let [count (len (.strings (.strings table)))]
+      (when (routes/record! (mut table) "app" "x" 6 (candidate "impl.x"))
+        (panic "unchanged write"))
+      (unless (= count (len (.strings (.strings table))))
+        (panic "unchanged allocation")))
+    (unless (routes/copy! (mut table) "app" "x" 6 1) (panic "copy"))
+    (routes/record! (mut table) "app" "x" 6 (candidate "impl.new"))
+    (expect (mut table) "app" "x" 1 "impl.x")
+    (expect (mut table) "app" "x" 6 "impl.new")
+    (unless (routes/record! (mut table)
+                            "app"
+                            "x"
+                            6
+                            (forms/N8Row
+                              :f0 "other-facade"
+                              :f1 "other-export"
+                              :f2 "impl.new"))
+      (panic "same declaration hid changed route"))
+    (match (routes/lookup (mut table) "app" "x" 6)
+      (Some [route]
+            (unless (and (= (.f0 route) "other-facade")
+                         (= (.f1 route) "other-export"))
+              (panic "stale provenance")))
+      (None [] (panic "lost changed route")))
+    (when (routes/copy! (mut table) "app" "missing" 6 1) (panic "missing copy"))
+    (routes/scope! (mut table) (mut selected))
+    (when (routes/copy! (mut table) "app" "x" 6 1) (panic "out-of-scope copy"))
+    (expect (mut table) "app" "x" 1 "impl.x")
+    (when (routes/record! (mut table) "app" "x" 6 (candidate "blocked"))
+      (panic "empty scope"))
+    (push! (mut selected) "app")
+    (routes/scope! (mut table) (mut selected))
+    (when (routes/record! (mut table) "library" "x" 6 (candidate "blocked"))
+      (panic "outside module"))
+    (unless (routes/record! (mut table) "app" "x" 6 (candidate "impl.final"))
+      (panic "scoped update"))
+    (routes/start! (mut table))
+    (expect (mut table) "app" "x" 6 "")
+    (unless (routes/record! (mut table) "library" "x" 6 (candidate "library.x"))
+      (panic "start retained scope"))
+    ; The internal tuple encoding cannot alias delimiter-containing names.
+    (routes/record! (mut table) "a:6" "x" 1 (candidate "first"))
+    (routes/record! (mut table) "a" "1:x" 6 (candidate "second"))
+    (expect (mut table) "a:6" "x" 1 "first")
+    (expect (mut table) "a" "1:x" 6 "second")
+    (for [i 0 2000]
+      (let [(mut text) (StrBuf::new a)]
+        (push-str! (mut text) "n")
+        (push-i64! (mut text) i)
+        (routes/record! (mut table)
+                        "many"
+                        (str text)
+                        6
+                        (forms/N8Row
+                          :f0 (str text)
+                          :f1 (str text)
+                          :f2 (str text)))
+        (free! (mut text))))
+    (expect (mut table) "many" "n1999" 6 "n1999")
+    (routes/stop! (mut table))
+    (expect (mut table) "many" "n1999" 6 "")
+    (when (routes/copy! (mut table) "library" "x" 6 1) (panic "stopped copy"))
+    (routes/stop! (mut table))))
+
+(defn main [] (-> i64)
+  (let [debug (DebugAllocator::new (malloc-allocator))]
+    (check (DebugAllocator::view debug))
+    (unless (= (DebugAllocator::deinit! debug) 0) (panic "route table leak")))
+  (println "source routes: gating, scopes, replacement, kind copies, fresh sessions, framed keys and 2000 owned records passed")
+  0)

@@ -1,0 +1,53 @@
+;;; Source-analysis entry points; returned candidates are copied before publication.
+(module rewrite.observedresolution)
+(import "rewrite.sourceroutes" :as routes)
+(import "rewrite.routing" :as routing)
+(import "rewrite.resolveprotocol" :as policy)
+(import "rewrite.routingfacts" :as facts)
+(import "rewrite.namespace" :as namespace)
+(import "rewrite.macrohead" :as head)
+(import "rewrite.code" :as code)
+(import "rewrite.codeforms" :as syntax)
+(import "coil.alloc" :use [Allocator])
+(import "coil.result" :use *)
+
+(defn publish! [(table (ptr routes/Table))
+                (module (Option (slice u8)))
+                (spelling (slice u8))
+                (answer routing/Answer)] (-> void)
+  (match (.route answer)
+    (None [])
+    (Some [candidate]
+          (routes/record! table
+                          (match module (Some [name] name) (None [] ""))
+                          spelling
+                          6
+                          candidate))))
+
+(defn resolve! [(a (dyn Allocator))
+                (table (ptr routes/Table))
+                (view (ptr namespace/View))
+                (world (ptr facts/World))
+                (spelling (slice u8))
+                (module (Option (slice u8)))
+                (macro? bool)]
+  (-> (Result routing/Answer (policy/Failure routing/Error)))
+  (let [result (routing/resolve a view world spelling module macro?)]
+    (match result
+      (Err [_])
+      (Ok [answer] (publish! table module spelling answer)))
+    result))
+
+(defn macro-head! [(a (dyn Allocator))
+                   (table (ptr routes/Table))
+                   (view (ptr namespace/View))
+                   (world (ptr facts/World))
+                   (input (ptr code/Syntax))
+                   (id syntax/N0Id)
+                   (fallback (Option (slice u8)))] (-> head/Outcome)
+  (let [outcome (head/resolve a view world input id fallback)]
+    (match (.result outcome)
+      (Err [_])
+      (Ok [answer]
+          (publish! table (.module outcome) (.spelling outcome) answer)))
+    outcome))
