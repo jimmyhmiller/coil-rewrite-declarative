@@ -1,20 +1,59 @@
 (module rewrite.test-declarations)
-(import "rewrite.declarations" :as decl)
+(import "rewrite.declarations" :as decl :use *)
 (import "coil.alloc" :use *)
 (import "coil.reader" :use *)
 (import "coil.arraylist" :use *)
 (import "coil.result" :use *)
+(import "rewrite.signatures" :use *)
+(import "coil.hashmap" :use *)
+
+(defn resolves-forward? [(forms (ptr (ArrayList Sexp)))] (-> bool)
+  (match (collect-signatures (malloc-allocator) forms)
+    (Err [_] false)
+    (Ok [entries]
+        (match (get entries "answer")
+          (None [] false)
+          (Some [result] (sexp-sym-is result "i64"))))))
+
+(defn duplicate-span? [] (-> bool)
+  (match (read-all (malloc-allocator)
+                   "(defn f [] (-> i64) 1) (defn f [] (-> i64) 2)"
+                   7)
+    (Err [_] false)
+    (Ok [forms]
+        (match (collect-signatures (malloc-allocator) forms)
+          (Ok [_] false)
+          (Err [d]
+               (let [second (elem forms 1)]
+                 (and (= (.source d) 7)
+                      (and (= (.lo d) (.lo second)) (= (.hi d) (.hi second))))))))))
 
 (defn main [] (-> i64)
   (match (read-all (malloc-allocator)
-                   "(defn main [] (-> i64) (answer)) (defn answer [] (-> i64) 42)" 0)
+                   "(defn main [] (-> i64) (answer)) (defn answer [] (-> i64) 42)"
+                   0)
     (Err [_] 1)
     (Ok [forms]
-      (let [main-form (elem forms 0)
-            callee (elem forms 1)]
-        (if (and (decl/ordinary-function? main-form)
-                 (and (decl/ordinary-function? callee)
-                      (and (decl/nullary-call? (sexp-nth main-form 4))
-                           (not (decl/nullary-call? (sexp-nth callee 4))))))
-            0
-            1)))))
+        (let [main-form (elem forms 0)
+              callee (elem forms 1)]
+          (match (ordinary-function callee)
+            (NoFunction [] 1)
+            (Function [_ name parameters result body]
+                      (match (ordinary-function main-form)
+                        (NoFunction [] 2)
+                        (Function [_ _ _ _ call-form]
+                                  (match (nullary-call call-form)
+                                    (NoCall [] 3)
+                                    (Call [target]
+                                          (if (and (sexp-sym-is target
+                                                                (sexp-sym name))
+                                                   (and (and (duplicate-span?)
+                                                             (and (resolves-forward? forms)
+                                                                  (= (sexp-count parameters)
+                                                                     0)))
+                                                        (and (sexp-sym-is result
+                                                                          "i64")
+                                                             (= (sexp-int body)
+                                                                42))))
+                                              0
+                                              4)))))))))))

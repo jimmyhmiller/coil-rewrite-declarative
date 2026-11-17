@@ -3,7 +3,9 @@ name = "rewrite"
 source-roots = ["dsls", "src"]
 
 [readers]
+".scope" = "rewrite.scope-reader"
 ".patterns" = "rewrite.pattern-reader"
 
 [modules]
 "rewrite.declarations" = "src/declarations.patterns"
+"rewrite.signatures" = "src/signatures.scope"

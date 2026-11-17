@@ -1,0 +1,68 @@
+(module rewrite.scope-reader)
+(import "coil.primitive" :as primitive)
+
+(reader-provider "rewrite.scope-reader" read-scope)
+
+;; An index draws its keys and values from a successful extraction. The
+;; source chooses the extraction, the selected fields, and collision policy.
+(defn read-scope [(context Code)] (-> Code)
+  (let [forms (primitive/code-read (get context 2) `(reader-config))]
+    (when (!= (primitive/code-count forms) 2)
+      (primitive/error "expected one scope declaration"))
+    (let [rule (get forms 1)]
+      (when (or (!= (primitive/code-count rule) 7)
+                (not (primitive/code-eq (get rule 0) `scope)))
+        (primitive/error "expected (scope name module extractor pattern binding collision)"))
+      (let [name (get rule 1)
+            module (get rule 2)
+            extractor (get rule 3)
+            pattern (get rule 4)
+            binding (get rule 5)
+            collision (get rule 6)]
+        (when (or (!= (primitive/code-count binding) 3)
+                  (not (primitive/code-eq (get binding 0) `bind)))
+          (primitive/error "expected (bind symbol-node value-node)"))
+        (when (or (!= (primitive/code-count collision) 3)
+                  (not (primitive/code-eq (get collision 0) `reject-duplicate)))
+          (primitive/error "expected (reject-duplicate site message)"))
+        (let [key (get binding 1)
+              value (get binding 2)
+              table `(coil.hashmap.HashMap (slice u8) (ptr coil.reader.Sexp))]
+          `(do
+             (import ~module :use *)
+             (import "coil.reader" :use *)
+             (import "coil.result" :use *)
+             (import "coil.alloc" :use *)
+             (import "coil.hashmap" :use *)
+             (import "coil.str" :use *)
+             (import "coil.arraylist" :use *)
+             (defn ~name [(a (dyn coil.alloc.Allocator))
+                          (forms (ptr (coil.arraylist.ArrayList coil.reader.Sexp)))]
+               (-> (Result ~table coil.reader.Diag))
+               (block
+                 :collect
+                   (let [(mut entries)
+                           (coil.hashmap.HashMap::new [(slice u8)
+                                                       (ptr coil.reader.Sexp)]
+                                                      a
+                                                      (coil.str.keyops-borrowed))]
+                     (for [i 0 (len (load forms))]
+                       (match (~extractor (elem forms i))
+                         (~(get pattern 0) ~(get pattern 1)
+                            (let [spelling (coil.reader.sexp-sym ~key)]
+                              (when (contains? entries spelling)
+                                (free! (mut entries))
+                                (return-from
+                                  :collect
+                                    (Err (coil.reader.mk-diag-src (.source ~(get collision
+                                                                                 1))
+                                                                  (.lo ~(get collision
+                                                                             1))
+                                                                  (.hi ~(get collision
+                                                                             1))
+                                                                  ~(get collision
+                                                                        2)))))
+                              (set! (mut entries) spelling ~value)
+                              0))
+                         (_ 0)))
+                     (Ok entries))))))))))

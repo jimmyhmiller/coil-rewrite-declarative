@@ -1,3 +1,7 @@
-(recognize ordinary-function? (list "defn" symbol (vector ...) (list "->" _) _ ...))
-(recognize typed-parameter? (list symbol _))
-(recognize nullary-call? (list symbol))
+(extract ordinary-function FunctionDeclaration Function NoFunction
+  (capture declaration (list "defn" (capture name symbol) (capture parameters (vector ...))
+        (list "->" (capture result _)) (capture first-body _) ...)))
+(extract typed-parameter ParameterDeclaration Parameter NoParameter
+  (list (capture name symbol) (capture type _)))
+(extract nullary-call CallExpression Call NoCall
+  (list (capture callee symbol)))
