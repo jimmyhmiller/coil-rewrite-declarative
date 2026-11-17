@@ -3,6 +3,7 @@
 (use "coil.hashmap" hm)
 (use "coil.reader" rd)
 (use "coil.str" str)
+(use "coil.text" text)
 (use "coil.fs" fs)
 (use "declarative.rt.image" image)
 (use "declarative.rt.graph" graph)
@@ -17,9 +18,18 @@
 (context LoopEdges
   [(backs (al/ArrayList i32)) (exits (al/ArrayList i32)) (values (al/ArrayList i32))])
 
+(context Instance
+  [(definition (ptr Sexp)) (symbol (slice u8)) (types (hm/HashMap (slice u8) (slice u8)))])
+(context Instances
+  [(pending (al/ArrayList Instance)) (symbols (hm/HashMap (slice u8) (slice u8))) (used (hm/HashMap (slice u8) bool))])
+
+(translate concrete [(types (hm/HashMap (slice u8) (slice u8))) (name (slice u8))] (slice u8)
+  (on (get types name) (Some [actual]) (yield actual))
+  (otherwise (yield name)))
+
 (context Frame
   [(loops (hm/HashMap i64 (ptr LoopEdges))) (a (dyn Allocator)) (g graph/Graph) (control i32)
-   (checked checker/Checked)
+   (instances (ptr Instances)) (instance Instance) (checked checker/Checked)
    (locals (hm/HashMap i64 i32))])
 
 (translate machine-type [(type (slice u8)) (at (ptr Sexp))] (Result i32 Diag)
@@ -74,7 +84,7 @@
 
 (translate lower-parameter [(f (mut Frame)) (position i64) (param (ptr Sexp))] (Result i32 Diag)
   (on (typed-parameter param) (Parameter [name type])
-    (need rep (machine-type (checker/scalar-type type) type))
+    (need rep (machine-type (concrete (.types (.instance f)) (checker/scalar-type type)) type))
     (bind value (nodes/parameter (mut (.g f)) rep (cast u64 position)))
     (perform (set! (mut (.locals f)) (.node-id name) value))
     (yield (Ok rep)))
@@ -88,7 +98,7 @@
   (on (get (.expanded (.checked f)) (.node-id expr)) (Some [expanded])
     (yield (lower-expression (mut f) (mut im) signatures expanded)))
   (on (get (.types (.checked f)) (.node-id expr)) (Some [type])
-    (need rep (machine-type type expr))
+    (need rep (machine-type (concrete (.types (.instance f)) type) expr))
     (yield (lower-value (mut f) (mut im) signatures expr rep)))
   (otherwise (yield (Err (mk-diag-src (.source expr) (.lo expr) (.hi expr) "missing checked expression type")))))
 
@@ -113,6 +123,9 @@
     (bind symbol (image/symbol! (mut im) (modules/symbol-for signatures form)))
     (bind address (ir/symbol! (mut (.g f)) (cast u64 symbol)))
     (yield (Ok (load-scalar-at (mut f) address expected))))
+  (on (get (.layout-parameters (.checked f)) (.node-id expr)) (Some [parameter])
+    (bind bytes (checker/scalar-bytes (concrete (.types (.instance f)) parameter)))
+    (yield (Ok (nodes/literal (mut (.g f)) expected (cast u64 bytes)))))
   (on (get (.constants (.checked f)) (.node-id expr)) (Some [constant])
     (yield (lower-value (mut f) (mut im) signatures (.literal constant) expected)))
   (where (identifier? expr)
@@ -224,11 +237,11 @@
         (choose
           (on (modules/callable function) (Function [_ name parameters result])
             (bind (mut args) (al/ArrayList::new [i32] (.a f)))
-            (walk position arg expr (checker/argument-start expr)
+            (walk position arg expr (checker/call-start expr)
               (need value (lower-expression (mut f) (mut im) signatures arg) (< (.control f) 0))
               (perform (push! (mut args) value))
               (yield 0))
-            (bind canonical (modules/symbol-for signatures function))
+            (need canonical (call-symbol (mut f) signatures function expr))
             (bind symbol (image/symbol! (mut im) canonical))
             (bind call-node (nodes/invoke (mut (.g f)) (.control f) (cast u64 symbol) (slice args)))
             (perform (set! (.control f) call-node))
@@ -298,9 +311,35 @@
     (need done (run-cleanups (mut f) (mut im) signatures expr) (< (.control f) 0))
     (yield (Ok (load last-value)))))
 
+(translate call-symbol [(f (mut Frame)) (lookup modules/Lookup) (function (ptr Sexp)) (expr (ptr Sexp))]
+  (Result (slice u8) Diag)
+  (on (function-generics function) (GenericParameters [params])
+    (choose
+      (on (get (.type-arguments (.checked f)) (.node-id expr)) (Some [arguments])
+        (bind (mut types) (hm/HashMap::new [(slice u8) (slice u8)] (.a f) (str/keyops-borrowed)))
+        (bind (mut suffix) (: "" (slice u8)))
+        (walk i param params 0
+          (bind actual (concrete (.types (.instance f)) (get arguments i)))
+          (perform (set! (mut types) (sexp-sym param) actual))
+          (perform (set! suffix (text/sconcat3 (.a f) (load suffix) "." actual)))
+          (yield 0))
+        (bind key (text/sconcat3 (.a f) (load suffix) ":" (modules/symbol-for lookup function)))
+        (choose
+          (on (get (.symbols (.instances f)) key) (Some [existing]) (yield (Ok existing)))
+          (otherwise
+            (bind (mut symbol) (text/sconcat (.a f) "coil.generic" key))
+            (perform (while (contains? (.used (.instances f)) (load symbol))
+                       (set! symbol (text/sconcat (.a f) (load symbol) "."))))
+            (perform (set! (mut (.used (.instances f))) (load symbol) true))
+            (perform (set! (mut (.symbols (.instances f))) key (load symbol)))
+            (perform (push! (mut (.pending (.instances f))) (Instance :definition function :symbol (load symbol) :types (load types))))
+            (yield (Ok (load symbol))))))
+      (otherwise (yield (Err (mk-diag-src (.source expr) (.lo expr) (.hi expr) "missing inferred type arguments"))))))
+  (otherwise (yield (Ok (modules/symbol-for lookup function)))))
+
 (translate lower-function
   [(a (dyn Allocator)) (im (mut image/Image))
-   (signatures modules/Lookup) (checked checker/Checked) (form (ptr Sexp))] (Result i64 Diag)
+   (signatures modules/Lookup) (checked checker/Checked) (instances (ptr Instances)) (instance Instance) (form (ptr Sexp))] (Result i64 Diag)
   (on (primitive-header form) (Primitive [_]) (yield (Ok 0)))
   (on (modules/type-name form) (Some [_]) (yield (Ok 0)))
   (where (static-definition? form)
@@ -322,8 +361,8 @@
   (on (constant-declaration form) (Constant [_ _]) (yield (Ok 0)))
   (where (modules/external? form) (yield (Ok 0)))
   (on (ordinary-function form) (Function [_ name parameters result])
-    (need rep (machine-type (checker/scalar-type result) result))
-    (bind (mut f) (Frame :loops (hm/HashMap::new-scalar [i64 (ptr LoopEdges)] a) :a a :checked checked :g (graph/create a) :control 0
+    (need rep (machine-type (concrete (.types instance) (checker/scalar-type result)) result))
+    (bind (mut f) (Frame :instances instances :instance instance :loops (hm/HashMap::new-scalar [i64 (ptr LoopEdges)] a) :a a :checked checked :g (graph/create a) :control 0
                          :locals (hm/HashMap::new-scalar [i64 i32] a)))
     (perform (set! (.control f) (nodes/start (mut (.g f)))))
     (walk position param parameters 0
@@ -333,7 +372,7 @@
     (perform (when (and (>= (.control f) 0) (!= rep ir/T-CTRL))
                (nodes/finish (mut (.g f)) (.control f) value)))
     (perform (when (and (>= (.control f) 0) (= rep ir/T-CTRL)) (nodes/finish-void (mut (.g f)) (.control f))))
-    (bind canonical (modules/symbol-for signatures form))
+    (bind canonical (if (= (.symbol instance) "") (modules/symbol-for signatures form) (.symbol instance)))
     (choose
       (on (host/append-graph! a (mut im) (image/symbol! (mut im) canonical) (.g f))
           (Err [message]) (yield (Err (mk-diag-src (.source form) (.lo form) (.hi form) message))))
@@ -345,8 +384,26 @@
    (checked checker/Checked) (unit (ptr modules/SourceUnit)) (output (slice u8))] (Result i64 Diag)
   (otherwise
     (bind (mut im) (image/create a))
+    (bind instances (box! a Instances (Instances :pending (al/ArrayList::new [Instance] a)
+                                        :symbols (hm/HashMap::new [(slice u8) (slice u8)] a (str/keyops-borrowed))
+                                        :used (hm/HashMap::new [(slice u8) bool] a (str/keyops-borrowed)))))
+    (bind empty (hm/HashMap::new [(slice u8) (slice u8)] a (str/keyops-borrowed)))
     (visit form (.declarations unit)
-      (need _ (lower-function a (mut im) (modules/lookup-for unit form) checked form))
+      (choose
+        (on (get (.symbols unit) (.node-id form)) (Some [symbol])
+          (perform (set! (mut (.used instances)) symbol true))
+          (yield 0))
+        (otherwise (yield 0))))
+    (visit form (.declarations unit)
+      (choose
+        (on (function-generics form) (GenericParameters [_]) (yield 0))
+        (otherwise
+          (need _ (lower-function a (mut im) (modules/lookup-for unit form) checked instances
+                                   (Instance :definition form :symbol "" :types empty) form))
+          (yield 0))))
+    (drain instance (.pending instances)
+      (bind form (.definition instance))
+      (need _ (lower-function a (mut im) (modules/lookup-for unit form) checked instances instance form))
       (yield 0))
     (bind bytes (host/object-bytes a im))
     (choose

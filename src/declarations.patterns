@@ -1,5 +1,9 @@
+(extract function-generics FunctionGenerics GenericParameters Monomorphic
+  (list (spellings "defn" "defn*") symbol (capture types (vector ...)) (vector ...) (list "->" _) ...))
 (extract ordinary-function FunctionDeclaration Function NoFunction
   (capture declaration (list (spellings "defn" "defn*") (capture name symbol) (capture parameters (vector ...))
+        (list "->" (capture result _)) ...))
+  (capture declaration (list (spellings "defn" "defn*") (capture name symbol) (vector ...) (capture parameters (vector ...))
         (list "->" (capture result _)) ...))
   (capture declaration (list (spellings "defn" "defn*") (capture name symbol) (keyword "cc") (list symbol)
         (capture parameters (vector ...)) (list "->" (capture result _)) ...)))

@@ -17,12 +17,14 @@
   [(allocator (dyn coil.alloc.Allocator))
    (nominal-state (coil.hashmap.HashMap i64 bool))
    (parameters (Option (ptr coil.reader.Sexp)))
+   (layout-parameters (coil.hashmap.HashMap i64 (slice u8)))
    (payload-sizes (coil.hashmap.HashMap i64 i64))
    (field-offsets (coil.hashmap.HashMap i64 i64))
    (layouts (coil.hashmap.HashMap i64 Layout)) (layout-started (coil.hashmap.HashMap i64 bool))
    (statics (coil.hashmap.HashMap i64 (ptr coil.reader.Sexp)))
    (constants (coil.hashmap.HashMap i64 ConstantValue))
    (evaluating (coil.hashmap.HashMap i64 bool))
+   (type-arguments (coil.hashmap.HashMap i64 (coil.arraylist.ArrayList (slice u8))))
    (callees (coil.hashmap.HashMap i64 (ptr coil.reader.Sexp)))
    (active-cleanups (coil.arraylist.ArrayList (ptr coil.reader.Sexp)))
    (barrier i64)
@@ -56,6 +58,18 @@
 
 (value argument-start [(expr (ptr coil.reader.Sexp))] i64
   (if (explicit-call? expr) 2 1))
+
+(value call-start [(expr (ptr coil.reader.Sexp))] i64
+  (let [start (argument-start expr)]
+    (if (and (> (coil.reader.sexp-count expr) start) (coil.reader.sexp-vec? (coil.reader.sexp-nth expr start)))
+        (+ start 1) start)))
+
+(value function-parameters [(form (ptr coil.reader.Sexp))] (Option (ptr coil.reader.Sexp))
+  (match (function-generics form) (GenericParameters [params] (Some params)) (_ (None [(ptr coil.reader.Sexp)]))))
+
+(judgment check-signature-type [(form (ptr coil.reader.Sexp)) (type (ptr coil.reader.Sexp))]
+  (when (and (coil.reader.sexp-sym? type) (parameter-type? (function-parameters form) (coil.reader.sexp-sym type))) (accept))
+  (prove (check-type type)))
 
 (predicate contextual-number? [(expr (ptr coil.reader.Sexp))]
   (cond (or (int-literal? expr) (float-literal? expr)) true
@@ -421,6 +435,12 @@
    (checked (mut Checked))
    (locals (coil.amap.AMap (slice u8) i64)) (expr (ptr coil.reader.Sexp))
    (expected Expectation)] (slice u8)
+  (cases (layout-query expr)
+    ((LayoutOf [_ type])
+      (when (and (coil.reader.sexp-sym? type) (parameter-type? (.parameters checked) (coil.reader.sexp-sym type)))
+        (record (.layout-parameters checked) (.node-id expr) (coil.reader.sexp-sym type))
+        (conclude "i64")))
+    (_))
   (obtain result (layout-value signatures (mut checked) expr)
     (cases result
       ((Some [value]) (record (.constants checked) (.node-id expr) value) (conclude (.type value)))
@@ -618,6 +638,10 @@
             (record (.callees checked) (.node-id expr) found)
             (cases (rewrite.modules.callable found)
               ((Function [_ _ parameters result])
+                (cases (function-generics found)
+                  ((GenericParameters [types])
+                    (obtain t (generic-call signatures (mut checked) locals expr types parameters result expected) (conclude t)))
+                  (_))
                 (require (= (coil.reader.sexp-count parameters) (- (coil.reader.sexp-count expr) (argument-start expr)))
                          expr "wrong number of arguments")
                 (each-child arg expr (argument-start expr) i
@@ -627,6 +651,47 @@
                 (conclude (scalar-type result)))
               (_ (reject found "invalid function signature")))))))
     (_ (reject expr "unsupported expression"))))
+
+(derive generic-call [(lookup rewrite.modules.Lookup) (checked (mut Checked)) (locals (coil.amap.AMap (slice u8) i64))
+                      (expr (ptr coil.reader.Sexp)) (types (ptr coil.reader.Sexp)) (params (ptr coil.reader.Sexp))
+                      (result (ptr coil.reader.Sexp)) (expected Expectation)] (slice u8)
+  (with start (call-start expr)
+    (require (= (- (coil.reader.sexp-count expr) start) (coil.reader.sexp-count params)) expr "wrong number of arguments")
+    (with (mut bindings) (coil.hashmap.HashMap::new [(slice u8) (slice u8)] (.allocator checked) (coil.str.keyops-borrowed))
+      (when (!= start (argument-start expr))
+        (with supplied (coil.reader.sexp-nth expr (argument-start expr))
+          (require (= (coil.reader.sexp-count supplied) (coil.reader.sexp-count types)) supplied "wrong number of type arguments")
+          (each-child t supplied 0 i
+            (require (coil.reader.sexp-sym? t) t "expected a scalar type argument")
+            (when (not (parameter-type? (.parameters checked) (coil.reader.sexp-sym t))) (prove (check-type t)))
+            (record bindings (coil.reader.sexp-sym (coil.reader.sexp-nth types i)) (scalar-type t)))))
+      (when (and (= start (argument-start expr)) (coil.reader.sexp-sym? result)
+                 (parameter-type? (Some types) (scalar-type result)))
+        (cases expected ((Expect [wanted]) (record bindings (scalar-type result) wanted)) (_)))
+      (each-index pass 2
+        (each-child param params 0 i
+          (cases (typed-parameter param)
+            ((Parameter [_ t])
+              (require (coil.reader.sexp-sym? t) t "unsupported generic parameter type")
+              (with key (scalar-type t)
+                (with arg (coil.reader.sexp-nth expr (+ start i))
+                  (when (= pass (if (or (int-literal? arg) (float-literal? arg)) 1 0))
+                    (cases (get bindings key)
+                      ((Some [known]) (prove (check-expression lookup (mut checked) locals arg (Expect known))))
+                      (_ (when (parameter-type? (Some types) key)
+                           (obtain actual (check-expression lookup (mut checked) locals arg (Infer))
+                             (record bindings key actual)))
+                         (when (not (parameter-type? (Some types) key))
+                           (prove (check-expression lookup (mut checked) locals arg (Expect key))))))))))
+            (_ (reject param "invalid generic parameter")))))
+      (with (mut arguments) (coil.arraylist.ArrayList::new [(slice u8)] (.allocator checked))
+        (each-child t types 0 i
+          (cases (get bindings (coil.reader.sexp-sym t))
+            ((Some [actual]) (perform (push! (mut arguments) actual)))
+            (_ (reject expr "cannot infer type argument"))))
+        (record (.type-arguments checked) (.node-id expr) (load arguments)))
+      (require (coil.reader.sexp-sym? result) result "unsupported generic result type")
+      (conclude (match (get bindings (scalar-type result)) (Some [actual] actual) (_ (scalar-type result)))))))
 
 (predicate labelled-jump? [(expr (ptr coil.reader.Sexp))]
   (and (> (coil.reader.sexp-count expr) 1) (coil.reader.sexp-kw? (coil.reader.sexp-nth expr 1))))
@@ -778,14 +843,17 @@
       (_))
     (cases (ordinary-function form)
       ((Function [_ name parameters result])
+        (cases (function-generics form)
+          ((GenericParameters [types]) (each-child t types 0 i (require (coil.reader.sexp-sym? t) t "expected a type parameter name")))
+          (_))
         (require (not (or (explicit-call-name? name) (layout-name? name) (offset-name? name))) name "cannot define a function named for a built-in form")
-        (when (not (coil.reader.sexp-sym-is result "void")) (prove (check-type result)))
+        (when (not (coil.reader.sexp-sym-is result "void")) (prove (check-signature-type form result)))
         (distinct names allocator
           (each-child parameter parameters 0 position
             (cases (typed-parameter parameter)
               ((Parameter [name type])
                 (insert-unique names name form "duplicate parameter name")
-                (prove (check-type type)))
+                (prove (check-signature-type form type)))
               (_ (reject parameter "invalid parameter"))))))
       (_ (cases (rewrite.modules.foreign-signature form)
            ((External [name parameters result])
@@ -848,13 +916,15 @@
 (derive check-functions
   [(allocator (dyn coil.alloc.Allocator))
    (unit (ptr rewrite.modules.SourceUnit))] Checked
-  (with (mut checked) (Checked :nominal-state (coil.hashmap.HashMap::new-scalar [i64 bool] allocator) :parameters (None [(ptr coil.reader.Sexp)]) :payload-sizes (coil.hashmap.HashMap::new-scalar [i64 i64] allocator)
+  (with (mut checked) (Checked :nominal-state (coil.hashmap.HashMap::new-scalar [i64 bool] allocator) :parameters (None [(ptr coil.reader.Sexp)]) :layout-parameters (coil.hashmap.HashMap::new-scalar [i64 (slice u8)] allocator)
+                               :payload-sizes (coil.hashmap.HashMap::new-scalar [i64 i64] allocator)
                                :field-offsets (coil.hashmap.HashMap::new-scalar [i64 i64] allocator)
                                :layouts (coil.hashmap.HashMap::new-scalar [i64 Layout] allocator)
                                :layout-started (coil.hashmap.HashMap::new-scalar [i64 bool] allocator)
                                :allocator allocator :statics (coil.hashmap.HashMap::new-scalar [i64 (ptr coil.reader.Sexp)] allocator)
                                :constants (coil.hashmap.HashMap::new-scalar [i64 ConstantValue] allocator)
                                :evaluating (coil.hashmap.HashMap::new-scalar [i64 bool] allocator)
+                               :type-arguments (coil.hashmap.HashMap::new-scalar [i64 (coil.arraylist.ArrayList (slice u8))] allocator)
                                :callees (coil.hashmap.HashMap::new-scalar [i64 (ptr coil.reader.Sexp)] allocator) :active-cleanups (coil.arraylist.ArrayList::new [(ptr coil.reader.Sexp)] allocator)
                                :barrier 0 :guards (coil.hashmap.HashMap::new-scalar [i64 bool] allocator)
                                :on-exit (coil.hashmap.HashMap::new-scalar [i64 (coil.arraylist.ArrayList (ptr coil.reader.Sexp))] allocator)
@@ -868,6 +938,7 @@
     (each-form form (.declarations unit)
       (cases (ordinary-function form)
         ((Function [_ _ parameters result])
+          (perform (set! (.parameters checked) (function-parameters form)))
           (require (or (> (coil.reader.sexp-count form) (rewrite.modules.function-body-start form parameters)) (coil.reader.sexp-sym-is result "void"))
                    form "empty function body requires a void result")
           (with (mut locals) (coil.amap.amap-new [(slice u8) i64] (coil.str.keyops-borrowed) allocator)
@@ -879,7 +950,8 @@
                 (_ (reject param "invalid parameter"))))
             (prove (check-body (rewrite.modules.lookup-for unit form) (mut checked) locals form (rewrite.modules.function-body-start form parameters)
                      (if (coil.reader.sexp-sym-is result "void") (Discard)
-                         (Expect (scalar-type result)))))))
+                         (Expect (scalar-type result))))
+            (perform (set! (.parameters checked) (None [(ptr coil.reader.Sexp)]))))))
         (_ (cases (rewrite.modules.type-name form) ((Some [_]) (prove (check-nominal unit (mut checked) form)))
              (_ (when (not (or (rewrite.modules.external? form) (match (primitive-header form) (Primitive [_] true) (_ false)))) (prove (constant-value unit (mut checked) form))))))))
     (conclude checked)))

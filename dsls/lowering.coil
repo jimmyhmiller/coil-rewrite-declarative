@@ -64,6 +64,13 @@
                            (coil.reader.sexp-nth ~tree (+ (* 2 pair) 1))]
                      ~(steps step 4)))
                  ~(steps body (+ i 1))))
+          (p/code-eq tag `drain)
+            `(do
+               (let [(mut cursor) 0]
+                 (while (< (load cursor) (len ~(get step 2)))
+                   (let [~(get step 1) (get ~(get step 2) (load cursor))] ~(steps step 3))
+                   (set! cursor (+ (load cursor) 1))))
+               ~(steps body (+ i 1)))
           (p/code-eq tag `each-element)
             `(do
                (for [index 0 (len ~(get step 2))]
