@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 for flags in [[], ['--debug-checks'], ['--release']]:
     subprocess.run(['coil', 'run', 'tests/phases.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/types.coil', *flags], cwd=ROOT, check=True)
+    subprocess.run(['coil', 'run', 'tests/sequences.coil', *flags], cwd=ROOT, check=True)
 subprocess.run(['coil', 'build', 'seed/main.coil', '-o', 'build/schema-seed'], cwd=ROOT, check=True)
 source = (ROOT / 'tests/schemas/expressions.schema').read_bytes()
 generated = subprocess.check_output([str(ROOT / 'build/schema-seed')], input=source)
@@ -19,6 +20,7 @@ with tempfile.TemporaryDirectory(prefix='rewrite-schema-') as directory:
     shutil.copyfile(ROOT / "seed/types.coil", work / "types.coil")
     shutil.copyfile(ROOT / "seed/scope.coil", work / "scope.coil")
     shutil.copyfile(ROOT / "seed/source.coil", work / "source.coil")
+    shutil.copyfile(ROOT / "seed/sequence.coil", work / "sequence.coil")
     (work / 'Coil.toml').write_text('[package]\nname = "fixture"\nentry = "main.coil"\nsource-roots = ["."]\n')
     (work / 'generated.coil').write_bytes(generated)
     client = (ROOT / 'tests/generated.coil.in').read_text()
@@ -39,6 +41,7 @@ with tempfile.TemporaryDirectory(prefix='rewrite-recursive-') as directory:
     shutil.copyfile(ROOT / "seed/types.coil", work / "types.coil")
     shutil.copyfile(ROOT / "seed/scope.coil", work / "scope.coil")
     shutil.copyfile(ROOT / "seed/source.coil", work / "source.coil")
+    shutil.copyfile(ROOT / "seed/sequence.coil", work / "sequence.coil")
     (work / 'generated.coil').write_bytes(subprocess.check_output([str(ROOT / 'build/schema-seed')], input=recursive))
     subprocess.run(['coil', 'check', str(work / 'generated.coil')], check=True)
 invalid = subprocess.run([str(ROOT / 'build/schema-seed')], input=b'(node X (x Missing))', capture_output=True)
@@ -50,6 +53,7 @@ with tempfile.TemporaryDirectory(prefix='rewrite-variants-') as directory:
     shutil.copyfile(ROOT / "seed/types.coil", work / "types.coil")
     shutil.copyfile(ROOT / "seed/scope.coil", work / "scope.coil")
     shutil.copyfile(ROOT / "seed/source.coil", work / "source.coil")
+    shutil.copyfile(ROOT / "seed/sequence.coil", work / "sequence.coil")
     (work / 'Coil.toml').write_text('[package]\nname = "fixture"\nentry = "main.coil"\nsource-roots = ["."]\n')
     (work / 'generated.coil').write_bytes(subprocess.check_output(
         [str(ROOT / 'build/schema-seed')], input=(ROOT / 'tests/schemas/recursive.schema').read_bytes()))
@@ -72,6 +76,7 @@ with tempfile.TemporaryDirectory(prefix='rewrite-judgment-') as directory:
     shutil.copyfile(ROOT / "seed/types.coil", work / "types.coil")
     shutil.copyfile(ROOT / "seed/scope.coil", work / "scope.coil")
     shutil.copyfile(ROOT / "seed/source.coil", work / "source.coil")
+    shutil.copyfile(ROOT / "seed/sequence.coil", work / "sequence.coil")
     (work / 'Coil.toml').write_text('[package]\nname = "fixture"\nentry = "main.coil"\nsource-roots = ["."]\n')
     typing = (ROOT / 'tests/schemas/typing.schema').read_bytes()
     output = subprocess.check_output([str(ROOT / 'build/schema-seed')], input=typing)
@@ -113,6 +118,7 @@ with tempfile.TemporaryDirectory(prefix='rewrite-reader-') as directory:
     shutil.copyfile(ROOT / "seed/types.coil", work / "types.coil")
     shutil.copyfile(ROOT / "seed/scope.coil", work / "scope.coil")
     shutil.copyfile(ROOT / "seed/source.coil", work / "source.coil")
+    shutil.copyfile(ROOT / "seed/sequence.coil", work / "sequence.coil")
     (work / 'Coil.toml').write_text('[package]\nname = "fixture"\nentry = "main.coil"\nsource-roots = ["."]\n')
     (work / 'generated.coil').write_bytes(subprocess.check_output(
         [str(ROOT / 'build/schema-seed')], input=(ROOT / 'tests/schemas/typing.schema').read_bytes()))
@@ -126,6 +132,7 @@ with tempfile.TemporaryDirectory(prefix='rewrite-index-') as directory:
     shutil.copyfile(ROOT/'seed/types.coil', work/'types.coil')
     shutil.copyfile(ROOT/'seed/scope.coil', work/'scope.coil')
     shutil.copyfile(ROOT/'seed/source.coil', work/'source.coil')
+    shutil.copyfile(ROOT/'seed/sequence.coil', work/'sequence.coil')
     (work/'Coil.toml').write_text('[package]\nname="fixture"\nentry="main.coil"\nsource-roots=["."]\n')
     keyed = b'(node Entry (label Text :key) (serial Int :key) (flag Bool :key))'
     (work/'generated.coil').write_bytes(subprocess.check_output([str(ROOT/'build/schema-seed')], input=keyed))
@@ -143,7 +150,7 @@ print('Schema keys: content lookup, growth, subset identity, duplicate provenanc
 
 with tempfile.TemporaryDirectory(prefix='rewrite-syntax-') as directory:
     work = Path(directory)
-    for name in ['types', 'scope', 'source']:
+    for name in ['types', 'scope', 'source', 'sequence']:
         shutil.copyfile(ROOT/'seed'/f'{name}.coil', work/f'{name}.coil')
     (work/'Coil.toml').write_text('[package]\nname="fixture"\nentry="main.coil"\nsource-roots=["."]\n')
     source = b'(node Pair (first Text) (second Int)) (syntax Pair (Pair (vector (int second) (text first))))'
@@ -192,10 +199,48 @@ print('Typed transformations: schema and rule contract rejections passed')
 identity_schema = b'(sum Tree (Leaf (text Text)) (Pair (left Tree) (right Tree))) (transform Tree Tree (Leaf (Leaf text)) (Pair (Pair left right)))'
 with tempfile.TemporaryDirectory(prefix='rewrite-owned-transform-') as directory:
     work = Path(directory)
-    for name in ['types', 'scope', 'source']:
+    for name in ['types', 'scope', 'source', 'sequence']:
         shutil.copyfile(ROOT/'seed'/f'{name}.coil', work/f'{name}.coil')
     (work/'Coil.toml').write_text('[package]\nname = "fixture"\nentry = "main.coil"\nsource-roots = ["."]\n')
     (work/'generated.coil').write_bytes(subprocess.check_output([str(ROOT/'build/schema-seed')], input=identity_schema))
     (work/'main.coil').write_text((ROOT/'tests/transform-owned.coil.in').read_text())
+    for flags in [[], ['--debug-checks'], ['--release']]:
+        subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)
+
+# Cardinality is part of a map's signature. Invalid sequence terms publish no output.
+for invalid, diagnostic in [
+    (b'(node A) (node B) (transform A (many B) (A (B)))', b'sequence result requires'),
+    (b'(node A) (node B) (transform A (many Missing) (A (items)))', b'unknown transformation schema'),
+    (b'(node A) (node B) (transform A (many B Int) (A (items)))', b'expected (transform'),
+    (b'(node A (x Int)) (node B) (transform A (many B) (A (items (spread x))))', b'spread field needs'),
+    (b'(node A) (node B) (transform A (many B) (A (items (spread))))', b'spread requires'),
+    (b'(node A (x A)) (node B) (transform A B (A (B))) (transform A (many B) (A (items (spread missing))))', b'spread field needs'),
+    (b'(node A (x A)) (node B (x B)) (transform A (many B) (A (items (B x))))', b'field type needs a matching schema map'),
+    (b'(node A) (node B) (transform A (many B) (A (items))) (transform A (many B) (A (items)))', b'duplicate schema transformation'),
+]:
+    result = subprocess.run([str(ROOT/'build/schema-seed')], input=invalid, capture_output=True)
+    assert result.returncode != 0 and not result.stdout and diagnostic in result.stderr, result
+print('Sequence map cardinality and splice contract rejections passed')
+
+sequence_schema = b"""
+(sum S (Leaf (value Int)) (Empty) (Fork (left S) (right S)))
+(node T (value Int))
+(transform S T (Leaf (T value)) (Empty (T 0)) (Fork (T 0)))
+(transform S (many T)
+  (Leaf (items (T value) (T 99)))
+  (Empty (items))
+  (Fork (items (spread left) (spread right))))
+"""
+with tempfile.TemporaryDirectory(prefix='rewrite-sequence-map-') as directory:
+    work = Path(directory)
+    for name in ['types', 'scope', 'source', 'sequence']:
+        shutil.copyfile(ROOT/'seed'/f'{name}.coil', work/f'{name}.coil')
+    (work/'Coil.toml').write_text('''[package]
+name = "fixture"
+entry = "main.coil"
+source-roots = ["."]
+''')
+    (work/'generated.coil').write_bytes(subprocess.check_output([str(ROOT/'build/schema-seed')], input=sequence_schema))
+    (work/'main.coil').write_text((ROOT/'tests/sequence-map.coil.in').read_text())
     for flags in [[], ['--debug-checks'], ['--release']]:
         subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)

@@ -16,6 +16,7 @@ with tempfile.TemporaryDirectory(prefix='rewrite-lowering-') as directory:
     shutil.copyfile(ROOT/'seed/types.coil', work/'types.coil')
     shutil.copyfile(ROOT/'seed/scope.coil', work/'scope.coil')
     shutil.copyfile(ROOT/'seed/source.coil', work/'source.coil')
+    shutil.copyfile(ROOT/'seed/sequence.coil', work/'sequence.coil')
     shutil.copyfile(ROOT/'runtime/native.coil', work/'native.coil')
     (work/'generated.coil').write_bytes(subprocess.check_output([str(ROOT/'build/schema-seed')], input=(ROOT/'tests/schemas/lowering.schema').read_bytes()))
     rng = random.Random(90210)
@@ -81,6 +82,16 @@ with tempfile.TemporaryDirectory(prefix='rewrite-lowering-') as directory:
     (work/'main.coil').write_text(invalid_client)
     rejected = subprocess.run(['coil', 'check', 'main.coil'], cwd=work, capture_output=True)
     assert rejected.returncode != 0 and all(name in rejected.stdout + rejected.stderr for name in [b'N1Id', b'N3Id']), rejected
+    declarations_schema = transform_schema + (ROOT/'tests/schemas/declarations.schema').read_bytes()
+    (work/'generated.coil').write_bytes(subprocess.check_output([str(ROOT/'build/schema-seed')], input=declarations_schema))
+    (work/'main.coil').write_text((ROOT/'tests/sequence-program.coil.in').read_text())
+    for flags in [[], ['--debug-checks'], ['--release']]:
+        subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)
+    wrong_sequence = (ROOT/'tests/sequence-program.coil.in').read_text().replace(
+        '(sequence-size-1 (mut output) ids)', '(sequence-size-0 (mut output) ids)')
+    (work/'main.coil').write_text(wrong_sequence)
+    rejected = subprocess.run(['coil', 'check', 'main.coil'], cwd=work, capture_output=True)
+    assert rejected.returncode != 0 and all(name in rejected.stdout + rejected.stderr for name in [b'N0Seq', b'N1Seq']), rejected
 print('Source -> generated checking/lowering -> CIR -> native execution passed')
 print('Function designators rejected as values; explicit function pointers agree with installed Coil')
 

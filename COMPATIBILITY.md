@@ -54,3 +54,10 @@ The discovered bare-function discrepancy is now a rejection regression in `tests
 Generated readers and representation maps now own interned Text and compact source spans. Target Stores retain copied source documents and transformation traces after input teardown. The native fixture poisons and frees its source arena before core checking and execution; a separate same-schema fixture checks recursive reference copying into offset target IDs, malloc-backed teardown, and structured source errors.
 
 This establishes the lifetime boundary for the current context-free normalization subset. It does not yet satisfy imported custom-reader compatibility, expansion ancestry, introduced declarations, effects, or statically checked phase ownership. No replacement or performance gate is claimed.
+
+
+## Declaration sequence checkpoint
+
+Sequence-result maps now omit, introduce and splice declarations while retaining order, sharing and source origins. The native fixture turns one source declaration into an alias and its implementation, calls the alias successfully, and rejects a colliding introduced name using normal duplicate-function checking. An independent fixture checks nominal sequence types, cardinality, shared results, input teardown and capacity errors. Shared-segment storage avoids repeated descendant copying at each splice.
+
+This is a context-free normalization capability, not Coil macro/reader compatibility. Dynamic declaration discovery across expansion rounds, binding-aware transforms, host compile-time capabilities and dependency invalidation remain missing.
