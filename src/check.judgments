@@ -1,5 +1,7 @@
 (use "rewrite.declarations")
 
+(domain Expectation (Infer) (Discard) (Expect [(type (slice u8))]))
+
 (intervals integer-result?
   ("i8" -128 127) ("u8" 0 255)
   ("i16" -32768 32767) ("u16" 0 65535)
@@ -7,62 +9,89 @@
   ("i64") ("u64") ("i128") ("u128"))
 
 (judgment check-type [(type (ptr coil.reader.Sexp))]
-  (require (or (integer-result? type 0) (coil.reader.sexp-sym-is type "bool"))
+  (require (or (and (coil.reader.sexp-sym? type) (integer-result? (coil.reader.sexp-sym type) 0)) (coil.reader.sexp-sym-is type "bool"))
            type "unsupported type"))
 
-(judgment check-expression
+(derive synthesize
   [(signatures (coil.hashmap.HashMap (slice u8) (ptr coil.reader.Sexp)))
+   (types (mut (coil.hashmap.HashMap i64 (slice u8))))
    (locals (ptr coil.reader.Sexp)) (expr (ptr coil.reader.Sexp))
-   (expected (ptr coil.reader.Sexp)) (is-result bool)]
+   (expected Expectation)] (slice u8)
   (when (int-literal? expr)
-    (when is-result
-      (require (integer-result? expected (coil.reader.sexp-int expr))
-               expr "integer literal does not fit declared type"))
-    (accept))
-  (when (or (true-literal? expr) (false-literal? expr))
-    (when is-result
-      (require (coil.reader.sexp-sym-is expected "bool")
-               expr "boolean literal differs from declared type"))
-    (accept))
+    (with type (match expected (Expect [t] t) (_ "i64"))
+      (require (integer-result? type (coil.reader.sexp-int expr))
+               expr "integer literal does not fit expected type")
+      (conclude type)))
+  (when (or (true-literal? expr) (false-literal? expr)) (conclude "bool"))
   (when (identifier? expr)
     (each-child local locals 0 i
       (cases (typed-parameter local)
         ((Parameter [name type])
           (when (coil.reader.sexp-sym-is expr (coil.reader.sexp-sym name))
-            (when is-result
-              (require (coil.reader.sexp-sym-is expected (coil.reader.sexp-sym type))
-                       expr "parameter type differs from expected type"))
-            (accept)))
+            (conclude (coil.reader.sexp-sym type))))
         (_ (reject local "invalid parameter"))))
     (reject expr "unbound identifier"))
+  (cases (sequence-expression expr)
+    ((Sequence [])
+      (when (= (coil.reader.sexp-count expr) 1) (conclude "void"))
+      (each-child item expr 1 index
+        (when (= (+ index 1) (coil.reader.sexp-count expr))
+          (obtain result (check-expression signatures (mut types) locals item expected)
+            (conclude result)))
+        (prove (check-expression signatures (mut types) locals item (Discard)))))
+    (_))
+  (cases (conditional expr)
+    ((Branches [condition then else])
+      (obtain predicate (check-expression signatures (mut types) locals condition (Infer))
+        (require (or (= predicate "bool") (integer-result? predicate 0))
+                 condition "if condition must be a bool or integer"))
+      (when (match expected (Discard [] true) (_ false))
+        (prove (check-expression signatures (mut types) locals then (Discard)))
+        (prove (check-expression signatures (mut types) locals else (Discard)))
+        (conclude "void"))
+      (when (and (match expected (Infer [] true) (_ false)) (int-literal? then))
+        (obtain branch (check-expression signatures (mut types) locals else (Infer))
+          (prove (check-expression signatures (mut types) locals then (Expect branch)))
+          (conclude branch)))
+      (obtain branch (check-expression signatures (mut types) locals then expected)
+        (prove (check-expression signatures (mut types) locals else (Expect branch)))
+        (conclude branch)))
+    (_))
   (cases (application expr)
     ((Apply [operator])
       (cases (get signatures (coil.reader.sexp-sym operator))
         ((None []) (reject expr "call to undefined function"))
         ((Some [found])
           (cases (ordinary-function found)
-            ((Function [_ _ parameters result _])
+            ((Function [_ _ parameters result])
               (require (= (coil.reader.sexp-count parameters) (- (coil.reader.sexp-count expr) 1))
                        expr "wrong number of arguments")
               (each-child arg expr 1 i
                 (cases (typed-parameter (coil.reader.sexp-nth parameters (- i 1)))
                   ((Parameter [_ type])
-                    (prove (check-expression signatures locals arg type true)))
+                    (prove (check-expression signatures (mut types) locals arg (Expect (coil.reader.sexp-sym type)))))
                   (_ (reject found "invalid parameter"))))
-              (when is-result
-                (require (and (coil.reader.sexp-sym? result)
-                              (coil.reader.sexp-sym-is expected (coil.reader.sexp-sym result)))
-                         expr "call result differs from declared return type")))
+              (conclude (coil.reader.sexp-sym result)))
             (_ (reject found "invalid function signature"))))))
     (_ (reject expr "unsupported expression"))))
+
+(derive check-expression
+  [(signatures (coil.hashmap.HashMap (slice u8) (ptr coil.reader.Sexp)))
+   (types (mut (coil.hashmap.HashMap i64 (slice u8))))
+   (locals (ptr coil.reader.Sexp)) (expr (ptr coil.reader.Sexp))
+   (expected Expectation)] (slice u8)
+  (obtain actual (synthesize signatures (mut types) locals expr expected)
+    (require (match expected (Expect [t] (= t actual)) (_ true)) expr "expression differs from expected type")
+    (record types (.node-id expr) actual)
+    (conclude actual)))
 
 (judgment check-signatures
   [(allocator (dyn coil.alloc.Allocator))
    (forms (ptr (coil.arraylist.ArrayList coil.reader.Sexp)))]
   (each-form form forms
     (cases (ordinary-function form)
-      ((Function [_ _ parameters result _])
-        (prove (check-type result))
+      ((Function [_ _ parameters result])
+        (when (not (coil.reader.sexp-sym-is result "void")) (prove (check-type result)))
         (distinct names allocator
           (each-child parameter parameters 0 position
             (cases (typed-parameter parameter)
@@ -72,13 +101,20 @@
               (_ (reject parameter "invalid parameter"))))))
       (_ (reject form "unsupported declaration")))))
 
-(judgment check-functions
-  [(signatures (coil.hashmap.HashMap (slice u8) (ptr coil.reader.Sexp)))
-   (forms (ptr (coil.arraylist.ArrayList coil.reader.Sexp)))]
-  (each-form form forms
-    (cases (ordinary-function form)
-      ((Function [_ _ parameters result _])
-        (each-child expr form 4 position
-          (prove (check-expression signatures parameters expr result
-                                   (= (+ position 1) (coil.reader.sexp-count form))))))
-      (_ (reject form "unsupported declaration")))))
+(derive check-functions
+  [(allocator (dyn coil.alloc.Allocator))
+   (signatures (coil.hashmap.HashMap (slice u8) (ptr coil.reader.Sexp)))
+   (forms (ptr (coil.arraylist.ArrayList coil.reader.Sexp)))] (coil.hashmap.HashMap i64 (slice u8))
+  (with (mut types) (coil.hashmap.HashMap::new-scalar [i64 (slice u8)] allocator)
+    (each-form form forms
+      (cases (ordinary-function form)
+        ((Function [_ _ parameters result])
+          (require (or (> (coil.reader.sexp-count form) 4) (coil.reader.sexp-sym-is result "void"))
+                   form "empty function body requires a void result")
+          (each-child expr form 4 position
+            (prove (check-expression signatures (mut types) parameters expr
+                     (if (and (= (+ position 1) (coil.reader.sexp-count form))
+                              (not (coil.reader.sexp-sym-is result "void")))
+                         (Expect (coil.reader.sexp-sym result)) (Discard))))))
+        (_ (reject form "unsupported declaration"))))
+    (conclude types)))

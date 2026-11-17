@@ -8,11 +8,11 @@
   (read-forms forms)
   (phase signatures collect-signatures allocator forms)
   (phase valid check-signatures allocator forms)
-  (phase checked check-functions signatures forms))
+  (phase checked check-functions allocator signatures forms))
 
 (pipeline compile-object
   (phase temporary-object temporary "unit.o")
-  (phase emitted emit-object allocator signatures forms temporary-object))
+  (phase emitted emit-object allocator signatures checked forms temporary-object))
 
 (source-command "check" path
   (include check-source)
@@ -22,7 +22,7 @@
   (output "-o" destination)
   (include check-source)
   (phase object staged-output destination)
-  (phase emitted emit-object allocator signatures forms object)
+  (phase emitted emit-object allocator signatures checked forms object)
   (phase published publish allocator object destination)
   (exit 0))
 

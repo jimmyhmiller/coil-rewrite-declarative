@@ -23,6 +23,15 @@
   (let [tag (get rule 0)]
     (cond (p/code-eq tag `require)
             `(unless ~(get rule 1) ~(fail-at (get rule 2) (get rule 3)))
+          (p/code-eq tag `conclude) `(return-from :judgment (Ok ~(get rule 1)))
+          (p/code-eq tag `with)
+            `(let [~(get rule 1) ~(get rule 2)] ~(premises rule 3))
+          (p/code-eq tag `record)
+            `(set! (mut ~(get rule 1)) ~(get rule 2) ~(get rule 3))
+          (p/code-eq tag `obtain)
+            `(match ~(get rule 2)
+               (Ok [~(get rule 1)] ~(premises rule 3))
+               (Err [problem] (return-from :judgment (Err problem))))
           (p/code-eq tag `accept) `(return-from :judgment (Ok 0))
           (p/code-eq tag `reject) (fail-at (get rule 1) (get rule 2))
           (p/code-eq tag `each-form)
@@ -79,7 +88,7 @@
             n (p/code-count row)]
         (when (not (or (= n 1) (= n 3)))
           (p/error "interval row requires a key and optional inclusive bounds"))
-        `(if (coil.reader.sexp-sym-is ~key ~(get row 0))
+        `(if (= ~key ~(get row 0))
              ~(if (= n 1)
                   `true
                   `(and (>= ~value ~(get row 1)) (<= ~value ~(get row 2))))
@@ -94,13 +103,23 @@
         (p/code-list-push! output
                            (cond (p/code-eq tag `use)
                                    `(import ~(get rule 1) :use *)
+                                 (p/code-eq tag `domain)
+                                   `(defsum ~@(p/code-rest rule))
                                  (p/code-eq tag `intervals)
                                    (let [key (p/datum->syntax rule "key")
                                          value (p/datum->syntax rule "value")]
-                                     `(defn ~(get rule 1) [(~key (ptr coil.reader.Sexp))
+                                     `(defn ~(get rule 1) [(~key (slice u8))
                                                            (~value i64)]
                                         (-> bool)
                                         ~(intervals rule 2 key value)))
+                                 (p/code-eq tag `derive)
+                                   `(defn ~(get rule 1)
+                                      ~(get rule 2)
+                                      (-> (Result ~(get rule 3)
+                                                  coil.reader.Diag))
+                                      (block :judgment
+                                        ~(premises rule 4)
+                                        (unreachable "derivation ended without a conclusion")))
                                  (p/code-eq tag `judgment)
                                    `(defn ~(get rule 1)
                                       ~(get rule 2)

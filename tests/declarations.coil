@@ -15,7 +15,7 @@
           (None [] false)
           (Some [found]
                 (match (ordinary-function found)
-                  (Function [_ _ _ result _] (sexp-sym-is result "i64"))
+                  (Function [_ _ _ result] (sexp-sym-is result "i64"))
                   (_ false)))))))
 
 (defn duplicate-span? [] (-> bool)
@@ -41,11 +41,11 @@
               callee (elem forms 1)]
           (match (ordinary-function callee)
             (NoFunction [] 1)
-            (Function [_ name parameters result body]
+            (Function [_ name parameters result]
                       (match (ordinary-function main-form)
                         (NoFunction [] 2)
-                        (Function [_ _ _ _ call-form]
-                                  (match (nullary-call call-form)
+                        (Function [_ _ _ _]
+                                  (match (nullary-call (sexp-nth main-form 4))
                                     (NoCall [] 3)
                                     (Call [target]
                                           (if (and (sexp-sym-is target
@@ -56,7 +56,8 @@
                                                                      0)))
                                                         (and (sexp-sym-is result
                                                                           "i64")
-                                                             (= (sexp-int body)
+                                                             (= (sexp-int (sexp-nth callee
+                                                                                    4))
                                                                 42))))
                                               0
                                               4)))))))))))

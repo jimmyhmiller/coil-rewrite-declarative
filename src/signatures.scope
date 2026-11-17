@@ -1,4 +1,4 @@
 (scope collect-signatures "rewrite.declarations" ordinary-function
-  (Function [declaration name parameters result body])
+  (Function [declaration name parameters result])
   (bind name declaration)
   (reject-duplicate declaration "duplicate function declaration"))

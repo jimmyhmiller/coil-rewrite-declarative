@@ -24,3 +24,36 @@
   (node ret declarative.backend.nodes.return! control 1)
   (input ret 1 value)
   (yield ret))
+
+(builder branch [(control i32) (value i32)] i32
+  (node split declarative.backend.nodes.if! control value)
+  (yield split))
+
+(builder taken [(split i32)] i32
+  (node route declarative.backend.nodes.true! split)
+  (yield route))
+
+(builder untaken [(split i32)] i32
+  (node route declarative.backend.nodes.false! split)
+  (yield route))
+
+(builder merge-paths [(left i32) (right i32)] i32
+  (node join declarative.backend.nodes.region! 2)
+  (input join 0 left)
+  (input join 1 right)
+  (yield join))
+
+(builder merge-values [(type i32) (region i32) (left i32) (right i32)] i32
+  (node phi declarative.backend.nodes.phi! type region 2)
+  (input phi 1 left)
+  (input phi 2 right)
+  (yield phi))
+
+(builder nonzero [(type i32) (value i32)] i32
+  (node zero declarative.backend.nodes.const! type 0)
+  (node truth declarative.backend.nodes.ne! value zero)
+  (yield truth))
+
+(builder finish-void [(control i32)] i32
+  (node ret declarative.backend.nodes.return! control 0)
+  (yield ret))

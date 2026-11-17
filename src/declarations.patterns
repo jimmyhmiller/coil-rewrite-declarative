@@ -1,6 +1,6 @@
 (extract ordinary-function FunctionDeclaration Function NoFunction
   (capture declaration (list "defn" (capture name symbol) (capture parameters (vector ...))
-        (list "->" (capture result _)) (capture first-body _) ...)))
+        (list "->" (capture result _)) ...)))
 (extract typed-parameter ParameterDeclaration Parameter NoParameter
   (list (capture name symbol) (capture type _)))
 (extract nullary-call CallExpression Call NoCall
@@ -11,3 +11,7 @@
 (extract application Application Apply NoApplication
   (list (capture operator symbol) ...))
 (recognize identifier? symbol)
+(extract conditional Conditional Branches NoConditional
+  (list "if" (capture condition _) (capture then _) (capture else _)))
+(extract sequence-expression SequenceExpression Sequence NoSequence
+  (list "do" ...))
