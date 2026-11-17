@@ -1,0 +1,94 @@
+(module rewrite.command-reader)
+(import "coil.primitive" :as primitive)
+
+(reader-provider "rewrite.command-reader" read-commands)
+
+(defn stages [(rule Code) (i i64) (path Code) (src Code) (allocator Code)]
+  (-> Code)
+  (when (>= i (primitive/code-count rule))
+    (primitive/error "source command needs a terminal exit stage"))
+  (let [stage (get rule i)
+        tag (get stage 0)
+        n (primitive/code-count stage)]
+    (cond (primitive/code-eq tag `exit)
+            (if (and (= n 2) (= (+ i 1) (primitive/code-count rule)))
+                (get stage 1)
+                (primitive/error "exit takes one status and ends the pipeline"))
+          :else
+            (let [action
+                    (cond (and (primitive/code-eq tag `read-forms) (= n 2))
+                            `(coil.reader.read-all ~allocator ~src 0)
+                          (and (primitive/code-eq tag `phase) (>= n 3))
+                            (primitive/code-rest (primitive/code-rest stage))
+                          :else
+                            (do
+                              (primitive/error "expected read-forms, phase or exit stage")
+                              `0))
+                  rest (stages rule (+ i 1) path src allocator)]
+              `(match ~action
+                 (Ok [~(get stage 1)] ~rest)
+                 (Err [problem]
+                      (do
+                        (coil.source.diagnostic.report (coil.io.stderr)
+                                                       ~path
+                                                       ~src
+                                                       problem)
+                        1)))))))
+
+(defn dispatch [(forms Code)
+                (i i64)
+                (argc Code)
+                (argv Code)
+                (usage Code)
+                (allocator Code)]
+  (-> Code)
+  (if (= i (primitive/code-count forms))
+      `(do (coil.source.cli.ps (coil.io.stderr) ~usage) 1)
+      (let [rule (get forms i)
+            tag (get rule 0)
+            rest (dispatch forms (+ i 1) argc argv usage allocator)]
+        (if (primitive/code-eq tag `source-command)
+            (let [path (get rule 2)
+                  src (primitive/datum->syntax rule "source-bytes")]
+              `(if (and (= ~argc 3)
+                        (= (coil.str.from-cstr (load (index ~argv 1)))
+                           ~(get rule 1)))
+                   (let [~allocator (coil.alloc.malloc-allocator)
+                         ~path (coil.str.from-cstr (load (index ~argv 2)))
+                         ~src
+                           (coil.source.cli.read-source ~allocator
+                                                        (load (index ~argv 2))
+                                                        1)]
+                     ~(stages rule 3 path src allocator))
+                   ~rest))
+            rest))))
+
+(defn read-commands [(context Code)] (-> Code)
+  (let [forms (primitive/code-read (get context 2) `(reader-config))
+        imports (primitive/code-list-new)
+        (mut usage) `""
+        argc (primitive/datum->syntax context "argc")
+        argv (primitive/datum->syntax context "argv")
+        allocator (primitive/datum->syntax context "allocator")
+        main-name (primitive/datum->syntax context "dispatch-command")]
+    (for [i 1 (primitive/code-count forms)]
+      (let [rule (get forms i)
+            tag (get rule 0)]
+        (cond (primitive/code-eq tag `use)
+                (do
+                  (primitive/code-list-push! imports
+                                             `(import ~(get rule 1) :use *))
+                  0)
+              (primitive/code-eq tag `usage) (do (set! usage (get rule 1)) 0)
+              (primitive/code-eq tag `source-command) 0
+              :else (do (primitive/error "unknown command declaration") 0))))
+    `(do
+       (import "coil.reader" :use *)
+       (import "coil.alloc" :use *)
+       (import "coil.io" :use *)
+       (import "coil.str" :use *)
+       (import "coil.source.cli" :use *)
+       (import "coil.source.diagnostic" :as diagnostic)
+       ~@(primitive/code-list-done imports)
+       (defn ~main-name [(~argc i32) (~argv (ptr (ptr i8)))] (-> i64)
+         ~(dispatch forms 1 argc argv (load usage) allocator)))))

@@ -13,7 +13,10 @@
     (Ok [entries]
         (match (get entries "answer")
           (None [] false)
-          (Some [result] (sexp-sym-is result "i64"))))))
+          (Some [found]
+                (match (ordinary-function found)
+                  (Function [_ _ _ result _] (sexp-sym-is result "i64"))
+                  (_ false)))))))
 
 (defn duplicate-span? [] (-> bool)
   (match (read-all (malloc-allocator)

@@ -1,0 +1,7 @@
+;; The executable ABI bridge. The command language owns the dispatch and
+;; its exit status in rewrite.main.
+(module rewrite.entry)
+(import "rewrite.main" :use [dispatch-command])
+
+(defn main [(argc i32) (argv (ptr (ptr i8)))] (-> i64)
+  (dispatch-command argc argv))

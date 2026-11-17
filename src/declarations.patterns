@@ -5,3 +5,9 @@
   (list (capture name symbol) (capture type _)))
 (extract nullary-call CallExpression Call NoCall
   (list (capture callee symbol)))
+(recognize int-literal? integer)
+(recognize true-literal? "true")
+(recognize false-literal? "false")
+(extract application Application Apply NoApplication
+  (list (capture operator symbol) ...))
+(recognize identifier? symbol)

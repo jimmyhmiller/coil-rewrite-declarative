@@ -1,0 +1,118 @@
+(module rewrite.judgment-reader)
+(import "coil.primitive" :as p)
+
+(reader-provider "rewrite.judgment-reader" read-judgments)
+
+;; Each premise either continues the judgment or returns a diagnostic with
+;; its source range. Branches introduce local bindings for later premises.
+(defn premises [(rules Code) (start i64)] (-> Code)
+  (let [out (p/code-list-new)]
+    (for [i start (p/code-count rules)]
+      (p/code-list-push! out (premise (get rules i))))
+    `(do ~@(p/code-list-done out) 0)))
+
+(defn fail-at [(site Code) (message Code)] (-> Code)
+  `(return-from
+     :judgment
+       (Err (coil.reader.mk-diag-src (.source ~site)
+                                     (.lo ~site)
+                                     (.hi ~site)
+                                     ~message))))
+
+(defn premise [(rule Code)] (-> Code)
+  (let [tag (get rule 0)]
+    (cond (p/code-eq tag `require)
+            `(unless ~(get rule 1) ~(fail-at (get rule 2) (get rule 3)))
+          (p/code-eq tag `accept) `(return-from :judgment (Ok 0))
+          (p/code-eq tag `reject) (fail-at (get rule 1) (get rule 2))
+          (p/code-eq tag `each-form)
+            (let [forms (get rule 2)]
+              `(for [i 0 (len (load ~forms))]
+                 (let [~(get rule 1) (elem ~forms i)] ~(premises rule 3))))
+          (p/code-eq tag `each-child)
+            (let [form (get rule 2)
+                  position (get rule 4)]
+              `(for [~position ~(get rule 3) (coil.reader.sexp-count ~form)]
+                 (let [~(get rule 1) (coil.reader.sexp-nth ~form ~position)]
+                   ~(premises rule 5))))
+          (p/code-eq tag `distinct)
+            (let [keys (get rule 1)]
+              `(let [(mut ~keys)
+                       (coil.hashmap.HashMap::new [(slice u8) bool]
+                                                  ~(get rule 2)
+                                                  (coil.str.keyops-borrowed))]
+                 (scope :keys
+                   (defer (free! (mut ~keys)))
+                   ~(premises rule 3))))
+          (p/code-eq tag `insert-unique)
+            (let [keys (get rule 1)
+                  symbol (get rule 2)]
+              `(let [spelling (coil.reader.sexp-sym ~symbol)]
+                 (when (contains? ~keys spelling)
+                   ~(fail-at (get rule 3) (get rule 4)))
+                 (set! (mut ~keys) spelling true)
+                 0))
+          (p/code-eq tag `cases)
+            (let [branches (p/code-list-new)]
+              (for [i 2 (p/code-count rule)]
+                (let [branch (get rule i)
+                      pat (get branch 0)]
+                  (p/code-list-push! branches
+                                     (if (p/code-eq pat `_)
+                                         `(_ ~(premises branch 1))
+                                         `(~(get pat 0) ~(get pat 1)
+                                             ~(premises branch 1))))))
+              `(match ~(get rule 1) ~@(p/code-list-done branches)))
+          (p/code-eq tag `prove)
+            `(match ~(get rule 1)
+               (Ok [_] 0)
+               (Err [problem] (return-from :judgment (Err problem))))
+          (p/code-eq tag `when) `(when ~(get rule 1) ~(premises rule 2))
+          :else (do (p/error "unknown judgment premise") `0))))
+
+;; An interval relation is a finite table keyed by a symbol. An omitted
+;; interval admits the entire carrier (the reader's signed 64-bit integers).
+(defn intervals [(rule Code) (i i64) (key Code) (value Code)] (-> Code)
+  (if (= i (p/code-count rule))
+      `false
+      (let [row (get rule i)
+            n (p/code-count row)]
+        (when (not (or (= n 1) (= n 3)))
+          (p/error "interval row requires a key and optional inclusive bounds"))
+        `(if (coil.reader.sexp-sym-is ~key ~(get row 0))
+             ~(if (= n 1)
+                  `true
+                  `(and (>= ~value ~(get row 1)) (<= ~value ~(get row 2))))
+             ~(intervals rule (+ i 1) key value)))))
+
+(defn read-judgments [(context Code)] (-> Code)
+  (let [forms (p/code-read (get context 2) `(reader-config))
+        output (p/code-list-new)]
+    (for [i 1 (p/code-count forms)]
+      (let [rule (get forms i)
+            tag (get rule 0)]
+        (p/code-list-push! output
+                           (cond (p/code-eq tag `use)
+                                   `(import ~(get rule 1) :use *)
+                                 (p/code-eq tag `intervals)
+                                   (let [key (p/datum->syntax rule "key")
+                                         value (p/datum->syntax rule "value")]
+                                     `(defn ~(get rule 1) [(~key (ptr coil.reader.Sexp))
+                                                           (~value i64)]
+                                        (-> bool)
+                                        ~(intervals rule 2 key value)))
+                                 (p/code-eq tag `judgment)
+                                   `(defn ~(get rule 1)
+                                      ~(get rule 2)
+                                      (-> (Result i64 coil.reader.Diag))
+                                      (block :judgment
+                                        ~(premises rule 3)
+                                        (Ok 0)))
+                                 :else
+                                   (do (p/error "expected use or judgment") `0)))))
+    `(do
+       (import "coil.reader" :use *)
+       (import "coil.arraylist" :use *)
+       (import "coil.hashmap" :use *)
+       (import "coil.str" :use *)
+       ~@(p/code-list-done output))))

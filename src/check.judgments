@@ -1,0 +1,84 @@
+(use "rewrite.declarations")
+
+(intervals integer-result?
+  ("i8" -128 127) ("u8" 0 255)
+  ("i16" -32768 32767) ("u16" 0 65535)
+  ("i32" -2147483648 2147483647) ("u32" 0 4294967295)
+  ("i64") ("u64") ("i128") ("u128"))
+
+(judgment check-type [(type (ptr coil.reader.Sexp))]
+  (require (or (integer-result? type 0) (coil.reader.sexp-sym-is type "bool"))
+           type "unsupported type"))
+
+(judgment check-expression
+  [(signatures (coil.hashmap.HashMap (slice u8) (ptr coil.reader.Sexp)))
+   (locals (ptr coil.reader.Sexp)) (expr (ptr coil.reader.Sexp))
+   (expected (ptr coil.reader.Sexp)) (is-result bool)]
+  (when (int-literal? expr)
+    (when is-result
+      (require (integer-result? expected (coil.reader.sexp-int expr))
+               expr "integer literal does not fit declared type"))
+    (accept))
+  (when (or (true-literal? expr) (false-literal? expr))
+    (when is-result
+      (require (coil.reader.sexp-sym-is expected "bool")
+               expr "boolean literal differs from declared type"))
+    (accept))
+  (when (identifier? expr)
+    (each-child local locals 0 i
+      (cases (typed-parameter local)
+        ((Parameter [name type])
+          (when (coil.reader.sexp-sym-is expr (coil.reader.sexp-sym name))
+            (when is-result
+              (require (coil.reader.sexp-sym-is expected (coil.reader.sexp-sym type))
+                       expr "parameter type differs from expected type"))
+            (accept)))
+        (_ (reject local "invalid parameter"))))
+    (reject expr "unbound identifier"))
+  (cases (application expr)
+    ((Apply [operator])
+      (cases (get signatures (coil.reader.sexp-sym operator))
+        ((None []) (reject expr "call to undefined function"))
+        ((Some [found])
+          (cases (ordinary-function found)
+            ((Function [_ _ parameters result _])
+              (require (= (coil.reader.sexp-count parameters) (- (coil.reader.sexp-count expr) 1))
+                       expr "wrong number of arguments")
+              (each-child arg expr 1 i
+                (cases (typed-parameter (coil.reader.sexp-nth parameters (- i 1)))
+                  ((Parameter [_ type])
+                    (prove (check-expression signatures locals arg type true)))
+                  (_ (reject found "invalid parameter"))))
+              (when is-result
+                (require (and (coil.reader.sexp-sym? result)
+                              (coil.reader.sexp-sym-is expected (coil.reader.sexp-sym result)))
+                         expr "call result differs from declared return type")))
+            (_ (reject found "invalid function signature"))))))
+    (_ (reject expr "unsupported expression"))))
+
+(judgment check-signatures
+  [(allocator (dyn coil.alloc.Allocator))
+   (forms (ptr (coil.arraylist.ArrayList coil.reader.Sexp)))]
+  (each-form form forms
+    (cases (ordinary-function form)
+      ((Function [_ _ parameters result _])
+        (prove (check-type result))
+        (distinct names allocator
+          (each-child parameter parameters 0 position
+            (cases (typed-parameter parameter)
+              ((Parameter [name type])
+                (insert-unique names name form "duplicate parameter name")
+                (prove (check-type type)))
+              (_ (reject parameter "invalid parameter"))))))
+      (_ (reject form "unsupported declaration")))))
+
+(judgment check-functions
+  [(signatures (coil.hashmap.HashMap (slice u8) (ptr coil.reader.Sexp)))
+   (forms (ptr (coil.arraylist.ArrayList coil.reader.Sexp)))]
+  (each-form form forms
+    (cases (ordinary-function form)
+      ((Function [_ _ parameters result _])
+        (each-child expr form 4 position
+          (prove (check-expression signatures parameters expr result
+                                   (= (+ position 1) (coil.reader.sexp-count form))))))
+      (_ (reject form "unsupported declaration")))))

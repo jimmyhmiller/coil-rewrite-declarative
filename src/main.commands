@@ -1,0 +1,9 @@
+(use "rewrite.signatures")
+(use "rewrite.check")
+(usage "usage: rewrite check <file.coil>\n")
+(source-command "check" path
+  (read-forms forms)
+  (phase signatures collect-signatures allocator forms)
+  (phase valid check-signatures allocator forms)
+  (phase checked check-functions signatures forms)
+  (exit 0))
