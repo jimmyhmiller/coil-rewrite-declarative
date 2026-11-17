@@ -1,0 +1,269 @@
+;;; Iterative request replacement. The generated protocol owns invocation fuel;
+;;; syntax shapes and traversal exclusions are declared in code.schema.
+(module rewrite.requestexecution)
+(import "rewrite.requests" :as requests)
+(import "rewrite.requestprotocol" :as protocol)
+(import "rewrite.code" :as code)
+(import "rewrite.codeforms" :as forms)
+(import "rewrite.syntaxreader" :as projection)
+(import "coil.alloc" :use *)
+(import "coil.arraylist" :use *)
+(import "coil.hashmap" :use [HashMap])
+(import "coil.scratch" :use [ScratchArena])
+(import "coil.reader" :use *)
+(import "coil.result" :use *)
+(import "coil.cc" :as cc)
+(import "coil.primitive" :as primitive)
+
+(defsum Task
+  (Visit [(form (ptr Sexp))])
+  (Rebuild [(form (ptr Sexp)) (base i64)]))
+
+(defstruct Session
+  [(allocator (dyn Allocator))
+   (syntax code/Syntax)
+   (trees ScratchArena)
+   (inspection ScratchArena)
+   (memo (ArrayList (Option Sexp)))
+   (active (ArrayList bool))
+   (tasks (ArrayList Task))
+   (values (ArrayList Sexp))
+   (pending (Option requests/Call))
+   (result (Option forms/N0Id))
+   (calls i64)
+   (running? bool)
+   (closed? bool)])
+
+(defn create [(a (dyn Allocator))] (-> Session)
+  (let [(mut trees) (zeroed ScratchArena)
+        (mut inspection) (zeroed ScratchArena)
+        t (init (mut trees) (malloc-allocator))
+        i (init (mut inspection) (malloc-allocator))]
+    (Session
+      :allocator a
+      :syntax (code/create a)
+      :trees trees
+      :inspection inspection
+      :memo (ArrayList::new [(Option Sexp)] a)
+      :active (ArrayList::new [bool] a)
+      :tasks (ArrayList::new [Task] a)
+      :values (ArrayList::new [Sexp] a)
+      :pending (None)
+      :result (None)
+      :calls 0
+      :running? false
+      :closed? false)))
+
+(defn release-storage! [(s (mut Session))] (-> void)
+  (code/release! (mut (.syntax s)))
+  (close! (mut (.trees s)))
+  (close! (mut (.inspection s)))
+  (free! (mut (.memo s)))
+  (free! (mut (.active s)))
+  (free! (mut (.tasks s)))
+  (free! (mut (.values s))))
+
+(defn close! [(s (mut Session))] (-> bool)
+  (if (.running? s)
+      false
+      (do
+        (unless (.closed? s)
+          (release-storage! (mut s))
+          (set! (.closed? s) true))
+        true)))
+
+(defsum Error [E]
+  (Copy [(error code/PromotionError)])
+  (Projection [(error projection/ProjectionError)])
+  (Selection [(error requests/Error)])
+  (Callback [(error E)])
+  (Import [(error code/SyntaxError)]))
+
+(defsum Failure [E]
+  (Closed)
+  (Busy)
+  (AliasedInput)
+  (Setup [(error (Error E))])
+  (Protocol [(error (protocol/Failure (Error E)))]))
+
+(defstruct Context [C E]
+  [(session (ptr Session))
+   (module (Option (slice u8)))
+   (markers (ptr (HashMap (slice u8) bool)))
+   (entries (ptr (HashMap (slice u8) bool)))
+   (user (ptr C))
+   (execute (fnptr (cc/C)
+                   [(ptr C) (ptr requests/Call) (ptr code/Syntax)]
+                   (Result forms/N0Id E)))])
+
+;;; The callback may append owned syntax, but cannot mutate existing rows/text.
+;;; The projection cache grows with appended rows and remains valid for this run.
+(defn project [(s (mut Session)) (root forms/N0Id)]
+  (-> (Result (ptr Sexp) projection/ProjectionError))
+  (while (< (len (.memo s)) (len (.rows0 (.store (.syntax s)))))
+    (push! (mut (.memo s)) (None))
+    (push! (mut (.active s)) false))
+  (let [a (allocator (mut (.trees s)))]
+    (match (projection/project-row a
+                                   (field s syntax)
+                                   root
+                                   (mut (.memo s))
+                                   (mut (.active s)))
+      (Err [e] (Err e))
+      (Ok [form] (Ok (box! a Sexp form))))))
+
+(defn walk :cc (cc/C) [C E] [(context (ptr (Context C E)))]
+  (-> (Result protocol/Event (Error E)))
+  (let [s (.session context)]
+    ; Previous call/name borrows ended when its callback returned.
+    (close! (mut (.inspection s)))
+    (init (mut (.inspection s)) (malloc-allocator))
+    (set! (.pending s) (None))
+    (block :done
+      (while (> (len (.tasks s)) 0)
+        (let [task
+                (match (pop! (mut (.tasks s)))
+                  (Some [task] task)
+                  (None [] (panic "execution task")))]
+          (match task
+            (Rebuild [form base]
+                     (let [a (allocator (mut (.trees s)))
+                           children
+                             (box! a (ArrayList Sexp) (ArrayList::new [Sexp] a))
+                           (mut rebuilt) (load form)]
+                       (for [i base (len (.values s))]
+                         (push! children (get (.values s) i)))
+                       (while (> (len (.values s)) base)
+                         (pop! (mut (.values s))))
+                       (set! (.kind rebuilt)
+                             (if (sexp-list? form)
+                                 (KList children)
+                                 (KVec children)))
+                       (push! (mut (.values s)) rebuilt)))
+            (Visit [form]
+                   (match (requests/inspect (allocator (mut (.inspection s)))
+                                            form
+                                            (.module context)
+                                            (.markers context)
+                                            (.entries context))
+                     (Err [e] (break :done (Err (Selection [E] e))))
+                     (Ok [decision]
+                         (match decision
+                           (requests/Keep []
+                                          (push! (mut (.values s)) (load form)))
+                           (requests/Request [call]
+                                             (set! (.pending s) (Some call))
+                                             (break
+                                               :done
+                                                 (Ok (protocol/Event-Request))))
+                           (requests/Children [start]
+                                              (let [count (sexp-count form)
+                                                    base (len (.values s))
+                                                    prefix
+                                                      (if (< start count)
+                                                          start
+                                                          count)]
+                                                (for [i 0 prefix]
+                                                  (push! (mut (.values s))
+                                                         (load (sexp-nth form i))))
+                                                (push! (mut (.tasks s))
+                                                       (Rebuild form base))
+                                                (for [i 0 (- count prefix)]
+                                                  (push! (mut (.tasks s))
+                                                         (Visit (sexp-nth form
+                                                                          (- (- count
+                                                                                1)
+                                                                             i))))))))))))))
+      (unless (= (len (.values s)) 1) (panic "request result arity"))
+      (let [(mut result) (get (.values s) 0)]
+        (match (code/import-form! (mut (.syntax s)) (mut result))
+          (Err [e] (break :done (Err (Import [E] e))))
+          (Ok [id] (set! (.result s) (Some id)))))
+      (Ok (protocol/Event-Done)))))
+
+(defn invoke :cc (cc/C) [C E] [(context (ptr (Context C E)))]
+  (-> (Result protocol/Event (Error E)))
+  (let [s (.session context)
+        execute (.execute context)
+        (mut call)
+          (match (.pending s)
+            (Some [call] call)
+            (None [] (panic "pending request")))]
+    (set! (.calls s) (+ (.calls s) 1))
+    (block
+      :done
+        (let [id
+                (match (execute (.user context) (mut call) (field s syntax))
+                  (Err [e] (break :done (Err (Callback [E] e))))
+                  (Ok [id] id))
+              form
+                (match (project s id)
+                  (Err [e] (break :done (Err (Projection [E] e))))
+                  (Ok [form] form))]
+          (push! (mut (.tasks s)) (Visit form))
+          (Ok (protocol/Event-Returned))))))
+
+;;; One run handles one original top-level form with a fresh declared budget.
+;;; Output and diagnostics remain valid until session reuse/close. Promote a
+;;; successful root before closing if it must outlive this session. Registry and
+;;; user data are borrowed during run; returned callback roots belong to syntax.
+(defn run! [C E] [(s (ptr Session))
+                  (input (ptr code/Syntax))
+                  (root forms/N0Id)
+                  (module (Option (slice u8)))
+                  (markers (ptr (HashMap (slice u8) bool)))
+                  (entries (ptr (HashMap (slice u8) bool)))
+                  (user (ptr C))
+                  (execute (fnptr (cc/C)
+                                  [(ptr C)
+                                   (ptr requests/Call)
+                                   (ptr code/Syntax)]
+                                  (Result forms/N0Id E)))]
+  (-> (Result forms/N0Id (Failure E)))
+  (block :done
+    (when (.closed? s) (break :done (Err (Closed [E]))))
+    (when (.running? s) (break :done (Err (Busy [E]))))
+    (when (= (primitive/cast i64 input)
+             (primitive/cast i64
+                             (primitive/cast (ptr code/Syntax) (field s syntax))))
+      (break :done (Err (AliasedInput [E]))))
+    (let [a (.allocator s)]
+      (release-storage! s)
+      (store! s (create a)))
+    (set! (.running? s) true)
+    (defer (set! (.running? s) false))
+    (let [owned
+            (match (code/promote! (mut (.syntax s)) input root)
+              (Err [e] (break :done (Err (Setup [E] (Copy [E] e)))))
+              (Ok [id] id))
+          form
+            (match (project s owned)
+              (Err [e] (break :done (Err (Setup [E] (Projection [E] e)))))
+              (Ok [form] form))
+          (mut context)
+            (Context [C E]
+                     :session
+                     s
+                     :module
+                     module
+                     :markers
+                     markers
+                     :entries
+                     entries
+                     :user
+                     user
+                     :execute
+                     execute)
+          (mut handlers)
+            (protocol/Handlers [(Context C E) (Error E)]
+                               :step-walk
+                               (primitive/fnptr-of walk [C E])
+                               :step-invoke
+                               (primitive/fnptr-of invoke [C E]))]
+      (push! (mut (.tasks s)) (Visit form))
+      (match (protocol/run (mut context) (mut handlers))
+        (Err [e] (Err (Protocol [E] e)))
+        (Ok [_]
+            (match (.result s)
+              (Some [id] (Ok id))
+              (None [] (panic "request protocol completed without output"))))))))

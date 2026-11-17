@@ -6,6 +6,7 @@
 (import "rewrite.rounds" :as rounds)
 (import "rewrite.stage" :as stage)
 (import "rewrite.requests" :as requests)
+(import "rewrite.requestexecution" :as execution)
 (import "coil.hashmap" :use [HashMap])
 (import "coil.str" :use [StrBuf keyops-borrowed])
 (import "rewrite.code" :as code)
@@ -203,6 +204,35 @@
               (set! (.ok context) false)))
           (Ok (protocol/Event-Ready))))))
 
+(defstruct NativeCall [(allocator (dyn Allocator)) (image image/Image)])
+
+(defn native-request :cc (cc/C) [(context (ptr NativeCall))
+                                 (call (ptr requests/Call))
+                                 (syntax (ptr code/Syntax))]
+  (-> (Result forms/N0Id StageFailure))
+  (block :done
+    (unless (= (- (sexp-count (.source (.arguments call)))
+                  (.start (.arguments call)))
+               1)
+      (break :done (Err (UnexpectedGuest))))
+    (let [argument
+            (sexp-nth (.source (.arguments call)) (.start (.arguments call)))
+          root
+            (match (code/import-form! syntax argument)
+              (Ok [id] id)
+              (Err [_] (break :done (Err (UnexpectedGuest)))))
+          (mut entry) (- 0 1)]
+      (for [i 0 (len (.names (.image context)))]
+        (when (= (get (.names (.image context)) i) (.entry call))
+          (set! entry i)))
+      (when (< entry 0) (break :done (Err (PhaseRejected))))
+      (Ok (execute (.allocator context)
+                   (.image context)
+                   entry
+                   syntax
+                   root
+                   syntax)))))
+
 (defn invoke :cc (cc/C) [(context (ptr Expansion))]
   (-> (Result protocol/Event StageFailure))
   (let [a (.allocator context)
@@ -213,46 +243,54 @@
         (mut markers) (HashMap::new [(slice u8) bool] a (keyops-borrowed))
         (mut entries) (HashMap::new [(slice u8) bool] a (keyops-borrowed))
         (mut items) (ArrayList::new [Sexp] a)
+        (mut input) (code/create a)
+        (mut session) (execution/create a)
+        (mut callback) (NativeCall :allocator a :image im)
+        owned
+          (match (code/promote! (mut input) (.current context) (.root context))
+            (Ok [id] id)
+            (Err [_] (panic "request argument ownership")))
         argument
-          (match (projection/project a (.current context) (.root context))
+          (match (projection/project a (mut input) owned)
             (Ok [form] form)
             (Err [_] (panic "request argument")))]
     (defer (free! (mut markers)))
     (defer (free! (mut entries)))
     (defer (free! (mut items)))
+    (defer (code/release! (mut input)))
+    (defer (execution/close! (mut session)))
     (for marker (.markers context) (set! (mut markers) marker true))
     (for name (.names im) (set! (mut entries) name true))
+    (match (forms/store-source! (mut (.store input)) 0 "request" "")
+      (Ok [_])
+      (Err [_] (panic "synthetic request origin")))
     (push! (mut items) (mk-sexp (KSym "phase-request") 0 0))
     (push! (mut items)
            (mk-sexp (KSym (if (= (.stage context) 0) "phase-a" "phase-b")) 0 0))
     (push! (mut items) argument)
     (let [(mut request) (mk-sexp (KList (box! a (ArrayList Sexp) items)) 0 0)
-          call
-            (match (requests/inspect a
-                                     (mut request)
-                                     (None)
-                                     (mut markers)
-                                     (mut entries))
-              (Ok [decision]
-                  (match decision
-                    (requests/Request [call] call)
-                    (_ (panic "request not selected"))))
-              (Err [_] (panic "request rejected")))
-          (mut entry) (- 0 1)]
-      (unless (= (- (sexp-count (.source (.arguments call)))
-                    (.start (.arguments call)))
-                 1)
-        (panic "fixture expects one raw Code argument"))
-      (for [i 0 (len (.names im))]
-        (when (= (get (.names im) i) (.entry call)) (set! entry i)))
-      (when (< entry 0) (panic "validated entry missing"))
+          root
+            (match (code/import-form! (mut input) (mut request))
+              (Ok [id] id)
+              (Err [_] (panic "owned request")))
+          returned
+            (match (execution/run! (mut session)
+                                   (mut input)
+                                   root
+                                   (None)
+                                   (mut markers)
+                                   (mut entries)
+                                   (mut callback)
+                                   (fnptr-of native-request))
+              (Ok [id] id)
+              (Err [_] (panic "native request execution")))]
+      (unless (= (.calls session) 1) (panic "unexpected native call count"))
       (set! (.pending-root context)
-            (execute a
-                     im
-                     entry
-                     (.current context)
-                     (.root context)
-                     (.pending context))))
+            (match (code/promote! (.pending context)
+                                  (field (mut session) syntax)
+                                  returned)
+              (Ok [id] id)
+              (Err [_] (panic "request result ownership")))))
     (Ok (protocol/Event-Returned))))
 
 (defn round-effect :cc (cc/C) [(context (ptr Expansion))

@@ -1,0 +1,11 @@
+;;; Generated from languages/request_expansion.protocol by tools/gen-schema.py. Do not edit.
+(module rewrite.requestprotocol)
+(import "coil.result" :use *)
+(import "coil.cc" :as cc)
+(defsum Event (Event-Done)(Event-Request)(Event-Returned))
+(defn state-name [(state i64)] (-> (slice u8)) (block :done (when (= state 2) (break :done "complete"))(when (= state 3) (break :done "walk"))(when (= state 4) (break :done "invoke"))"<unknown>"))
+(defn budget-name [(budget i64)] (-> (slice u8)) (block :done (when (= budget 0) (break :done "calls"))"<unknown>"))
+(defn event-name [(event Event)] (-> (slice u8)) (match event (Event-Done [] "Done")(Event-Request [] "Request")(Event-Returned [] "Returned")))
+(defsum Failure [E] (HandlerError [(state i64) (error E)]) (UnexpectedEvent [(state i64) (event Event)]) (Exhausted [(budget i64) (limit i64)]))
+(defstruct Handlers [C E] [(step-walk (fnptr (cc/C) [(ptr C)] (Result Event E)))(step-invoke (fnptr (cc/C) [(ptr C)] (Result Event E)))])
+(defn run [C E] [(context (ptr C)) (handlers (ptr (Handlers C E)))] (-> (Result bool (Failure E))) (block :done (let [(mut state) 3 (mut spent0) 0] (loop (when (= state 2) (break :done (Ok true))) (cond (= state 3) (let [step (.step-walk handlers) event (match (step context) (Ok [event] event) (Err [e] (break :done (Err (HandlerError [E] state e)))))] (match event (Event-Done [] (set! state 2))(Event-Request [] (when (>= spent0 100000) (break :done (Err (Exhausted [E] 0 100000)))) (set! spent0 (+ spent0 1))(set! state 4))(_ (break :done (Err (UnexpectedEvent [E] state event)))))) (= state 4) (let [step (.step-invoke handlers) event (match (step context) (Ok [event] event) (Err [e] (break :done (Err (HandlerError [E] state e)))))] (match event (Event-Returned [] (set! state 3))(_ (break :done (Err (UnexpectedEvent [E] state event)))))) :else (panic "invalid generated protocol state"))) (Ok true))))

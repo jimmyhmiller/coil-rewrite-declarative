@@ -29,6 +29,11 @@
       "specification_sha256": "3fe80d433d6bbf990de8cc107735203a8f174bfb57bc05c5f54b51537c9879dd",
       "output": "seed/generated/before_protocol.coil",
       "generated_sha256": "d4c501ee6b518eeea2ffd0f2a4a97a616e9b1975e419a4456ffdf3be9acc84d5"
+    },
+    "languages/request_expansion.protocol": {
+      "specification_sha256": "c20d81fc9ef26601445c1bd16806fc490225f6adef46d104e619162a6a5e7692",
+      "output": "seed/generated/request_protocol.coil",
+      "generated_sha256": "b6ca981116487cd83bdde28702a1e9d69533952a6514cbad94fa9dcdbf7cbbd0"
     }
   },
   "isolated_rebuild_regeneration_equal": true,
@@ -43,6 +48,7 @@
     "seed/generated/before_protocol.coil": "d4c501ee6b518eeea2ffd0f2a4a97a616e9b1975e419a4456ffdf3be9acc84d5",
     "seed/generated/code_forms.coil": "941839223a32f3512b466cc7571e5e85e32ea85c3c4338789dae513227f47617",
     "seed/generated/protocol_forms.coil": "df9e7ac21cacee998f55bcf2f7c784565d260efbf966a738bbfcf56b9473ba44",
+    "seed/generated/request_protocol.coil": "b6ca981116487cd83bdde28702a1e9d69533952a6514cbad94fa9dcdbf7cbbd0",
     "seed/generated/schema_forms.coil": "c412311c65dd22fb8d36568e3aa142c0f3ac3d95464f55f11ec1e9c4beae8f1d",
     "seed/generated/stage_protocol.coil": "ca788092370b54bd3eb92a85bf82138945fbc0f0a23a429c488871e7ccdc431a",
     "seed/index.coil": "071ce0d6f87d28036b19158a770c5324bdef1d46278e4326fcb5730e31337a31",
@@ -54,6 +60,7 @@
     "seed/program.coil": "b8ad6fb872c4de33aac6cb06f818cebeb70046bd795252b9af88e11b6bb0a3f9",
     "seed/protocol.coil": "490edca14bef4d64a968a51e6c4ca924bacdf9431ed41c42aef9852acd9921af",
     "seed/readers.coil": "e9964cb35c00368d102280a1e3a1ccdcbf78ca119c87b4af9c4e691c4272bb29",
+    "seed/request_execution.coil": "e7311e1183334846df4d8121258e0ae753904c4c65a7fd4f36a8837b47a023c9",
     "seed/requests.coil": "c5b8644e27b53b5c299f916e29a05ed131f203ac6b40383c4de951bad4c049a6",
     "seed/resolution.coil": "b080dca9f1a7b3848105faf4e2369a3272911fe8ab22a0e23f75e23d112521c6",
     "seed/resolve.coil": "2928e535b334a1728fea51807ad73e0b5ed16f90ce4b75acd9bd2d8cf45df78e",

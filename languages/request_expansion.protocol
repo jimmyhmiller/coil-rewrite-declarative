@@ -1,0 +1,9 @@
+(module rewrite.requestprotocol)
+(protocol
+  (budget calls 100000)
+  (start walk)
+  (finish complete)
+  (state walk
+    (on Done complete)
+    (spend Request calls invoke))
+  (state invoke (on Returned walk)))

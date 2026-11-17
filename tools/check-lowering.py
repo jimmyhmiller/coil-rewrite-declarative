@@ -19,11 +19,12 @@ with tempfile.TemporaryDirectory(prefix='rewrite-lowering-') as directory:
     shutil.copyfile(ROOT/'seed/source.coil', work/'source.coil')
     shutil.copyfile(ROOT/'seed/sequence.coil', work/'sequence.coil')
     shutil.copyfile(ROOT/'runtime/native.coil', work/'native.coil')
-    for name in ['code', 'invocation', 'syntax_reader', 'equality_runtime', 'rounds', 'stage', 'requests']:
+    for name in ['code', 'invocation', 'syntax_reader', 'equality_runtime', 'rounds', 'stage', 'requests', 'request_execution']:
         shutil.copyfile(ROOT/f'seed/{name}.coil', work/f'{name}.coil')
     shutil.copyfile(ROOT/'seed/generated/code_forms.coil', work/'code_forms.coil')
     shutil.copyfile(ROOT/'seed/generated/stage_protocol.coil', work/'stage_protocol.coil')
     shutil.copyfile(ROOT/'seed/generated/before_protocol.coil', work/'before_protocol.coil')
+    shutil.copyfile(ROOT/'seed/generated/request_protocol.coil', work/'request_protocol.coil')
     (work/'generated.coil').write_bytes(subprocess.check_output([str(ROOT/'build/schema-seed')], input=(ROOT/'tests/schemas/lowering.schema').read_bytes()))
     rng = random.Random(90210)
     def expression(depth, env):
