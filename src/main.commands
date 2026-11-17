@@ -22,8 +22,10 @@
           entry))))
 
 (pipeline check-source
+  (phase sources source-catalog allocator path source-bytes)
+  (on-error problem (report-problem sources problem))
   (read-forms parsed)
-  (phase unit read-unit allocator parsed)
+  (phase unit read-unit allocator sources parsed)
   (phase valid check-signatures allocator (.declarations unit))
   (phase checked check-functions allocator unit))
 

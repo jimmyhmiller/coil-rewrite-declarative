@@ -277,3 +277,56 @@ compare 1 '(module app) (export [main]) (defn main [] (-> i64) 2)'
 compare 1 '(module app) (module a) (defn f [] (-> i64) 4) (module b) (defn f [] (-> i64) 5) (module app) (import "a" :use *) (import "b" :use *) (defn main [] (-> i64) (f))'
 run_both 5 '(module app) (module a) (defn f [] (-> i64) 4) (module b) (defn f [] (-> i64) 5) (module app) (import "a" :use * :exclude [f]) (import "b" :use *) (defn main [] (-> i64) (f))'
 run_both 4 '(module app) (module a) (defn f [] (-> i64) 4) (module app) (import "a" :use *) (import "a" :use *) (defn main [] (-> i64) (f))'
+
+mkdir mapped
+(
+    cd mapped
+    cat > Coil.toml <<'TOML'
+[package]
+name = "mapped"
+entry = "app.coil"
+[modules]
+"mapped.left" = "left.coil"
+"mapped.right" = "right.coil"
+"mapped.shared" = "shared.coil"
+TOML
+    echo '(module mapped.app) (import "mapped.left" :as l) (import "mapped.right" :as r) (defn main [] (-> i64) (+ (l/f) (r/f)))' > app.coil
+    echo '(module mapped.left) (import "mapped.shared" :use [value]) (defn f [] (-> i64) (value))' > left.coil
+    echo '(module mapped.right) (import "mapped.shared" :as s) (defn f [] (-> i64) (s/value))' > right.coil
+    echo '(module mapped.shared) (export value) (defn value [] (-> i64) 19)' > shared.coil
+    for compiler in coil ../rewrite; do
+        "$compiler" check
+        status=0
+        "$compiler" run || status=$?
+        [ "$status" -eq 38 ]
+    done
+    for broken in '(defn value [] (-> i64) (missing))' '('; do
+        printf '(module mapped.shared)\n%s\n' "$broken" > shared.coil
+        for compiler in coil ../rewrite; do
+            if "$compiler" check >diagnostic 2>&1; then exit 1; fi
+            grep -F 'shared.coil:2:' diagnostic >/dev/null
+        done
+    done
+)
+
+mkdir -p discovered/lib
+(
+    cd discovered
+    cat > Coil.toml <<'TOML'
+[package]
+name = "discovered"
+entry = "entry.coil"
+source-roots = ["lib"]
+[modules]
+"discovered.extra" = "./lib/extra.coil"
+TOML
+    echo '(module discovered.app) (import "discovered.worker" :use [work]) (defn offset [] (-> i64) 9) (defn main [] (-> i64) (work))' > entry.coil
+    echo '(module discovered.worker) (import "discovered.extra" :as e) (defn work [] (-> i64) (e/value))' > lib/arbitrary.coil
+    echo '(module discovered.extra) (import "discovered.app" :as app) (defn value [] (-> i64) (+ 20 (app/offset)))' > lib/extra.coil
+    for compiler in coil ../rewrite; do
+        "$compiler" check
+        status=0
+        "$compiler" run || status=$?
+        [ "$status" -eq 29 ]
+    done
+)

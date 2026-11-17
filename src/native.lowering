@@ -55,7 +55,7 @@
     (bind value (nodes/parameter (mut (.g f)) rep (cast u64 position)))
     (perform (set! (mut (.locals f)) (.node-id name) value))
     (yield (Ok rep)))
-  (otherwise (yield (Err (mk-diag (.lo param) (.hi param) "invalid native parameter")))))
+  (otherwise (yield (Err (mk-diag-src (.source param) (.lo param) (.hi param) "invalid native parameter")))))
 
 (translate lower-expression
   [(f (mut Frame)) (im (mut image/Image))
@@ -67,14 +67,14 @@
   (on (get (.types (.checked f)) (.node-id expr)) (Some [type])
     (need rep (machine-type type expr))
     (yield (lower-value (mut f) (mut im) signatures expr rep)))
-  (otherwise (yield (Err (mk-diag (.lo expr) (.hi expr) "missing checked expression type")))))
+  (otherwise (yield (Err (mk-diag-src (.source expr) (.lo expr) (.hi expr) "missing checked expression type")))))
 
 (translate jump-edges [(f Frame) (expr (ptr Sexp))] (Result (ptr LoopEdges) Diag)
   (on (get (.targets (.checked f)) (.node-id expr)) (Some [id])
     (choose
       (on (get (.loops f) id) (Some [edges]) (yield (Ok edges)))
-      (otherwise (yield (Err (mk-diag (.lo expr) (.hi expr) "missing native jump target"))))))
-  (otherwise (yield (Err (mk-diag (.lo expr) (.hi expr) "jump target was not resolved")))))
+      (otherwise (yield (Err (mk-diag-src (.source expr) (.lo expr) (.hi expr) "missing native jump target"))))))
+  (otherwise (yield (Err (mk-diag-src (.source expr) (.lo expr) (.hi expr) "jump target was not resolved")))))
 
 (translate lower-value
   [(f (mut Frame)) (im (mut image/Image))
@@ -202,9 +202,9 @@
             (perform (set! (.control f) call-node))
             (yield (Ok (if (= expected ir/T-CTRL) call-node
                            (nodes/call-result (mut (.g f)) expected call-node)))))
-          (otherwise (yield (Err (mk-diag (.lo expr) (.hi expr) "invalid native callee"))))))
-      (otherwise (yield (Err (mk-diag (.lo expr) (.hi expr) "unknown native callee"))))))
-  (otherwise (yield (Err (mk-diag (.lo expr) (.hi expr) "unsupported native expression")))))
+          (otherwise (yield (Err (mk-diag-src (.source expr) (.lo expr) (.hi expr) "invalid native callee"))))))
+      (otherwise (yield (Err (mk-diag-src (.source expr) (.lo expr) (.hi expr) "unknown native callee"))))))
+  (otherwise (yield (Err (mk-diag-src (.source expr) (.lo expr) (.hi expr) "unsupported native expression")))))
 
 (translate read-binding [(f (mut Frame)) (expr (ptr Sexp)) (type i32)] (Result i32 Diag)
   (on (get (.references (.checked f)) (.node-id expr)) (Some [binding])
@@ -217,8 +217,8 @@
             (perform (set! (.control f) loaded))
             (yield (Ok (if (= type ir/T-BOOL) (nodes/nonzero (mut (.g f)) stored-type loaded) loaded))))
           (otherwise (yield (Ok value)))))
-      (otherwise (yield (Err (mk-diag (.lo expr) (.hi expr) "binding has no native value"))))))
-  (otherwise (yield (Err (mk-diag (.lo expr) (.hi expr) "unresolved native local")))))
+      (otherwise (yield (Err (mk-diag-src (.source expr) (.lo expr) (.hi expr) "binding has no native value"))))))
+  (otherwise (yield (Err (mk-diag-src (.source expr) (.lo expr) (.hi expr) "unresolved native local")))))
 
 (translate save-scalar [(f (mut Frame)) (address i32) (value i32)] i32
   (otherwise
@@ -236,8 +236,8 @@
         (need value (lower-expression (mut f) (mut im) signatures expr) (< (.control f) 0))
         (perform (save-scalar (mut f) address value))
         (yield (Ok (nodes/literal (mut (.g f)) ir/T-I64 0))))
-      (otherwise (yield (Err (mk-diag (.lo name) (.hi name) "missing native cell"))))))
-  (otherwise (yield (Err (mk-diag (.lo name) (.hi name) "unresolved native cell")))))
+      (otherwise (yield (Err (mk-diag-src (.source name) (.lo name) (.hi name) "missing native cell"))))))
+  (otherwise (yield (Err (mk-diag-src (.source name) (.lo name) (.hi name) "unresolved native cell")))))
 
 (translate run-cleanups
   [(f (mut Frame)) (im (mut image/Image)) (signatures modules/Lookup)
@@ -280,9 +280,9 @@
     (bind canonical (modules/symbol-for signatures form))
     (choose
       (on (host/append-graph! a (mut im) (image/symbol! (mut im) canonical) (.g f))
-          (Err [message]) (yield (Err (mk-diag (.lo form) (.hi form) message))))
+          (Err [message]) (yield (Err (mk-diag-src (.source form) (.lo form) (.hi form) message))))
       (otherwise (yield (Ok 0)))))
-  (otherwise (yield (Err (mk-diag (.lo form) (.hi form) "unsupported native declaration")))))
+  (otherwise (yield (Err (mk-diag-src (.source form) (.lo form) (.hi form) "unsupported native declaration")))))
 
 (translate emit-object
   [(a (dyn Allocator))

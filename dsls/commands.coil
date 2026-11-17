@@ -3,14 +3,21 @@
 
 (reader-provider "rewrite.command-reader" read-commands)
 
-(defn stages [(rule Code) (i i64) (path Code) (src Code) (allocator Code)]
+(defn stages [(rule Code)
+              (i i64)
+              (path Code)
+              (src Code)
+              (allocator Code)
+              (reporter Code)]
   (-> Code)
   (when (>= i (primitive/code-count rule))
     (primitive/error "source command needs a terminal exit stage"))
   (let [stage (get rule i)
         tag (get stage 0)
         n (primitive/code-count stage)]
-    (cond (primitive/code-eq tag `exit)
+    (cond (primitive/code-eq tag `on-error)
+            (stages rule (+ i 1) path src allocator (primitive/code-rest stage))
+          (primitive/code-eq tag `exit)
             (if (and (= n 2) (= (+ i 1) (primitive/code-count rule)))
                 (get stage 1)
                 (primitive/error "exit takes one status and ends the pipeline"))
@@ -24,15 +31,12 @@
                             (do
                               (primitive/error "expected read-forms, phase or exit stage")
                               `0))
-                  rest (stages rule (+ i 1) path src allocator)]
+                  rest (stages rule (+ i 1) path src allocator reporter)]
               `(match ~action
                  (Ok [~(get stage 1)] ~rest)
-                 (Err [problem]
+                 (Err [~(get reporter 0)]
                       (do
-                        (coil.source.diagnostic.report (coil.io.stderr)
-                                                       ~path
-                                                       ~src
-                                                       problem)
+                        ~(get reporter 1)
                         1)))))))
 
 (defn expand-pipeline [(forms Code) (rule Code)] (-> Code)
@@ -111,8 +115,24 @@
                                                                     (- (cast i64
                                                                              ~argc)
                                                                        1))))]
-                             ~(stages expanded first-stage path src allocator))
-                          (stages expanded first-stage path src allocator)))
+                             ~(stages expanded
+                                      first-stage
+                                      path
+                                      src
+                                      allocator
+                                      `(problem (coil.source.diagnostic.report (coil.io.stderr)
+                                                                               ~path
+                                                                               ~src
+                                                                               problem))))
+                          (stages expanded
+                                  first-stage
+                                  path
+                                  src
+                                  allocator
+                                  `(problem (coil.source.diagnostic.report (coil.io.stderr)
+                                                                           ~path
+                                                                           ~src
+                                                                           problem)))))
                    ~rest))
             rest))))
 
