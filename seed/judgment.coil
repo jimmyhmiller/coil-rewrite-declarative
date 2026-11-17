@@ -30,6 +30,34 @@
       (do (push-str! (mut b) "t") (number! (mut b) (binding-index rule name)))
       (number! (mut b) (tag name))))
 
+(defn validate-term [(term (ptr Sexp)) (rule (ptr Sexp))] (-> (Result i64 Diag))
+  (if (sexp-sym? term)
+      (cond (scalar? (sexp-sym term)) (Ok 0)
+            (variable? (sexp-sym term))
+              (if (>= (binding-index rule (sexp-sym term)) 2)
+                  (Ok 0)
+                  (Err (problem term "unbound result type variable")))
+            :else (Err (problem term "unknown judgment result type")))
+      (if (and (sexp-list? term)
+               (= (sexp-count term) 3)
+               (sexp-sym-is (sexp-nth term 0) "Fn"))
+          (match (validate-term (sexp-nth term 1) rule)
+            (Err [d] (Err d))
+            (Ok [_] (validate-term (sexp-nth term 2) rule)))
+          (Err (problem term "expected (Fn Argument Result) type")))))
+
+(defn emit-term! [(b (mut StrBuf)) (rule (ptr Sexp)) (term (ptr Sexp))]
+  (-> void)
+  (if (sexp-sym? term)
+      (type-expression! (mut b) rule (sexp-sym term))
+      (do
+        (push-str! (mut b) "(match (types/function (mut type-store) ")
+        (emit-term! (mut b) rule (sexp-nth term 1))
+        (push-str! (mut b) " ")
+        (emit-term! (mut b) rule (sexp-nth term 2))
+        (push-str! (mut b)
+                   ") (Ok [ty] ty) (Err [error] (break :rule (TypeConstruction error))))"))))
+
 (defn text-field [(v (ptr Variant)) (name (ptr Sexp))] (-> i64)
   (block :found
     (for [i 0 (len (.fields v))]
@@ -90,18 +118,10 @@
             (and (sexp-list? result)
                  (= (sexp-count result) 2)
                  (sexp-sym-is (sexp-nth result 0) "lookup"))]
-      (unless (or lookup?
-                  (and (sexp-sym? result)
-                       (or (scalar? (sexp-sym result))
-                           (variable? (sexp-sym result)))))
-        (break
-          :done
-            (Err (problem result
-                          "judgment result must be a scalar or bound type variable"))))
-      (when (and (not lookup?)
-                 (variable? (sexp-sym result))
-                 (< (binding-index rule (sexp-sym result)) 0))
-        (break :done (Err (problem result "unbound result type variable"))))
+      (unless lookup?
+        (match (validate-term result rule)
+          (Err [d] (break :done (Err d)))
+          (Ok [_] 0)))
       (push-str! (mut b) "(N")
       (number! (mut b) ni)
       (push-str! (mut b) "V")
@@ -150,7 +170,7 @@
                     (Ok [_] 0))
                   (push-str! (mut b) "answer (judge-worker-")
                   (number! (mut b) ni)
-                  (push-str! (mut b) " rows f")
+                  (push-str! (mut b) " (mut type-store) rows f")
                   (number! (mut b) f)
                   (push-str! (mut b)
                              " (- fuel 1) ")
@@ -189,7 +209,7 @@
             (push-str! (mut b) " (.index id))"))
           (do
             (push-str! (mut b) "(Typed ")
-            (type-expression! (mut b) rule (sexp-sym result))
+            (emit-term! (mut b) rule result)
             (push-str! (mut b) ")")))
       (push-str! (mut b) ")))\n")
       (Ok 0))))
@@ -212,7 +232,8 @@
           (break :done (Err (problem name "judgment requires a sum"))))
         (push-str! (mut b) "(defn judge-worker-")
         (number! (mut b) ni)
-        (push-str! (mut b) " [(rows (ptr (ArrayList N")
+        (push-str! (mut b)
+                   " [(type-store (mut types/Types)) (rows (ptr (ArrayList N")
         (number! (mut b) ni)
         (push-str! (mut b) "Row))) (id N")
         (number! (mut b) ni)
@@ -241,12 +262,14 @@
           (break :done (Err (problem form "unknown or extra variant rule"))))
         (push-str! (mut b) ")))))\n(defn judge-")
         (number! (mut b) ni)
-        (push-str! (mut b) " [(rows (ptr (ArrayList N")
+        (push-str! (mut b)
+                   " [(type-store (mut types/Types)) (rows (ptr (ArrayList N")
         (number! (mut b) ni)
         (push-str! (mut b) "Row))) (id N")
         (number! (mut b) ni)
         (push-str! (mut b)
                    "Id)] (-> Judgment) (let [(mut context) (zeroed Context)] (judge-worker-")
         (number! (mut b) ni)
-        (push-str! (mut b) " rows id (len (load rows)) (mut context))))\n")
+        (push-str! (mut b)
+                   " (mut type-store) rows id (len (load rows)) (mut context))))\n")
         (Ok (str (load b)))))))

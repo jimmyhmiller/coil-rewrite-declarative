@@ -5,7 +5,9 @@
   (Choose (condition Expr) (yes Expr) (no Expr))
   (Project (left Expr) (right Expr))
   (Variable (name Text))
-  (Let (name Text) (value Expr) (body Expr)))
+  (Let (name Text) (value Expr) (body Expr))
+  (LambdaInt (name Text) (body Expr))
+  (LambdaBool (name Text) (body Expr)))
 (judgment Expr
   (Integer Int)
   (Boolean Bool)
@@ -13,4 +15,6 @@
   (Choose ?result (condition Bool) (yes ?result) (no ?result))
   (Project ?right (left ?left) (right ?right))
   (Variable (lookup name))
-  (Let ?body (value ?value) (body ?body (bind name ?value))))
+  (Let ?body (value ?value) (body ?body (bind name ?value)))
+  (LambdaInt (Fn Int ?body) (body ?body (bind name Int)))
+  (LambdaBool (Fn Bool ?body) (body ?body (bind name Bool))))

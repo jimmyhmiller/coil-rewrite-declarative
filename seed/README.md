@@ -80,6 +80,16 @@ On a failed parse, previously appended child rows remain in the store; discard t
 
 `types.coil` introduces the concrete type store needed for function judgments. Scalar IDs remain Int=1, Bool=2, Text=3. `function(store, argument, result)` interns a unary function type and returns its canonical ID; argument and result can themselves be functions. `as-function` safely decomposes one. The pair index uses two checked 32-bit IDs packed into a u64, so pair equality is exact and lookup does not scan the type table. Exhaustion returns `TypeCapacity`; invalid component IDs return `InvalidType` before any mutation.
 
-IDs belong to one type store and are meaningful only while it lives. Callers must not mutate the store's backing tables directly or compare IDs from different stores. This API currently handles concrete unary function types, not unknown metavariables, recursive types, polymorphic schemes, multi-argument signatures, or effects. Judgment code still uses scalar results; integration will require a caller-owned type store so returned function IDs remain valid. The implementation is handwritten Coil runtime machinery pending self-description, and counts toward the total authored size.
+IDs belong to one type store and are meaningful only while it lives. Callers must not mutate the store's backing tables directly or compare IDs from different stores. This API currently handles concrete unary function types, not unknown metavariables, recursive types, polymorphic schemes, multi-argument signatures, or effects. Generated judgment calls now take a caller-owned type store as their first argument, so returned function IDs remain valid until that store is released. The implementation is handwritten Coil runtime machinery pending self-description, and counts toward the total authored size.
 
 `tests/types.coil` checks canonical reuse, argument/result distinction, higher-order signatures, invalid IDs and 10,000 nested signatures across growth; `tools/check-seed.py` runs it in all three build configurations.
+
+Judgment result terms can construct function types:
+
+```
+(LambdaInt (Fn Int ?body) (body ?body (bind name Int)))
+```
+
+`Fn` terms nest recursively, and their leaves are scalars or previously inferred rule variables. The seed validates every nested term and rejects unbound variables before generation. Generated code interns the resulting type in the caller's `rewrite.types/Types` store; construction errors propagate as `TypeConstruction`. The generated module imports that runtime, which must accompany generated output. The acceptance harness copies the exact source into its isolated consumer projects.
+
+The public signature is now `judge-N(type-store, rows, id)`. Context bindings and type-variable equality operate on canonical IDs from that same store. Tests parse and check identity functions, let-bound functions and nested function results, then decompose the returned types before releasing the store. LambdaInt/LambdaBool are fixtures demonstrating domain-independent rule composition, not a claim to implement Coil lambda semantics or capture rules. Call typing, argument annotations, function-type pattern premises, polymorphism and elaboration remain pending.
