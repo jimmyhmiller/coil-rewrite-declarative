@@ -43,10 +43,11 @@ with tempfile.TemporaryDirectory(prefix='rewrite-lowering-') as directory:
         body, result = expression(depth - 1, dict(env, **{name: value}))
         return f'(Let {json.dumps(name)} {initializer} {body})', result
     client = (ROOT/'tests/lowering.coil.in').read_text().replace('(defn main []', '(defn hand-tests []')
+    client += (ROOT/'tests/alpha-native.coil.in').read_text()
     client += '\n(defn main [] (-> i64) (let [(mut failures) (hand-tests)]\n'
     for index in range(40):
         source, expected = expression(4, {})
-        client += f'(unless (check {json.dumps(source)} {expected}) (println "generated case {index} failed") (set! failures (+ failures 1)))\n'
+        client += f'(unless (and (check {json.dumps(source)} {expected}) (check-alpha {json.dumps(source)} {expected})) (println "generated case {index} failed") (set! failures (+ failures 1)))\n'
     client += 'failures))\n'
     (work/'main.coil').write_text(client)
     for flags in [[], ['--debug-checks'], ['--release']]:

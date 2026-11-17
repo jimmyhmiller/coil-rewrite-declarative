@@ -4,6 +4,7 @@
 (import "rewrite.emit" :as emit)
 (import "rewrite.index" :as index)
 (import "rewrite.resolve" :as resolve)
+(import "rewrite.alpha" :as alpha)
 (import "rewrite.readers" :as readers)
 (import "rewrite.syntax" :as syntax)
 (import "rewrite.transform" :as transform)
@@ -25,7 +26,7 @@
        (sexp-sym-is (sexp-nth form 0) "judgment")))
 
 (def compiler-phases
-  "(phases\n (input schema Schema)\n (input bindings Bindings)\n (phase program (needs (maps TransformAPI) (surface SurfaceAPI) (readers ReaderAPI) (indexes IndexAPI) (judgments JudgmentAPI) (lowering CIRAPI)) (makes (program ProgramAPI)))\n (phase transform (needs (readers ReaderAPI)) (makes (maps TransformAPI)))\n (phase syntax (needs (readers ReaderAPI)) (makes (surface SurfaceAPI)))\n (phase readers (needs (tables Tables)) (makes (readers ReaderAPI)))\n (phase resolution (needs (readers ReaderAPI) (bindings Bindings)) (makes (resolution ResolutionAPI)))\n (phase indexes (needs (tables Tables)) (makes (indexes IndexAPI)))\n (phase judgment (needs (tables Tables) (bindings Bindings)) (makes (judgments JudgmentAPI)))\n (phase lower (needs (tables Tables) (bindings Bindings)) (makes (lowering CIRAPI)))\n (phase tables (needs (schema Schema)) (makes (tables Tables))))")
+  "(phases\n (input schema Schema)\n (input bindings Bindings)\n (phase program (needs (maps TransformAPI) (surface SurfaceAPI) (readers ReaderAPI) (indexes IndexAPI) (judgments JudgmentAPI) (lowering CIRAPI)) (makes (program ProgramAPI)))\n (phase transform (needs (readers ReaderAPI)) (makes (maps TransformAPI)))\n (phase syntax (needs (readers ReaderAPI)) (makes (surface SurfaceAPI)))\n (phase readers (needs (tables Tables)) (makes (readers ReaderAPI)))\n (phase alpha (needs (resolution ResolutionAPI)) (makes (alpha AlphaAPI)))\n (phase resolution (needs (readers ReaderAPI) (bindings Bindings)) (makes (resolution ResolutionAPI)))\n (phase indexes (needs (tables Tables)) (makes (indexes IndexAPI)))\n (phase judgment (needs (tables Tables) (bindings Bindings)) (makes (judgments JudgmentAPI)))\n (phase lower (needs (tables Tables) (bindings Bindings)) (makes (lowering CIRAPI)))\n (phase tables (needs (schema Schema)) (makes (tables Tables))))")
 
 (defn compile-stage [(a (dyn Allocator))
                      (sp (ptr schema/Schema))
@@ -39,6 +40,7 @@
                 (= stage "readers")
                 (= stage "indexes")
                 (= stage "resolution")
+                (= stage "alpha")
                 (= stage "judgment")
                 (= stage "syntax")
                 (= stage "transform")
@@ -60,6 +62,8 @@
                 (Err [d] (break :done (Err d)))
                 (Ok [text] (push-str! (mut output) text)))
             (= stage "readers") (push-str! (mut output) (readers/emit a sp))
+            (= stage "alpha")
+              (push-str! (mut output) (alpha/emit a sp bindings))
             (= stage "resolution")
               (push-str! (mut output) (resolve/emit a sp bindings))
             (= stage "indexes") (push-str! (mut output) (index/emit a sp))

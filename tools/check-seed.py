@@ -373,3 +373,15 @@ with tempfile.TemporaryDirectory(prefix='rewrite-resolution-') as directory:
     for flags in [[], ['--debug-checks'], ['--release']]:
         subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)
 print('Generated lexical resolution: identity and invalid-graph checks passed')
+
+with tempfile.TemporaryDirectory(prefix='rewrite-alpha-') as directory:
+    work = Path(directory)
+    for runtime in ('types', 'scope', 'resolution', 'source', 'sequence'):
+        shutil.copyfile(ROOT / f'seed/{runtime}.coil', work / f'{runtime}.coil')
+    (work / 'Coil.toml').write_text('[package]\nname="fixture"\nentry="main.coil"\nsource-roots=["."]\n')
+    (work / 'generated.coil').write_bytes(subprocess.check_output(
+        [str(ROOT / 'build/schema-seed')], input=(ROOT / 'tests/schemas/resolution.schema').read_bytes()))
+    (work / 'main.coil').write_bytes((ROOT / 'tests/alpha.coil.in').read_bytes())
+    for flags in [[], ['--debug-checks'], ['--release']]:
+        subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)
+print('Identity-directed alpha copying passed')

@@ -1,0 +1,37 @@
+(defn check-alpha [(source (slice u8)) (expected i64)] (-> bool)
+  (let [(mut arena) (zeroed ScratchArena)
+        initialized (init (mut arena) (malloc-allocator)) a (allocator (mut arena))
+        (mut store) (store-new a) (mut input) (store-new a)
+        (mut globals) (ArrayList::new [(slice u8)] a) (mut released) false (mut types) (types/create a)
+        registered (store-source! (mut input) 0 "alpha-native.coil" source)
+        ok (match (read-all a source 0)
+          (Err [_] false)
+          (Ok [forms]
+            (match (parse-0 (mut input) (elem forms 0))
+              (Err [_] false)
+              (Ok [source-id]
+                (match (alpha-0 a (mut input) (mut store) source-id (mut globals))
+                  (Err [_] false)
+                  (Ok [copied]
+                    (let [id (.root copied) (mut rows) (.rows copied)]
+                      (free! (mut rows))
+                      (store-free! (mut input)) (set! released true)
+                (match (judge-0 (mut types) (mut (.rows0 store)) id)
+                  (Typed [ty]
+                    (let [(mut function) (cir/Func::new)
+                          fp (primitive/cast (ptr cir/Func) (mut function))
+                          entry (cir/new-block! fp)]
+                      (cir/set-block! fp entry)
+                      (cir/ret1! fp (lower-0 (mut (.rows0 store)) id fp))
+                      (cir/finish! fp)
+                      (let [(mut im) (image/create a) symbol (image/symbol! (mut im) "entry")
+                            loaded (do (native/emit! a (mut im) fp symbol) (native/load-image a im))
+                            run (primitive/cast (fnptr (cc/C) [] i64) (jit/address-of loaded symbol))
+                            result (= (run) expected)]
+                        (jit/unload! loaded)
+                        (cir/func-free! fp)
+                        result)))
+                  (_ (= expected (- 0 999)))))))))))]
+    (unless released (store-free! (mut input))) (free! (mut globals))
+    (store-free! (mut store)) (types/release! (mut types)) (close! (mut arena))
+    ok))

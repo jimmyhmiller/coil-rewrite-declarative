@@ -8,3 +8,5 @@
 (bindings TwoScope (TwoScope (scope left name) (scope right name)))
 (node Ordered (first Text) (second Text) (body Expr))
 (bindings Ordered (Ordered (scope body second first)))
+(node Dual (name Text) (body Expr))
+(bindings Dual (Dual (reference name) (scope body name)))

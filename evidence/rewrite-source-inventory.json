@@ -8,9 +8,9 @@
       "physical_lines": 19
     },
     "authored-seed-and-runtime": {
-      "files": 20,
-      "bytes": 234702,
-      "physical_lines": 4211
+      "files": 21,
+      "bytes": 250704,
+      "physical_lines": 4458
     },
     "generated-language-toolchain": {
       "files": 1,
@@ -39,13 +39,13 @@
     },
     "rewrite-build-and-validation-tools": {
       "files": 9,
-      "bytes": 57823,
-      "physical_lines": 981
+      "bytes": 58744,
+      "physical_lines": 994
     },
     "rewrite-tests-and-fixtures": {
-      "files": 35,
-      "bytes": 91180,
-      "physical_lines": 1729
+      "files": 37,
+      "bytes": 99499,
+      "physical_lines": 1858
     }
   },
   "files": [
@@ -66,9 +66,16 @@
     {
       "path": "seed/README.md",
       "category": "authored-seed-and-runtime",
-      "sha256": "fd5d396880e2a8dc46b9be75881496956a9d123401b5beeecd588af150065ef7",
-      "bytes": 52747,
-      "physical_lines": 364
+      "sha256": "28452fcda9f83dc3419f514814c3286e4df0326382a9a860bfd158300d52316f",
+      "bytes": 56485,
+      "physical_lines": 381
+    },
+    {
+      "path": "seed/alpha.coil",
+      "category": "authored-seed-and-runtime",
+      "sha256": "d347508e4a43a6386354cc45ff671b3bf79e1490ba8cc226a271add33d4e692f",
+      "bytes": 9142,
+      "physical_lines": 161
     },
     {
       "path": "seed/binding.coil",
@@ -115,9 +122,9 @@
     {
       "path": "seed/main.coil",
       "category": "authored-seed-and-runtime",
-      "sha256": "b869a95e4b78cb26d52350a72cde38ef37744c5ab34f0485619ac8473441a70e",
-      "bytes": 13059,
-      "physical_lines": 268
+      "sha256": "996b6dcdc20b7840ecf05fa6cae7e78b19f3abc72dd45a115cfe7b56c0db07b2",
+      "bytes": 13300,
+      "physical_lines": 272
     },
     {
       "path": "seed/phase.coil",
@@ -143,9 +150,9 @@
     {
       "path": "seed/resolution.coil",
       "category": "authored-seed-and-runtime",
-      "sha256": "7c88f0af319fc9251401060548ac10e19f296b94dd04273e9e995d54b33420b7",
-      "bytes": 3125,
-      "physical_lines": 97
+      "sha256": "b080dca9f1a7b3848105faf4e2369a3272911fe8ab22a0e23f75e23d112521c6",
+      "bytes": 6006,
+      "physical_lines": 162
     },
     {
       "path": "seed/resolve.coil",
@@ -202,6 +209,20 @@
       "sha256": "e398f5cb019e3eea3339700ba5b3685b119421eb30ac5a2045c8835d5d9a6ce9",
       "bytes": 2030,
       "physical_lines": 51
+    },
+    {
+      "path": "tests/alpha-native.coil.in",
+      "category": "rewrite-tests-and-fixtures",
+      "sha256": "163a19cb5c4fb9c7f8afaaff28ff577a72fb90d9276ec1a647c8228ba65cde0f",
+      "bytes": 2098,
+      "physical_lines": 37
+    },
+    {
+      "path": "tests/alpha.coil.in",
+      "category": "rewrite-tests-and-fixtures",
+      "sha256": "4d3f2261e1e72427ee065030e6965693eeba1f2fbed07b0585fbabe404d70f1c",
+      "bytes": 6127,
+      "physical_lines": 90
     },
     {
       "path": "tests/backend/Coil.toml",
@@ -339,9 +360,9 @@
     {
       "path": "tests/schemas/resolution.schema",
       "category": "rewrite-tests-and-fixtures",
-      "sha256": "7a53cad30c653644ba56a518d90fc98e925553824737853f1a06beb4ac19c09d",
-      "bytes": 621,
-      "physical_lines": 10
+      "sha256": "44d9e64e8be674b2fab5e75482ba199db0cd0a081c29e01255f39981a24213cd",
+      "bytes": 715,
+      "physical_lines": 12
     },
     {
       "path": "tests/schemas/surface.syntax",
@@ -458,16 +479,16 @@
     {
       "path": "tools/check-lowering.py",
       "category": "rewrite-build-and-validation-tools",
-      "sha256": "04cf3771323b31b00cd696d3cd38fea4f0e2f35e7c759c35515993c0ad1dea98",
-      "bytes": 10155,
-      "physical_lines": 137
+      "sha256": "12e61572a41fa9fbeda1de46dbbbd5ca87dc5adda3c6e93b3891b0c7c7faa62a",
+      "bytes": 10269,
+      "physical_lines": 138
     },
     {
       "path": "tools/check-seed.py",
       "category": "rewrite-build-and-validation-tools",
-      "sha256": "698ce5c2e265d8e93b48f59726fc3472d6dd2c08db3180e48ba58408b1adc611",
-      "bytes": 25594,
-      "physical_lines": 375
+      "sha256": "9485bc96a1e13bb92fbd8c8d569c84c3ffbe5e32000abce8a434aaf875554164",
+      "bytes": 26401,
+      "physical_lines": 387
     },
     {
       "path": "tools/compare-seed.py",

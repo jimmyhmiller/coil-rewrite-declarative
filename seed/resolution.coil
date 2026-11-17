@@ -95,3 +95,68 @@
 (defn leave! [(walk (mut Walk)) (schema i64) (row i64)] (-> void)
   (let [active (elem (mut (.active walk)) schema)]
     (remove! active row)))
+
+;;; Alpha names are owned by the target source pool; lookup tables are scratch.
+(import "rewrite.source" :as source)
+(import "coil.str" :use [StrBuf])
+
+(defstruct AlphaNames [(names (ArrayList (slice u8))) (starts (ArrayList i64))])
+
+(defn alpha-names [(a (dyn Allocator))
+                   (result (ptr Resolution))
+                   (target (mut source/Sources))]
+  (-> AlphaNames)
+  (let [(mut names) (ArrayList::new [(slice u8)] a)
+        (mut starts) (ArrayList::new [i64] a)
+        (mut reserved)
+          (HashMap::new [(slice u8) bool] a (keystr/keyops-borrowed))
+        (mut serial) 0]
+    (defer (free! (mut reserved)))
+    (for [i 0 (len (.occurrences result))] (push! (mut starts) (- 0 1)))
+    (for declaration (.declarations result)
+      (when (< (.owner declaration) 0)
+        (set! (mut reserved) (.name declaration) true)))
+    (for [i 0 (len (.declarations result))]
+      (let [declaration (get (.declarations result) i)
+            name
+              (if (< (.owner declaration) 0)
+                  (source/intern! (mut target) (.name declaration))
+                  (block
+                    :chosen
+                      (loop (let [(mut candidate) (StrBuf::new a)]
+                              (defer (free! (mut candidate)))
+                              (push-str! (mut candidate) "__coil_local_")
+                              (push-i64! (mut candidate) serial)
+                              (set! serial (+ serial 1))
+                              (match (get reserved (str (load candidate)))
+                                (Some [_])
+                                (None []
+                                      (break
+                                        :chosen
+                                          (source/intern! (mut target)
+                                                          (str (load candidate))))))))))]
+        (when (and (>= (.owner declaration) 0)
+                   (< (get starts (.owner declaration)) 0))
+          (set! (mut starts) (.owner declaration) i))
+        (push! (mut names) name)))
+    (AlphaNames :names names :starts starts)))
+
+(defn alpha-names-free! [(names (mut AlphaNames))] (-> void)
+  (free! (mut (.names names)))
+  (free! (mut (.starts names))))
+
+(defn alpha-declaration [(result (ptr Resolution))
+                         (names (ptr AlphaNames))
+                         (owner i64)
+                         (field i64)]
+  (-> (slice u8))
+  (block :found
+    (let [(mut i) (get (.starts names) owner)]
+      (when (>= i 0)
+        (loop (when (>= i (len (.declarations result))) (break))
+          (let [declaration (get (.declarations result) i)]
+            (unless (= (.owner declaration) owner) (break))
+            (when (= (.field declaration) field)
+              (break :found (get (.names names) i))))
+          (set! i (+ i 1)))))
+    (panic "missing resolved declaration")))
