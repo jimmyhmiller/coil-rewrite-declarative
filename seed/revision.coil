@@ -36,11 +36,52 @@
     (None [] (match right (None [] true) (_ false)))
     (Some [l] (match right (Some [r] (= l r)) (_ false)))))
 
-;;; Call before admission consumes registrations: singleton means the flattened
-;;; result count, not the number of forms ultimately published. All form/module
-;;; references remain borrowed from normalized/output; this function owns only
-;;; its result array. The caller supplies one identity scope for a compilation.
-;;; Errors publish no array; already allocated fresh identities are never reused.
+;;; Version one published entry using the raw flattened batch count. Consumed
+;;; registrations need no version; published siblings still see the original count.
+(defn version! [(a (dyn Allocator))
+                (supply (mut Supply))
+                (original (Option Tagged))
+                (input (ptr code/Syntax))
+                (output (ptr code/Syntax))
+                (entry stage/Tagged)
+                (count i64)
+                (index i64)]
+  (-> (Result Version Error))
+  (block :done
+    (when (or (<= count 0) (< index 0) (>= index count))
+      (break :done (Err (InvalidVersion))))
+    (match original
+      (None [] (fresh! (mut supply)))
+      (Some [prior]
+            (unless (same-module? (.module (.entry prior)) (.module entry))
+              (break :done (Err (ModuleMismatch index))))
+            (if (!= count 1)
+                (fresh! (mut supply))
+                (let [old (.version prior)
+                      same
+                        (match (code/revision-equal? a
+                                                     input
+                                                     (.form (.entry prior))
+                                                     output
+                                                     (.form entry))
+                          (Ok [same] same)
+                          (Err [e] (break :done (Err (Comparison e)))))]
+                  (unless (and (> (.identity old) 0)
+                               (<= (.identity old) (.last supply))
+                               (>= (.revision old) 0))
+                    (break :done (Err (InvalidVersion))))
+                  (if same
+                      (Ok old)
+                      (if (= (.revision old) 9223372036854775807)
+                          (Err (RevisionExhausted))
+                          (Ok (Version
+                                :identity (.identity old)
+                                :revision (+ (.revision old) 1)
+                                :cached-shape 0))))))))))
+
+;;; Structural batch convenience: call before filtering if all entries should be
+;;; tracked. Admission can call version! only at publication, retaining raw count.
+;;; Errors publish no array; allocated identities are never recycled.
 (defn track! [(a (dyn Allocator))
               (supply (mut Supply))
               (original (Option Tagged))
@@ -57,43 +98,16 @@
         (for [i 0 count]
           (let [entry (get (load normalized) i)
                 version
-                  (match original
-                    (Some [prior]
-                          (unless (same-module? (.module (.entry prior))
-                                                (.module entry))
-                            (break :done (Err (ModuleMismatch i))))
-                          (if (= count 1)
-                              (let [old (.version prior)
-                                    same
-                                      (match (code/revision-equal? a
-                                                                   input
-                                                                   (.form (.entry prior))
-                                                                   output
-                                                                   (.form entry))
-                                        (Ok [same] same)
-                                        (Err [e]
-                                             (break :done (Err (Comparison e)))))]
-                                (unless (and (> (.identity old) 0)
-                                             (<= (.identity old) (.last supply))
-                                             (>= (.revision old) 0))
-                                  (break :done (Err (InvalidVersion))))
-                                (if same
-                                    old
-                                    (do
-                                      (when (= (.revision old)
-                                               9223372036854775807)
-                                        (break :done (Err (RevisionExhausted))))
-                                      (Version
-                                        :identity (.identity old)
-                                        :revision (+ (.revision old) 1)
-                                        :cached-shape 0))))
-                              (match (fresh! (mut supply))
-                                (Ok [v] v)
-                                (Err [e] (break :done (Err e))))))
-                    (None []
-                          (match (fresh! (mut supply))
-                            (Ok [v] v)
-                            (Err [e] (break :done (Err e))))))]
+                  (match (version! a
+                                   (mut supply)
+                                   original
+                                   input
+                                   output
+                                   entry
+                                   count
+                                   i)
+                    (Ok [v] v)
+                    (Err [e] (break :done (Err e))))]
             (push! (mut result) (Tagged :entry entry :version version))))
         (set! complete? true)
         (Ok result))))

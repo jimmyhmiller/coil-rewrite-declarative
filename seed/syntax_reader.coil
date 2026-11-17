@@ -115,17 +115,43 @@
             (set! (mut memo) index (Some (load form)))
             (Ok (load form)))))))
 
-;;; Fresh projection cache per call; preserves sharing and rejects cycles. The
-;;; returned tree and all allocations (including failed partial trees) use a.
-;;; Text/module-name slices borrow syntax until the consumer finishes. This is
-;;; a bootstrap adapter, not a persistent artifact or a syntax ownership transfer.
+;;; One immutable owned-syntax snapshot, projected lazily across multiple roots.
+;;; Projected trees use allocator storage; release! frees only memo arrays.
+;;; Text borrows syntax. The caller must keep syntax and its metadata immutable.
+(defstruct Session
+  [(allocator (dyn Allocator))
+   (syntax (ptr code/Syntax))
+   (memo (ArrayList (Option Sexp)))
+   (active (ArrayList bool))])
+
+(defn create [(a (dyn Allocator)) (syntax (ptr code/Syntax))] (-> Session)
+  (let [(mut session)
+          (Session
+            :allocator a
+            :syntax syntax
+            :memo (ArrayList::new [(Option Sexp)] a)
+            :active (ArrayList::new [bool] a))]
+    (for [i 0 (len (.rows0 (.store syntax)))]
+      (push! (mut (.memo session)) (None))
+      (push! (mut (.active session)) false))
+    session))
+
+(defn release! [(session (mut Session))] (-> void)
+  (free! (mut (.memo session)))
+  (free! (mut (.active session))))
+
+(defn project! [(session (ptr Session)) (root forms/N0Id)]
+  (-> (Result Sexp ProjectionError))
+  (project-row (.allocator session)
+               (.syntax session)
+               root
+               (field session memo)
+               (field session active)))
+
+;;; Isolated projection convenience API. Multi-root consumers should share a
+;;; session rather than initializing whole-store memo arrays for every root.
 (defn project [(a (dyn Allocator)) (syntax (ptr code/Syntax)) (root forms/N0Id)]
   (-> (Result Sexp ProjectionError))
-  (let [(mut memo) (ArrayList::new [(Option Sexp)] a)
-        (mut active) (ArrayList::new [bool] a)]
-    (defer (free! (mut memo)))
-    (defer (free! (mut active)))
-    (for [i 0 (len (.rows0 (.store syntax)))]
-      (push! (mut memo) (None))
-      (push! (mut active) false))
-    (project-row a syntax root (mut memo) (mut active))))
+  (let [(mut session) (create a syntax)]
+    (defer (release! (mut session)))
+    (project! (mut session) root)))

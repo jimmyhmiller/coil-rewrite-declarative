@@ -1,0 +1,347 @@
+(module rewrite.testadmission)
+(import "rewrite.admission" :as admission)
+(import "rewrite.admissionprotocol" :as protocol)
+(import "rewrite.deriveresolution" :as derives)
+(import "rewrite.deriveregistry" :as registry)
+(import "rewrite.namespace" :as namespace)
+(import "rewrite.nameforms" :as names)
+(import "rewrite.routingfacts" :as facts)
+(import "rewrite.sourceroutes" :as records)
+(import "rewrite.code" :as code)
+(import "rewrite.codeforms" :as forms)
+(import "rewrite.produced" :as produced)
+(import "rewrite.stage" :as stage)
+(import "rewrite.revision" :as revision)
+(import "coil.alloc" :use *)
+(import "coil.arraylist" :use *)
+(import "coil.reader" :use *)
+(import "coil.result" :use *)
+(import "coil.scratch" :use [ScratchArena])
+(import "coil.debug-allocator" :use [DebugAllocator])
+(import "coil.cc" :as cc)
+(import "coil.primitive" :as primitive)
+
+(defn parsed [(a (dyn Allocator)) (text (slice u8))] (-> (ptr Sexp))
+  (match (read-all a text 0) (Ok [v] (elem v 0)) (Err [_] (panic "source"))))
+
+(defn root [(s (ptr code/Syntax)) (id i64) (text (slice u8))] (-> forms/N0Id)
+  (let [roots
+          (match (code/read! s id "admission.coil" text)
+            (Ok [v] v)
+            (Err [_] (panic "owned source")))]
+    (match (forms/sequence-item-0 (field s store) roots 0)
+      (Some [id] id)
+      (None [] (panic "root")))))
+
+(defn batch [(a (dyn Allocator))
+             (s (ptr code/Syntax))
+             (id i64)
+             (text (slice u8))]
+  (-> (ArrayList stage/Tagged))
+  (let [(mut raw) (code/create a)
+        r (root (mut raw) id text)]
+    (defer (code/release! (mut raw)))
+    (match (produced/normalize! a s (mut raw) r (Some "app"))
+      (Ok [v] v)
+      (Err [_] (panic "normalize")))))
+
+(defstruct Context [(traits (ptr namespace/View)) (calls i64)])
+
+;;; Deliberately limited fixture validator: it accepts only named test forms and
+;;; rejects all other declarations, including structs/sums. It is not a parser.
+(defn validate :cc (cc/C) [(c (ptr Context))
+                           (form (ptr Sexp))
+                           (module (Option (slice u8)))]
+  (-> (Result bool i64))
+  (set! (.calls c) (+ (.calls c) 1))
+  (let [name
+          (if (and (sexp-list? form) (> (sexp-count form) 0))
+              (sexp-nth form 0)
+              form)]
+    (cond (sexp-sym-is name "fail") (Err 7)
+          (sexp-sym-is name "probe")
+            (match (namespace/declaration (.traits c) "app.Fresh")
+              (Some [_] (Ok true))
+              (None [] (Err 8)))
+          (or (sexp-sym-is name "register-derive")
+              (sexp-sym-is name "deftrait")
+              (sexp-sym-is name "keep"))
+            (Ok true)
+          :else (Err 99))))
+
+(defn check [(a (dyn Allocator))] (-> void)
+  (let [(mut scratch) (zeroed ScratchArena)
+        initialized (init (mut scratch) a)
+        sa (allocator (mut scratch))
+        (mut ns) (names/store-new a)
+        macro-root
+          (match (names/parse-7 (mut ns)
+                                (parsed sa
+                                        "(Namespace [(Declaration \"app.m\")] [] [])"))
+            (Ok [v] v)
+            (Err [_] (panic "macro facts")))
+        trait-root
+          (match (names/parse-7 (mut ns) (parsed sa "(Namespace [] [] [])"))
+            (Ok [v] v)
+            (Err [_] (panic "trait facts")))
+        world-root
+          (match (names/parse-13 (mut ns)
+                                 (parsed sa "(Routing [] [] [] [] \"core\")"))
+            (Ok [v] v)
+            (Err [_] (panic "world facts")))
+        (mut macros)
+          (match (namespace/compile a (mut ns) macro-root)
+            (Ok [v] v)
+            (Err [_] (panic "macro view")))
+        (mut traits)
+          (match (namespace/compile a (mut ns) trait-root)
+            (Ok [v] v)
+            (Err [_] (panic "trait view")))
+        (mut world)
+          (match (facts/compile a (mut ns) world-root)
+            (Ok [v] v)
+            (Err [_] (panic "world")))
+        (mut routes) (records/create a)
+        (mut r) (registry/create a)
+        (mut d)
+          (derives/Context
+            :allocator a
+            :macros (primitive/cast (ptr namespace/View) (mut macros))
+            :traits (primitive/cast (ptr namespace/View) (mut traits))
+            :world (primitive/cast (ptr facts/World) (mut world))
+            :records (primitive/cast (ptr records/Table) (mut routes)))
+        (mut user)
+          (Context
+            :traits (primitive/cast (ptr namespace/View) (mut traits))
+            :calls 0)
+        (mut input) (code/create a)
+        (mut output) (code/create a)
+        original-root (root (mut input) 1 "(register-derive T :struct m)")
+        original
+          (revision/Tagged
+            :entry (stage/Tagged :form original-root :module (Some "app"))
+            :version
+              (revision/Version
+                :identity 1
+                :revision 4
+                :cached-shape 88))
+        (mut supply) (revision/Supply :last 1)]
+    (defer (close! (mut scratch)))
+    (defer (names/store-free! (mut ns)))
+    (defer (namespace/release! (mut macros)))
+    (defer (namespace/release! (mut traits)))
+    (defer (facts/release! (mut world)))
+    (defer (records/release! (mut routes)))
+    (defer (registry/release! (mut r)))
+    (defer (code/release! (mut input)))
+    (defer (code/release! (mut output)))
+    (match (derives/register! (mut d)
+                              (mut r)
+                              (parsed sa "(register-derive T :struct m)")
+                              (Some "app"))
+      (Ok [_])
+      (Err [_] (panic "initial registration")))
+    (let [(mut normalized)
+            (batch a (mut output) 2 "\n (register-derive T :struct m)")
+          (mut result)
+            (match (admission/run! a
+                                   (mut user)
+                                   (primitive/fnptr-of validate)
+                                   (mut d)
+                                   (mut r)
+                                   (mut supply)
+                                   (Some original)
+                                   (mut input)
+                                   (mut output)
+                                   (mut normalized))
+              (Ok [v] v)
+              (Err [_] (panic "unchanged singleton")))]
+      (defer (free! (mut normalized)))
+      (defer (free! (mut result)))
+      (unless (and (= (len result) 1)
+                   (= (len (.entries r)) 1)
+                   (= (.calls user) 1))
+        (panic "unchanged registration path"))
+      (let [v (.version (get result 0))]
+        (unless (and (= (.identity v) 1)
+                     (= (.revision v) 4)
+                     (= (.cached-shape v) 88))
+          (panic "unchanged revision")))
+      (let [id (.form (get normalized 0))]
+        (set! (.f4 (elem (field (mut output) contexts) (.index id))) 1))
+      (let [(mut changed)
+              (match (admission/run! a
+                                     (mut user)
+                                     (primitive/fnptr-of validate)
+                                     (mut d)
+                                     (mut r)
+                                     (mut supply)
+                                     (Some original)
+                                     (mut input)
+                                     (mut output)
+                                     (mut normalized))
+                (Ok [v] v)
+                (Err [_] (panic "changed registration")))]
+        (defer (free! (mut changed)))
+        (unless (and (= (len changed) 0)
+                     (= (len (.entries r)) 2)
+                     (= (.calls user) 1)
+                     (= (.last supply) 1))
+          (panic "changed registration was published or versioned"))))
+    (registry/reset! (mut r))
+    (let [(mut normalized)
+            (batch a
+                   (mut output)
+                   3
+                   "(do (register-derive Fresh :struct m) (deftrait Fresh []) (probe))")
+          (mut result)
+            (match (admission/run! a
+                                   (mut user)
+                                   (primitive/fnptr-of validate)
+                                   (mut d)
+                                   (mut r)
+                                   (mut supply)
+                                   (None)
+                                   (mut input)
+                                   (mut output)
+                                   (mut normalized))
+              (Ok [v] v)
+              (Err [_] (panic "ordered trait publication")))]
+      (defer (free! (mut normalized)))
+      (defer (free! (mut result)))
+      (unless (and (= (len result) 2)
+                   (= (len (.pending r)) 1)
+                   (= (.last supply) 3))
+        (panic "consumption or premature settlement"))
+      (match (derives/finish! (mut d) (mut r))
+        (Ok [_])
+        (Err [_] (panic "finish"))))
+    (let [(mut normalized)
+            (batch a (mut output) 4 "(do (register-derive U :struct m) (keep))")
+          (mut result)
+            (match (admission/run! a
+                                   (mut user)
+                                   (primitive/fnptr-of validate)
+                                   (mut d)
+                                   (mut r)
+                                   (mut supply)
+                                   (Some original)
+                                   (mut input)
+                                   (mut output)
+                                   (mut normalized))
+              (Ok [v] v)
+              (Err [_] (panic "mixed output")))]
+      (defer (free! (mut normalized)))
+      (defer (free! (mut result)))
+      (unless (and (= (len result) 1)
+                   (= (.identity (.version (get result 0))) 4)
+                   (= (.last supply) 4))
+        (panic "filtered count incorrectly reused identity")))
+    (registry/reset! (mut r))
+    (let [(mut normalized)
+            (batch a
+                   (mut output)
+                   5
+                   "(do (register-derive First :struct m) (keep) (fail) (register-derive Never :struct m))")]
+      (defer (free! (mut normalized)))
+      (match (admission/run! a
+                             (mut user)
+                             (primitive/fnptr-of validate)
+                             (mut d)
+                             (mut r)
+                             (mut supply)
+                             (None)
+                             (mut input)
+                             (mut output)
+                             (mut normalized))
+        (Ok [_] (panic "failure returned output"))
+        (Err [error]
+             (match error
+               (admission/Protocol [index error]
+                                   (unless (= index 2)
+                                     (panic "wrong produced failure index"))
+                                   (match error
+                                     (protocol/HandlerError [_ error]
+                                                            (match error
+                                                              (admission/Declaration [n]
+                                                                                     (unless (= n
+                                                                                                7)
+                                                                                       (panic "wrong callback error")))
+                                                              (_ (panic "wrong admission error"))))
+                                     (_ (panic "wrong protocol failure"))))
+               (_ (panic "wrong failure")))))
+      (unless (and (= (len (.entries r)) 1)
+                   (= (.f4 (get (.entries r) 0)) "First")
+                   (= (.last supply) 5))
+        (panic "failure rolled back prior effects or ran later forms")))
+    (let [(mut normalized) (batch a (mut output) 6 "(keep)")
+          (mut result)
+            (match (admission/run! a
+                                   (mut user)
+                                   (primitive/fnptr-of validate)
+                                   (mut d)
+                                   (mut r)
+                                   (mut supply)
+                                   (None)
+                                   (mut input)
+                                   (mut output)
+                                   (mut normalized))
+              (Ok [v] v)
+              (Err [_] (panic "retry")))]
+      (defer (free! (mut normalized)))
+      (defer (free! (mut result)))
+      (unless (= (.identity (.version (get result 0))) 6)
+        (panic "retry recycled identity")))
+    (let [(mut normalized) (batch a (mut output) 8 "(defstruct Unsupported [])")]
+      (defer (free! (mut normalized)))
+      (match (admission/run! a
+                             (mut user)
+                             (primitive/fnptr-of validate)
+                             (mut d)
+                             (mut r)
+                             (mut supply)
+                             (None)
+                             (mut input)
+                             (mut output)
+                             (mut normalized))
+        (Ok [_] (panic "unsupported declaration silently accepted"))
+        (Err [error]
+             (match error
+               (admission/Protocol [_ error]
+                                   (match error
+                                     (protocol/HandlerError [_ error]
+                                                            (match error
+                                                              (admission/Declaration [n]
+                                                                                     (unless (= n
+                                                                                                99)
+                                                                                       (panic "wrong unsupported error")))
+                                                              (_ (panic "unsupported declaration path"))))
+                                     (_ (panic "unsupported declaration protocol"))))
+               (_ (panic "unsupported declaration failure")))))
+      (unless (= (.last supply) 6)
+        (panic "failed declaration received an identity")))
+    (let [(mut normalized) (batch a (mut output) 7 "(do)")
+          (mut result)
+            (match (admission/run! a
+                                   (mut user)
+                                   (primitive/fnptr-of validate)
+                                   (mut d)
+                                   (mut r)
+                                   (mut supply)
+                                   (Some original)
+                                   (mut input)
+                                   (mut output)
+                                   (mut normalized))
+              (Ok [v] v)
+              (Err [_] (panic "empty output")))]
+      (defer (free! (mut normalized)))
+      (defer (free! (mut result)))
+      (unless (and (= (len result) 0) (= (.last supply) 6))
+        (panic "empty output effects")))))
+
+(defn main [] (-> i64)
+  (let [debug (DebugAllocator::new (malloc-allocator))]
+    (check (DebugAllocator::view debug))
+    (unless (= (DebugAllocator::deinit! debug) 0) (panic "admission leak")))
+  (println "admission: singleton exception, metadata change, ordered declarations, raw counts, failure effects, retry and empty output passed")
+  0)
