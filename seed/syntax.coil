@@ -376,6 +376,35 @@
                           (sexp-str (sexp-nth later 1))))))
           :else true)))
 
+(defn fold-prefix! [(out (mut StrBuf))
+                    (ni i64)
+                    (declaration (ptr Sexp))
+                    (owned? bool)] (-> void)
+  (push-str! (mut out)
+             "(when (and (sexp-list? form) (= (sexp-count form) 3) (sexp-sym-is (sexp-nth form 0) ")
+  (quoted! (mut out)
+           (sexp-str (sexp-nth declaration 2)))
+  (push-str! (mut out)
+             ") (sexp-vec? (sexp-nth form 1)) (!= (sexp-count (sexp-nth form 1)) ")
+  (number! (mut out)
+           (sexp-int (sexp-nth declaration 3)))
+  (push-str! (mut out) ")) (match (syntaxfold/fold ")
+  (push-str! (mut out)
+             (if owned?
+                 "(.allocator (.source-data store))"
+                 "a"))
+  (push-str! (mut out) " form ")
+  (number! (mut out)
+           (sexp-int (sexp-nth declaration 3)))
+  (push-str! (mut out)
+             ") (Err [d] (break :parsed (Err d))) (Ok [tail] (break :parsed (")
+  (push-str! (mut out) (if owned? "surface-" "view-"))
+  (number! (mut out) ni)
+  (push-str! (mut out)
+             (if owned?
+                 " (mut store) tail))))) "
+                 " a tail))))) ")))
+
 (defn compile-one [(a (dyn Allocator))
                    (s (ptr Schema))
                    (forms (ptr (ArrayList Sexp)))
@@ -406,7 +435,8 @@
       (let [node (elem (field s nodes) ni)
             (mut seen) (ArrayList::new [i64] a)]
         (for [i 0 (len (.variants node))] (push! (mut seen) 0))
-        (push-str! (mut views) "(defn view-")
+        (push-str! (mut views)
+                   "(import \"rewrite.syntaxfold\" :as syntaxfold)\n(defn view-")
         (number! (mut views) ni)
         (push-str! (mut views)
                    " [(a (dyn Allocator)) (form (ptr Sexp))] (-> (Result (Option SyntaxView) Diag)) (block :parsed ")
@@ -416,6 +446,26 @@
                    " [(store (mut Store)) (form (ptr Sexp))] (-> (Result N")
         (number! (mut b) ni)
         (push-str! (mut b) "Id Diag)) (block :parsed ")
+        (for [declaration-index 0 (len (load forms))]
+          (when (and (sexp-list? (elem forms declaration-index))
+                     (> (sexp-count (elem forms declaration-index)) 0)
+                     (sexp-sym-is (sexp-nth (elem forms declaration-index) 0)
+                                  "fold-vector")
+                     (sexp-sym-is (sexp-nth (elem forms declaration-index) 1)
+                                  (.name node)))
+            (unless (and (= (sexp-count (elem forms declaration-index)) 4)
+                         (sexp-str? (sexp-nth (elem forms declaration-index) 2))
+                         (sexp-int? (sexp-nth (elem forms declaration-index) 3))
+                         (> (sexp-int (sexp-nth (elem forms declaration-index)
+                                                3))
+                            0))
+              (break
+                :done
+                  (Err (problem (elem forms declaration-index)
+                                "expected (fold-vector Schema head positive-width)"))))
+
+            (fold-prefix! (mut b) ni (elem forms declaration-index) true)
+            (fold-prefix! (mut views) ni (elem forms declaration-index) false)))
         (for [r start (sexp-count form)]
           (let [rule (sexp-nth form r)
                 (mut vi) (- 0 1)]

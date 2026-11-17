@@ -268,6 +268,8 @@
                        (or (sexp-sym-is (sexp-nth (elem forms i) 0)
                                         "pair-selection")
                            (sexp-sym-is (sexp-nth (elem forms i) 0)
+                                        "fold-vector")
+                           (sexp-sym-is (sexp-nth (elem forms i) 0)
                                         "diagnostics")
                            (sexp-sym-is (sexp-nth (elem forms i) 0)
                                         "text-classifier")

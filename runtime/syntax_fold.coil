@@ -1,0 +1,39 @@
+(module rewrite.syntaxfold)
+(import "coil.alloc" :use *)
+(import "coil.reader" :use *)
+(import "coil.arraylist" :use *)
+(import "coil.result" :use *)
+
+;;; Fold consecutive groups in (head [groups ...] tail) into nested applications.
+;;; The caller's arena owns new containers. Leaves retain original source metadata.
+(defn fold [(a (dyn Allocator)) (form (ptr Sexp)) (width i64)]
+  (-> (Result (ptr Sexp) Diag))
+  (let [items (sexp-nth form 1)
+        size (sexp-count items)]
+    (if (!= (% size width) 0)
+        (let [orphan (sexp-nth items (- size (% size width)))]
+          (Err (Diag
+                 :source (.source orphan)
+                 :ctxt (.ctxt orphan)
+                 :lo (.lo orphan)
+                 :hi (.hi orphan)
+                 :msg "incomplete group in vector")))
+        (let [(mut tail) (sexp-nth form 2)
+              (mut end) size]
+          (while (> end 0)
+            (let [start (- end width)
+                  group (box! a (ArrayList Sexp) (ArrayList::new [Sexp] a))
+                  call (box! a (ArrayList Sexp) (ArrayList::new [Sexp] a))
+                  (mut vector) (load items)
+                  (mut list) (load form)]
+              (for [i start end] (push! group (load (sexp-nth items i))))
+              (set! (.kind vector) (KVec group))
+              (set! (.lo vector) (.lo (sexp-nth items start)))
+              (set! (.hi vector) (.hi (sexp-nth items (- end 1))))
+              (push! call (load (sexp-nth form 0)))
+              (push! call vector)
+              (push! call (load (load tail)))
+              (set! (.kind list) (KList call))
+              (set! tail (box! a Sexp list))
+              (set! end start)))
+          (Ok (load tail))))))

@@ -35,3 +35,6 @@
   (let [f (fnptr-of weighted)]
     (+ (f x (forty-two) 3)
        (stack-arguments 2 3 4 5 6 7 8 9 10 11 12 13))))
+
+(defn sequential [(x i64)] (-> i64)
+  (let [x (+ x 1) y (* x 2) x (+ y x)] (let [] x)))

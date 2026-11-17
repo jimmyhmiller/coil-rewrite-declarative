@@ -43,6 +43,7 @@
 (node Parameter (name Text))
 (syntax Parameter (Parameter (list (symbol name) "i64")))
 (node Function (name Text :key) (parameters (many Parameter)) (body Expr))
+(fold-vector Expr "let" 2)
 (syntax Expr
   (Integer (int value))
   (Boolean (bool value))
