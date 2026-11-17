@@ -11,7 +11,10 @@
 (recognize int-literal? integer)
 (recognize true-literal? "true")
 (recognize false-literal? "false")
+(recognize explicit-call-name? "call")
+(recognize explicit-call? (list (matches explicit-call-name?) ...))
 (extract application Application Apply NoApplication
+  (list (matches explicit-call-name?) (capture operator symbol) ...)
   (list (capture operator symbol) ...))
 (recognize identifier? symbol)
 (extract conditional Conditional Branches NoConditional

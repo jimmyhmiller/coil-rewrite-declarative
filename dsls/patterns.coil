@@ -33,7 +33,11 @@
              (> (primitive/code-count pattern) 0))
           (let [tag (get pattern 0)
                 n (primitive/code-count pattern)]
-            (cond (primitive/code-eq tag `spellings)
+            (cond (primitive/code-eq tag `matches)
+                    (if (and (= n 2) (primitive/code-sym? (get pattern 1)))
+                        (plain-test `(~(get pattern 1) ~node))
+                        (primitive/error "matches requires a pattern predicate"))
+                  (primitive/code-eq tag `spellings)
                     (if (> n 1) (plain-test (spelling-test pattern node 1))
                         (primitive/error "expected at least one spelling"))
                   (primitive/code-eq tag `keyword)

@@ -76,6 +76,10 @@ run_both 42 '(defn main [] (-> isize) (cast isize (add (: 40 u64) (: 2 usize))))
 compare 1 '(defn f [(x isize)] (-> usize) x)'
 run_both 42 '(defn* main [] (-> i64) (let* [x 20 y (+ x 2)] (sum x y))) (defn* sum :cc (coil.cc.C) [(x i64) (y i64)] (-> i64) (+ x y))'
 compare 1 '(defn* f [] (-> i64) (let* [x y y 1] x))'
+run_both 42 '(defn main [] (-> i64) (call sum 20 22)) (defn sum [(a i64) (b i64)] (-> i64) (call + a b))'
+compare 1 '(defn call [] (-> i64) 1)'
+compare 1 '(defn main [] (-> i64) (call if true 42 0))'
+compare 1 '(defn main [] (-> i64) (call (main)))'
 run_both 72 '(defn main [] (-> i64) (third 9 45 72)) (defn third [(x i64) (y i64) (z i64)] (-> i64) z)'
 run_both 19 '(defn main [] (-> i64) (discard false -7) 19) (defn discard [(x bool) (y i8)] (-> i8) y)'
 

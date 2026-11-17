@@ -43,6 +43,9 @@
 (predicate numeric-type? [(type (slice u8))]
   (or (float-type? type) (integer-result? type 0)))
 
+(value argument-start [(expr (ptr coil.reader.Sexp))] i64
+  (if (explicit-call? expr) 2 1))
+
 (predicate contextual-number? [(expr (ptr coil.reader.Sexp))]
   (cond (or (int-literal? expr) (float-literal? expr)) true
         (match (sequence-expression expr) (Sequence [] true) (_ false))
@@ -205,24 +208,28 @@
     (_))
   (cases (application expr)
     ((Apply [operator])
-      (obtain expansion (rewrite.logic.expand-call (.alc locals) expr (coil.reader.sexp-sym operator))
-        (cases expansion
-          ((Some [expanded])
-            (record (.expanded checked) (.node-id expr) expanded)
-            (obtain t (check-expression signatures (mut checked) locals expanded expected) (conclude t)))
-          (_)))
+      (when (explicit-call? expr)
+        (require (and (> (coil.reader.sexp-count expr) 1) (coil.reader.sexp-sym? (coil.reader.sexp-nth expr 1))) expr "call requires a function name"))
+      (when (not (explicit-call? expr))
+        (obtain expansion (rewrite.logic.expand-call (.alc locals) expr (coil.reader.sexp-sym operator))
+          (cases expansion
+            ((Some [expanded])
+              (record (.expanded checked) (.node-id expr) expanded)
+              (obtain t (check-expression signatures (mut checked) locals expanded expected) (conclude t)))
+            (_))))
       (require (not (contains? locals (coil.reader.sexp-sym operator))) operator "local value is not callable")
       (obtain resolution (rewrite.modules.find-function signatures operator)
         (cases resolution
           ((None [])
-            (obtain expansion (rewrite.control.expand-call (.alc locals) expr (coil.reader.sexp-sym operator))
-              (cases expansion
-                ((Some [expanded])
-                  (record (.expanded checked) (.node-id expr) expanded)
-                  (obtain t (check-expression signatures (mut checked) locals expanded expected)
-                    (conclude t)))
-                (_)))
-            (cases (rewrite.operators.find-operator (coil.reader.sexp-sym operator) (- (coil.reader.sexp-count expr) 1))
+            (when (not (explicit-call? expr))
+              (obtain expansion (rewrite.control.expand-call (.alc locals) expr (coil.reader.sexp-sym operator))
+                (cases expansion
+                  ((Some [expanded])
+                    (record (.expanded checked) (.node-id expr) expanded)
+                    (obtain t (check-expression signatures (mut checked) locals expanded expected)
+                      (conclude t)))
+                  (_))))
+            (cases (rewrite.operators.find-operator (coil.reader.sexp-sym operator) (- (coil.reader.sexp-count expr) (argument-start expr)))
               ((Some [op])
                 (record (.operators checked) (.node-id expr) op)
                 (obtain t (check-operator signatures (mut checked) locals expr op) (conclude t)))
@@ -231,10 +238,10 @@
             (record (.callees checked) (.node-id expr) found)
             (cases (rewrite.modules.callable found)
               ((Function [_ _ parameters result])
-                (require (= (coil.reader.sexp-count parameters) (- (coil.reader.sexp-count expr) 1))
+                (require (= (coil.reader.sexp-count parameters) (- (coil.reader.sexp-count expr) (argument-start expr)))
                          expr "wrong number of arguments")
-                (each-child arg expr 1 i
-                  (with parameter (coil.reader.sexp-nth parameters (- i 1))
+                (each-child arg expr (argument-start expr) i
+                  (with parameter (coil.reader.sexp-nth parameters (- i (argument-start expr)))
                     (with type (match (typed-parameter parameter) (Parameter [_ t] t) (_ parameter))
                       (prove (check-expression signatures (mut checked) locals arg (Expect (scalar-type type)))))))
                 (conclude (scalar-type result)))
@@ -261,23 +268,24 @@
   [(signatures rewrite.modules.Lookup)
    (checked (mut Checked)) (locals (coil.amap.AMap (slice u8) i64))
    (expr (ptr coil.reader.Sexp)) (op rewrite.operators.Operator)] (slice u8)
-  (with left (coil.reader.sexp-nth expr 1)
-    (with seed (if (and (> (coil.reader.sexp-count expr) 2) (contextual-number? left))
-                   2 1)
-      (obtain t (check-expression signatures (mut checked) locals (coil.reader.sexp-nth expr seed) (Infer))
-        (when (and (= seed 2) (= t "never"))
-          (obtain receiver (check-expression signatures (mut checked) locals left (Infer))
-            (require (rewrite.operators.accepts? op (float-type? receiver) (integer-result? receiver 0)
-                       (= (get receiver 0) #\i) (= receiver "bool")) expr "operator does not accept this operand type")
-            (each-child operand expr 3 position
-              (prove (check-expression signatures (mut checked) locals operand (Expect receiver))))
-            (conclude (if (rewrite.operators.boolean-result? op) "bool" receiver))))
-        (require (rewrite.operators.accepts? op (float-type? t) (integer-result? t 0)
-                   (= (get t 0) #\i) (= t "bool")) expr "operator does not accept this operand type")
-        (each-child operand expr 1 position
-          (when (!= position seed)
-            (prove (check-expression signatures (mut checked) locals operand (Expect t)))))
-        (conclude (if (rewrite.operators.boolean-result? op) "bool" t))))))
+  (with start (argument-start expr)
+    (with left (coil.reader.sexp-nth expr start)
+      (with seed (if (and (> (coil.reader.sexp-count expr) (+ start 1)) (contextual-number? left))
+                     (+ start 1) start)
+        (obtain t (check-expression signatures (mut checked) locals (coil.reader.sexp-nth expr seed) (Infer))
+          (when (and (!= seed start) (= t "never"))
+            (obtain receiver (check-expression signatures (mut checked) locals left (Infer))
+              (require (rewrite.operators.accepts? op (float-type? receiver) (integer-result? receiver 0)
+                         (= (get receiver 0) #\i) (= receiver "bool")) expr "operator does not accept this operand type")
+              (each-child operand expr (+ start 2) position
+                (prove (check-expression signatures (mut checked) locals operand (Expect receiver))))
+              (conclude (if (rewrite.operators.boolean-result? op) "bool" receiver))))
+          (require (rewrite.operators.accepts? op (float-type? t) (integer-result? t 0)
+                     (= (get t 0) #\i) (= t "bool")) expr "operator does not accept this operand type")
+          (each-child operand expr start position
+            (when (!= position seed)
+              (prove (check-expression signatures (mut checked) locals operand (Expect t)))))
+          (conclude (if (rewrite.operators.boolean-result? op) "bool" t)))))))
 
 (derive check-cell
   [(signatures rewrite.modules.Lookup)
@@ -365,7 +373,8 @@
    (forms (ptr (coil.arraylist.ArrayList coil.reader.Sexp)))]
   (each-form form forms
     (cases (ordinary-function form)
-      ((Function [_ _ parameters result])
+      ((Function [_ name parameters result])
+        (require (not (explicit-call-name? name)) name "cannot define a function named for the built-in call form")
         (when (not (coil.reader.sexp-sym-is result "void")) (prove (check-type result)))
         (distinct names allocator
           (each-child parameter parameters 0 position

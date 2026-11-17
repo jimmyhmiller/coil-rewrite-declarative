@@ -201,14 +201,15 @@
         (yield (Ok (if (= expected ir/T-CTRL) join
                        (nodes/merge-values (mut (.g f)) expected join left right)))))))
   (on (get (.operators (.checked f)) (.node-id expr)) (Some [op])
-    (need left (lower-expression (mut f) (mut im) signatures (sexp-nth expr 1)) (< (.control f) 0))
+    (bind start (checker/argument-start expr))
+    (need left (lower-expression (mut f) (mut im) signatures (sexp-nth expr start)) (< (.control f) 0))
     (bind type (graph/ty (.g f) left))
     (bind (mut result) left)
-    (walk position arg expr 2
+    (walk position arg expr (+ start 1)
       (need right (lower-expression (mut f) (mut im) signatures arg) (< (.control f) 0))
       (perform (set! result (ops/emit-operator op (mut (.g f)) type (load result) right)))
       (yield 0))
-    (yield (Ok (if (= (sexp-count expr) 2)
+    (yield (Ok (if (= (sexp-count expr) (+ start 1))
                    (ops/emit-operator op (mut (.g f)) type left left)
                    (load result)))))
   (on (application expr) (Apply [operator])
@@ -217,7 +218,7 @@
         (choose
           (on (modules/callable function) (Function [_ name parameters result])
             (bind (mut args) (al/ArrayList::new [i32] (.a f)))
-            (walk position arg expr 1
+            (walk position arg expr (checker/argument-start expr)
               (need value (lower-expression (mut f) (mut im) signatures arg) (< (.control f) 0))
               (perform (push! (mut args) value))
               (yield 0))
