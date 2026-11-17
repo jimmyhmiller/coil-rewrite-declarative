@@ -68,6 +68,14 @@
   (number! (mut b) (.hi premise))
   (push-str! (mut b) "))) "))
 
+(defn parameter-count [(term (ptr Sexp))] (-> i64)
+  (let [parameters (sexp-nth term 1)]
+    (if (sexp-vec? parameters) (sexp-count parameters) 1)))
+
+(defn parameter [(term (ptr Sexp)) (index i64)] (-> (ptr Sexp))
+  (let [parameters (sexp-nth term 1)]
+    (if (sexp-vec? parameters) (sexp-nth parameters index) parameters)))
+
 (defn occurrence [(term (ptr Sexp)) (name (slice u8))] (-> i64)
   (if (sexp-sym-is term name)
       (.lo term)
@@ -75,9 +83,11 @@
         (when (and (sexp-list? term)
                    (= (sexp-count term) 3)
                    (sexp-sym-is (sexp-nth term 0) "Fn"))
-          (for [i 1 3]
-            (let [found (occurrence (sexp-nth term i) name)]
-              (when (>= found 0) (break :found found)))))
+          (for [i 0 (parameter-count term)]
+            (let [found (occurrence (parameter term i) name)]
+              (when (>= found 0) (break :found found))))
+          (let [found (occurrence (sexp-nth term 2) name)]
+            (when (>= found 0) (break :found found))))
         (- 0 1))))
 
 (defn binding-slot [(rule (ptr Sexp)) (name (slice u8))] (-> i64)
@@ -116,22 +126,41 @@
       (if (and (sexp-list? term)
                (= (sexp-count term) 3)
                (sexp-sym-is (sexp-nth term 0) "Fn"))
-          (match (validate-term (sexp-nth term 1) rule)
-            (Err [d] (Err d))
-            (Ok [_] (validate-term (sexp-nth term 2) rule)))
+          (block :done
+            (for [i 0 (parameter-count term)]
+              (match (validate-term (parameter term i) rule)
+                (Err [d] (break :done (Err d)))
+                (Ok [_])))
+            (validate-term (sexp-nth term 2) rule))
           (Err (problem term "expected (Fn Argument Result) type")))))
 
 (defn emit-term! [(b (mut StrBuf)) (rule (ptr Sexp)) (term (ptr Sexp))]
   (-> void)
   (if (sexp-sym? term)
       (type-expression! (mut b) rule (sexp-sym term))
-      (do
-        (push-str! (mut b) "(match (types/function (mut type-store) ")
-        (emit-term! (mut b) rule (sexp-nth term 1))
-        (push-str! (mut b) " ")
+      (let [count (parameter-count term)]
+        (when (> count 1)
+          (push-str! (mut b)
+                     "(let [(mut arguments) (ArrayList::new [i64] (.allocator type-store))] (defer (free! (mut arguments))) ")
+          (for [i 0 count]
+            (push-str! (mut b) "(push! (mut arguments) ")
+            (emit-term! (mut b) rule (parameter term i))
+            (push-str! (mut b) ") ")))
+        (if (= count 1)
+            (do
+              (push-str! (mut b) "(match (types/function (mut type-store) ")
+              (emit-term! (mut b) rule (parameter term 0))
+              (push-str! (mut b) " "))
+            (do
+              (push-str! (mut b) "(match (types/signature (mut type-store) ")
+              (push-str! (mut b)
+                         (if (= count 0)
+                             "(zeroed (slice i64)) "
+                             "(slice arguments) "))))
         (emit-term! (mut b) rule (sexp-nth term 2))
         (push-str! (mut b)
-                   ") (Ok [ty] ty) (Err [error] (break :rule (TypeConstruction error))))"))))
+                   ") (Ok [ty] ty) (Err [error] (break :rule (TypeConstruction error))))")
+        (when (> count 1) (push-str! (mut b) ")")))))
 
 (defn declare-pattern! [(b (mut StrBuf)) (rule (ptr Sexp)) (term (ptr Sexp))]
   (-> void)
@@ -144,7 +173,8 @@
       (when (and (sexp-list? term)
                  (= (sexp-count term) 3)
                  (sexp-sym-is (sexp-nth term 0) "Fn"))
-        (declare-pattern! (mut b) rule (sexp-nth term 1))
+        (for [i 0 (parameter-count term)]
+          (declare-pattern! (mut b) rule (parameter term i)))
         (declare-pattern! (mut b) rule (sexp-nth term 2)))))
 
 (defn match-type! [(b (mut StrBuf))
@@ -174,12 +204,22 @@
         (push-str! (mut b) "))) "))
       (do
         (push-str! (mut b)
-                   "(match (types/as-function type-store actual) (None [] (break :rule (ExpectedFunction (.index f")
+                   "(match (types/as-signature type-store actual) (None [] (break :rule (ExpectedFunction (.index f")
         (number! (mut b) field)
         (push-str! (mut b) ") actual))) (Some [parts] (do ")
-        (push-str! (mut b) "(let [actual (.argument parts)] ")
-        (match-type! (mut b) rule (sexp-nth term 1) premise field)
+        (push-str! (mut b) "(unless (= (len (.arguments parts)) ")
+        (number! (mut b) (parameter-count term))
+        (push-str! (mut b) ") (break :rule (FunctionArity (.index f")
+        (number! (mut b) field)
         (push-str! (mut b) ") ")
+        (number! (mut b) (parameter-count term))
+        (push-str! (mut b) " (len (.arguments parts))))) ")
+        (for [i 0 (parameter-count term)]
+          (push-str! (mut b) "(let [actual (get (.arguments parts) ")
+          (number! (mut b) i)
+          (push-str! (mut b) ")] ")
+          (match-type! (mut b) rule (parameter term i) premise field)
+          (push-str! (mut b) ") "))
         (push-str! (mut b) "(let [actual (.result parts)] ")
         (match-type! (mut b) rule (sexp-nth term 2) premise field)
         (push-str! (mut b) ")))) "))))

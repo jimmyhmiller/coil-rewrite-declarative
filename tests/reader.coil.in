@@ -31,6 +31,7 @@
                        (UnboundName [_ _] (= expected 4))
                        (Mismatch [_ _ _ _ _ _] (= expected 5))
                        (ExpectedFunction [_ _] (= expected 8))
+                       (FunctionArity [_ expected-count actual-count] (and (= expected 11) (!= expected-count actual-count)))
                        (Classified [ty category] (and (= expected 9) (= ty 1) (= category "address")))
                        (CategoryMismatch [node category lo hi]
                          (and (= expected 10) (>= node 0) (> hi lo) (or (= category "address") (= category "value"))))
@@ -41,6 +42,15 @@
     ok))
 (defn main [] (-> i64)
   (if (and
+    (check "(UseNullary (Nullary))" 1)
+    (check "(UseBinary (Binary))" 2)
+    (check "(UseNullary (Binary))" 11)
+    (check "(UseBinary (Nullary))" 11)
+    (check "(Call (Nullary) (Integer 1))" 11)
+    (check "(SameBinary (BuildBinary (Integer 1) (Integer 2)))" 2)
+    (check "(SameBinary (BuildBinary (Integer 1) (Boolean true)))" 5)
+    (check "(UseBinary (BuildBinary (Integer 1) (Boolean true)))" 5)
+    (check "(UseNested (NestedSignature))" 2)
     (check "(Place (Integer 7))" 9)
     (check "(Read (Place (Integer 7)))" 1)
     (check "(Read (Integer 7))" 10)

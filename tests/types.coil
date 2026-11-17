@@ -45,6 +45,74 @@
         (None [] 0)
         (Some [_] (set! failed (+ failed 1)))))
     (unless (= int-to-bool (intern (mut store) 1 2)) (set! failed (+ failed 1)))
+    (let [(mut args) (ArrayList::new [i64] (malloc-allocator))
+          empty
+            (match (types/signature (mut store) (slice args) 1)
+              (Ok [id] id)
+              (Err [_] (panic "empty signature rejected")))]
+      (defer (free! (mut args)))
+      (push! (mut args) 1)
+      (unless (= int-to-bool
+                 (match (types/signature (mut store) (slice args) 2)
+                   (Ok [id] id)
+                   (Err [_] 0)))
+        (set! failed (+ failed 1)))
+      (push! (mut args) 2)
+      (let [pair
+              (match (types/signature (mut store) (slice args) 1)
+                (Ok [id] id)
+                (Err [_] (panic "pair signature rejected")))]
+        (set! (mut args) 0 2)
+        (set! (mut args) 1 1)
+        (let [reversed
+                (match (types/signature (mut store) (slice args) 1)
+                  (Ok [id] id)
+                  (Err [_] 0))]
+          (unless (and (!= pair reversed) (!= pair empty) (> reversed 0))
+            (set! failed (+ failed 1))))
+        (clear! (mut args))
+        (for [i 0 40] (push! (mut args) (if (= (% i 2) 0) pair empty)))
+        (let [wide
+                (match (types/signature (mut store) (slice args) pair)
+                  (Ok [id] id)
+                  (Err [_] 0))]
+          (unless (> wide 0) (set! failed (+ failed 1)))
+          (match (types/as-signature (mut store) wide)
+            (Some [signature]
+                  (unless (and (= (len (.arguments signature)) 40)
+                               (= (.result signature) pair))
+                    (set! failed (+ failed 1))))
+            (None [] (set! failed (+ failed 1)))))
+        (clear! (mut args))
+        (push! (mut args) 1)
+        (push! (mut args) 2)
+        (unless (= pair
+                   (match (types/signature (mut store) (slice args) 1)
+                     (Ok [id] id)
+                     (Err [_] 0)))
+          (set! failed (+ failed 1)))
+        (match (types/as-signature (mut store) pair)
+          (Some [signature]
+                (unless (and (= (len (.arguments signature)) 2)
+                             (= (get (.arguments signature) 0) 1)
+                             (= (get (.arguments signature) 1) 2))
+                  (set! failed (+ failed 1))))
+          (None [] (set! failed (+ failed 1))))
+        (for id [empty pair]
+          (match (types/as-function (mut store) id)
+            (None [])
+            (Some [_] (set! failed (+ failed 1)))))
+        (let [before (len (.functions store))]
+          (set! (mut args) 1 0)
+          (match (types/signature (mut store) (slice args) 1)
+            (Err [error]
+                 (unless (match error
+                           (types/InvalidType [id] (= id 0))
+                           (_ false))
+                   (set! failed (+ failed 1))))
+            (Ok [_] (set! failed (+ failed 1))))
+          (unless (= before (len (.functions store)))
+            (set! failed (+ failed 1))))))
     (types/release! (mut store))
     (println "type-store failures: {}" failed)
     failed))

@@ -3,27 +3,27 @@
   "host_version": "coil 0.1.0 (commit dcbbfee64333, 2026-11-17)",
   "host_executable_sha256": "a0e3f4c481945e8c29607cf022283ece170299f795c79b9487af75a931a55869",
   "specification_sha256": "ab8d60607eb3dd6f368b1a1857bbddcd59862747fcdc5d14415ee991ee2abce5",
-  "generated_sha256": "2e63caf29e9406949593e6681ac231e9d7dde0e197a6499eea6f4915366146ab",
+  "generated_sha256": "1b575e43e6864e07ec62f4c18105ae3010d98484a33f3da247e06423c54dacda",
   "language_artifacts": {
     "languages/schema.schema": {
       "specification_sha256": "ab8d60607eb3dd6f368b1a1857bbddcd59862747fcdc5d14415ee991ee2abce5",
       "output": "seed/generated/schema_forms.coil",
-      "generated_sha256": "2e63caf29e9406949593e6681ac231e9d7dde0e197a6499eea6f4915366146ab"
+      "generated_sha256": "1b575e43e6864e07ec62f4c18105ae3010d98484a33f3da247e06423c54dacda"
     },
     "compiler/frontend/core.schema": {
-      "specification_sha256": "2c2258dfbadb1a4bf0906fc9e9a4393bc6b3d57e9818ab634fe5522c6ed10229",
+      "specification_sha256": "1cffae37a31b494088014b792431f90a720823b6fe52dac40f5caa7119905b16",
       "output": "seed/generated/core_compiler.coil",
-      "generated_sha256": "cab380c3dba5b5f9a3693c77651ee57990ead0fe9c89f83f05a5b1426a5b8961"
+      "generated_sha256": "8c432d1026f9ef85c9f0f29a523a428b765f4297cc1d64a4725d6deee08159ac"
     },
     "languages/classification.schema": {
       "specification_sha256": "3118a1eafdda5ab5bff70f89fbc694316016f656b10508bf50c6423c6ee23b78",
       "output": "seed/generated/classification_forms.coil",
-      "generated_sha256": "5dab2bf3aed38c1e5b67f594bf3da2900fcef7926c32283b1b7b6147f00742b5"
+      "generated_sha256": "01760c7a79fd30c372062a7d0056b7463cad220620165f0fb523d31fad103d6a"
     },
     "compiler/frontend/types.schema": {
       "specification_sha256": "f1a35de1b1fa276bded3fdb3efe5ed3c4fbf0b3528343c801690456704d5c192",
       "output": "seed/generated/type_syntax.coil",
-      "generated_sha256": "760da42aea68b0869c7443659fe498f3100f63c42a0c04745bc95d782cbfb0fe"
+      "generated_sha256": "6910894d34e15ab6bf2df3c7ac1f87121c4c0e3ba755e332a0a32e5223fd9fa5"
     },
     "compiler/expansion/admission.protocol": {
       "specification_sha256": "30662b1929e4acd973691e8971d0ef79dc2cda697974ca59fccbaf285b621c23",
@@ -33,7 +33,7 @@
     "compiler/expansion/derive.schema": {
       "specification_sha256": "61063d440a5733b4771fcafdfe38346659398cd0ef0dfaabaa6e07db19613529",
       "output": "seed/generated/derive_forms.coil",
-      "generated_sha256": "5d01f6af8d594c9ece850fa5321c2cf000dd7fa0a8dadad83226cb1d3a732575"
+      "generated_sha256": "02618fa690ee083f20261f18e3a4f46876d96b5d69a3e11f4bb3f24ddd525b0c"
     },
     "compiler/expansion/derive_registration.protocol": {
       "specification_sha256": "ab23a7d56e5f4768a7d91ccb2b4acec5c282ff1f25c317624ea8f78de59d48db",
@@ -43,7 +43,7 @@
     "languages/pair_selection.schema": {
       "specification_sha256": "cea7197d8dd3d5752d8eea847ffcf741ef5e67118a840c24fb9219fcff75ec41",
       "output": "seed/generated/pair_forms.coil",
-      "generated_sha256": "82faa0e3a44bf2c07ca6e168256374fb015b70cf07e11c0d3529935ea6e9852f"
+      "generated_sha256": "34d2c94a50cc27dcbc8bf4b274af681b1629413f562178c01250fff7f97487b2"
     },
     "compiler/expansion/macro_head.protocol": {
       "specification_sha256": "8b3515dd7c71fbb23248ba4d0cdb24f4f0c499296c05161e6ee36201474b5e1c",
@@ -63,22 +63,22 @@
     "languages/search.schema": {
       "specification_sha256": "028c166a9a9a965999d4a0b5fb7a74659d4addac3aacbf23381ed1699c09e36f",
       "output": "seed/generated/search_forms.coil",
-      "generated_sha256": "8a7efefe84c2c8e414fdb874f0f7667636ffc1147db32a3655ada93b8635ddb2"
+      "generated_sha256": "877d1dd471f6e3507e1587f2bb91148cbfca8b567584a2aa81308c1e69bf3478"
     },
     "compiler/resolution/names.schema": {
       "specification_sha256": "7721e77a476e4a8485c9ef6f5fb79cbf86bfe67882859db29b3cee429782872b",
       "output": "seed/generated/name_forms.coil",
-      "generated_sha256": "7d45b535a757883a14b325c2a9c1fe511e77e227a0758e902f629bbe22b73b6a"
+      "generated_sha256": "6d1bb9fcdd2f7920195d1cd6133cf0ad9f926330c8fa4df4056a72def605ff6c"
     },
     "compiler/syntax/code.schema": {
       "specification_sha256": "fa5c550e29d697de8e88d1c4a1c0d3585cf9b2bfd65f3e0f614e71b20f6dff1f",
       "output": "seed/generated/code_forms.coil",
-      "generated_sha256": "74f122bd31f0a804f50bb6ef35dfaed6a03e1cd3bf8c2a05dde440c3e50d4467"
+      "generated_sha256": "34e58a752d5cb0567cee0021ff43ad799ed7874226486d372c213141b032773c"
     },
     "languages/protocol.schema": {
       "specification_sha256": "caa7c02e0c62ecbdac779b53b561be3636d912e875718323facd6035f5cae608",
       "output": "seed/generated/protocol_forms.coil",
-      "generated_sha256": "71cc576e37cc4bd4271eda78b4fbce35ea95339b94dea7cef93ad14184997a8b"
+      "generated_sha256": "bb2de9bc0d1b1f070e7e17f41f442bd59f316feff6a901b07a828e174e86ebc8"
     },
     "compiler/expansion/staging.protocol": {
       "specification_sha256": "90f749926a78f03aa81bd761e0096d6b60ef336e1fbfa70d9a4b7494cd9fe248",
@@ -108,33 +108,33 @@
     "seed/derive_registration.coil": "6a6ea5cb49987b9fb959f897cae57c1eca2c5086e26cdd2e944f9e14decebb32",
     "seed/derive_registry.coil": "15340af75c7e6fe592f481a50250a083d456418098dfd63da694f189b80ccb19",
     "seed/derive_resolution.coil": "13c3c341b97cd8731e20fcca7bf3a1299ede077304694c98930f9f0176699293",
-    "seed/emit.coil": "5a3d9a6e35ffe9975c77eb398b9a6e145db15a91b451bc5df5b6ea123a9df9c2",
+    "seed/emit.coil": "e12d05cf70bb04e39e179f5568c7a4d56688ec52909920a627532f408777540c",
     "seed/equality.coil": "6e9545f47e1f6f2e8a8a0dabaafccfd6df2fbe7ea2d404371063717d7d7c7555",
     "seed/equality_runtime.coil": "677953a98f75ce17eba81be80da3133d56da5387413e15679ba218c10e462039",
     "seed/extent_sites.coil": "089ece241bf9f509f3127cc6d10221496c1975ef7113fccb6de9c6d198ff1cb3",
     "seed/function_names.coil": "0f0ddee6b2ab11af5bbd5759d1ebd56eb7df1fc1852b36521b4f521c2f6ae905",
     "seed/generated/admission_protocol.coil": "0fcfd4c013cf263d4e06d0c6a78fb28eda1731a38761ef7f327090e1eb300b13",
     "seed/generated/before_protocol.coil": "ae4f23ce2bb00771e8b6712d494f248a500d6b7a5aedd7f100948a3a5cfdf0c4",
-    "seed/generated/classification_forms.coil": "5dab2bf3aed38c1e5b67f594bf3da2900fcef7926c32283b1b7b6147f00742b5",
-    "seed/generated/code_forms.coil": "74f122bd31f0a804f50bb6ef35dfaed6a03e1cd3bf8c2a05dde440c3e50d4467",
-    "seed/generated/core_compiler.coil": "cab380c3dba5b5f9a3693c77651ee57990ead0fe9c89f83f05a5b1426a5b8961",
-    "seed/generated/derive_forms.coil": "5d01f6af8d594c9ece850fa5321c2cf000dd7fa0a8dadad83226cb1d3a732575",
+    "seed/generated/classification_forms.coil": "01760c7a79fd30c372062a7d0056b7463cad220620165f0fb523d31fad103d6a",
+    "seed/generated/code_forms.coil": "34e58a752d5cb0567cee0021ff43ad799ed7874226486d372c213141b032773c",
+    "seed/generated/core_compiler.coil": "8c432d1026f9ef85c9f0f29a523a428b765f4297cc1d64a4725d6deee08159ac",
+    "seed/generated/derive_forms.coil": "02618fa690ee083f20261f18e3a4f46876d96b5d69a3e11f4bb3f24ddd525b0c",
     "seed/generated/derive_protocol.coil": "d2290917d4abf5695bfc67ebc795449752bbe946360712c881aebac29ee81bee",
     "seed/generated/export_search.coil": "1a7093c8771496fb45e8181165868472917aad74a578bd3bbabc9a00a4cc213d",
     "seed/generated/head_protocol.coil": "777deb3b905d7fe5a9f4d279956bb9cdd2e811829259beb386aac99f006f32e2",
-    "seed/generated/name_forms.coil": "7d45b535a757883a14b325c2a9c1fe511e77e227a0758e902f629bbe22b73b6a",
-    "seed/generated/pair_forms.coil": "82faa0e3a44bf2c07ca6e168256374fb015b70cf07e11c0d3529935ea6e9852f",
-    "seed/generated/protocol_forms.coil": "71cc576e37cc4bd4271eda78b4fbce35ea95339b94dea7cef93ad14184997a8b",
+    "seed/generated/name_forms.coil": "6d1bb9fcdd2f7920195d1cd6133cf0ad9f926330c8fa4df4056a72def605ff6c",
+    "seed/generated/pair_forms.coil": "34d2c94a50cc27dcbc8bf4b274af681b1629413f562178c01250fff7f97487b2",
+    "seed/generated/protocol_forms.coil": "bb2de9bc0d1b1f070e7e17f41f442bd59f316feff6a901b07a828e174e86ebc8",
     "seed/generated/request_protocol.coil": "a8339132f52b94e4acb79c1d553e9604480e473fd6348a87a624f53bfa92ece4",
     "seed/generated/resolve_protocol.coil": "a34603dd5dc2507224351647d1929920836af00af5fd1316f1cfdd0f54434d71",
-    "seed/generated/schema_forms.coil": "2e63caf29e9406949593e6681ac231e9d7dde0e197a6499eea6f4915366146ab",
-    "seed/generated/search_forms.coil": "8a7efefe84c2c8e414fdb874f0f7667636ffc1147db32a3655ada93b8635ddb2",
+    "seed/generated/schema_forms.coil": "1b575e43e6864e07ec62f4c18105ae3010d98484a33f3da247e06423c54dacda",
+    "seed/generated/search_forms.coil": "877d1dd471f6e3507e1587f2bb91148cbfca8b567584a2aa81308c1e69bf3478",
     "seed/generated/stage_protocol.coil": "72b38820ad6b9fe5ad744a187259cfe331bdf07e86c0b3d7cc7b2b3eac3b2366",
-    "seed/generated/type_syntax.coil": "760da42aea68b0869c7443659fe498f3100f63c42a0c04745bc95d782cbfb0fe",
+    "seed/generated/type_syntax.coil": "6910894d34e15ab6bf2df3c7ac1f87121c4c0e3ba755e332a0a32e5223fd9fa5",
     "seed/index.coil": "071ce0d6f87d28036b19158a770c5324bdef1d46278e4326fcb5730e31337a31",
     "seed/interning.coil": "adb21dddcf6e38eedf57d51d256ec27e1a47784da279eb38179fb6f33455f54e",
     "seed/invocation.coil": "8b7b4742f9b1cc740672b0b3d37deb257f634a656483eb23991d881b9428aeca",
-    "seed/judgment.coil": "5c89d13c8af1532e8cfbb5d5808cdbf0d58de0989d354bac8762c2cbde2aa504",
+    "seed/judgment.coil": "d841020356252f59ae785f64427934adcc6807034e608f741bc865075c2cd3c6",
     "seed/lexical.coil": "0c5f048886da8ba0147b8530c86375f94ec9814a6ea9736b4563ceea57e3d2a6",
     "seed/lower.coil": "7842d859c3d3f9de957bc1f1cb8ae586c928d018608ca51502335db88607cab4",
     "seed/macro_head.coil": "a404b7fd3938b3042357238ec5dfbe04f7a6d5229d354aec4921d1d89641f4c1",
@@ -173,7 +173,7 @@
     "seed/text_runtime.coil": "4df8f4bed7ca2af8b8e0aef2de51a7c01788555fe64cf7fdf94acb0563b96b10",
     "seed/trait_declarations.coil": "04f408228dde1e5512dce4f6911e7ee4c3c421eed7144105b90c6d16c4ef92aa",
     "seed/transform.coil": "913767e47eb039641aedb270d19c70001ba134925e28eacc419e268beb6fc992",
-    "seed/types.coil": "e398f5cb019e3eea3339700ba5b3685b119421eb30ac5a2045c8835d5d9a6ce9",
+    "seed/types.coil": "fe41dbf4a8465456b4f15c493416f2894c523a9dbd40e251cef92be40e109fa3",
     "seed/walk.coil": "9d55f9e52ba5b7c77492ea5247991b924b4cbe06b29941e19c794f9c60ed7f7a"
   },
   "limitations": "Not full compiler self-hosting or a machine-code bootstrap comparison. Installed host stdlib/tool dependencies are not pinned by this check."

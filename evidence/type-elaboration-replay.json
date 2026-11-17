@@ -12,7 +12,7 @@
     "tests/type-classified.coil": "a30d4035b77092dabf1c761b4c3b87ef18376989185c59e1a8f1d441548fd39c",
     "tools/check-type-elaboration.py": "792c706caa3576990ef9604431efe3531914946e4a0a2042a8726aacd75f06e9",
     "compiler/frontend/types.schema": "f1a35de1b1fa276bded3fdb3efe5ed3c4fbf0b3528343c801690456704d5c192",
-    "seed/generated/type_syntax.coil": "760da42aea68b0869c7443659fe498f3100f63c42a0c04745bc95d782cbfb0fe",
+    "seed/generated/type_syntax.coil": "6910894d34e15ab6bf2df3c7ac1f87121c4c0e3ba755e332a0a32e5223fd9fa5",
     "seed/transform.coil": "913767e47eb039641aedb270d19c70001ba134925e28eacc419e268beb6fc992",
     "seed/lexical.coil": "0c5f048886da8ba0147b8530c86375f94ec9814a6ea9736b4563ceea57e3d2a6",
     "seed/text_runtime.coil": "4df8f4bed7ca2af8b8e0aef2de51a7c01788555fe64cf7fdf94acb0563b96b10"

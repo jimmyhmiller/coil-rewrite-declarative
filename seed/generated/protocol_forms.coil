@@ -3,7 +3,7 @@
 (import "rewrite.types" :as types)
 (import "coil.result" :use *)
 (import "coil.arraylist" :use *)
-(defsum Judgment (Typed [(type i64)]) (Classified [(type i64) (category (slice u8))]) (CategoryMismatch [(node i64) (actual (slice u8)) (rule-lo i64) (rule-hi i64)]) (Mismatch [(node i64) (field i64) (expected i64) (actual i64) (rule-lo i64) (rule-hi i64)]) (InvalidReference [(node i64)]) (CyclicInput [(node i64)]) (UnboundName [(node i64) (name (slice u8))]) (TypeConstruction [(error types/TypeError)]) (ExpectedFunction [(node i64) (actual i64)]))
+(defsum Judgment (Typed [(type i64)]) (Classified [(type i64) (category (slice u8))]) (CategoryMismatch [(node i64) (actual (slice u8)) (rule-lo i64) (rule-hi i64)]) (Mismatch [(node i64) (field i64) (expected i64) (actual i64) (rule-lo i64) (rule-hi i64)]) (InvalidReference [(node i64)]) (CyclicInput [(node i64)]) (UnboundName [(node i64) (name (slice u8))]) (TypeConstruction [(error types/TypeError)]) (ExpectedFunction [(node i64) (actual i64)]) (FunctionArity [(node i64) (expected i64) (actual i64)]))
 (import "rewrite.scope" :use [Scope scope-bind scope-global scope-lookup])
 (defstruct TypeBinding [(type i64) (category (slice u8))])
 (defn classify [(ty i64) (category (slice u8))] (-> Judgment) (if (= category "value") (Typed ty) (Classified ty category)))

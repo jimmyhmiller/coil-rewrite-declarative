@@ -1,51 +1,133 @@
 ;;; Canonical concrete types. IDs belong to one store, with scalar IDs 1..3.
 (module rewrite.types)
-(import "coil.alloc" :use *)
+(import "coil.alloc" :as alloc :use [Allocator])
 (import "coil.arraylist" :use *)
 (import "coil.hashmap" :use *)
 (import "coil.result" :use *)
+(import "coil.primitive" :as primitive)
+(import "coil.cc" :as cc)
 
+;;; Unary projection retained for the scalar judgment language.
 (defstruct Function [(argument i64) (result i64)])
 
-(defstruct Types [(functions (ArrayList Function)) (index (HashMap u64 i64))])
+;;; Argument storage is owned by Types and immutable until release!.
+(defstruct Signature [(arguments (slice i64)) (result i64)])
+
+(defstruct Types
+  [(allocator (dyn Allocator))
+   (functions (ArrayList Signature))
+   (index (HashMap Signature i64))])
 
 (defsum TypeError (InvalidType [(id i64)]) (TypeCapacity))
 
+(defn signature-hash :cc (cc/C) [(bytes (ptr i8)) (size i64)] (-> i64)
+  (let [key (primitive/cast (ptr Signature) bytes)
+        (mut h) (- 0 3750763034362895579)]
+    (for [part 0 (+ (len (.arguments key)) 2)]
+      (let [value
+              (cond (= part 0) (.result key)
+                    (= part 1) (len (.arguments key))
+                    :else (get (.arguments key) (- part 2)))]
+        (for [i 0 8]
+          (set! h
+                (primitive/imul (primitive/ixor h
+                                                (primitive/iand (primitive/ishr value
+                                                                                (* i
+                                                                                   8))
+                                                                255))
+                                1099511628211)))))
+    h))
+
+(defn signature-equal :cc (cc/C) [(left (ptr i8)) (right (ptr i8)) (size i64)]
+  (-> bool)
+  (block
+    :done
+      (let [a (primitive/cast (ptr Signature) left)
+            b (primitive/cast (ptr Signature) right)]
+        (unless (and (= (.result a) (.result b))
+                     (= (len (.arguments a)) (len (.arguments b))))
+          (break :done false))
+        (for [i 0 (len (.arguments a))]
+          (unless (= (get (.arguments a) i) (get (.arguments b) i))
+            (break :done false)))
+        true)))
+
+(defn signature-ops [] (-> (ptr KeyOps))
+  (primitive/alloc-static KeyOps
+                          (KeyOps
+                            :hash (primitive/fnptr-of signature-hash)
+                            :eq (primitive/fnptr-of signature-equal)
+                            :size (sizeof Signature)
+                            :copy
+                              (zeroed (fnptr (cc/C)
+                                             [(ptr (dyn Allocator)) (ptr i8)]
+                                             i64))
+                            :free
+                              (zeroed (fnptr (cc/C)
+                                             [(ptr (dyn Allocator)) (ptr i8)]
+                                             i64))
+                            :owns 0)))
+
 (defn create [(a (dyn Allocator))] (-> Types)
   (Types
-    :functions (ArrayList::new [Function] a)
-    :index (HashMap::new-scalar [u64 i64] a)))
+    :allocator a
+    :functions (ArrayList::new [Signature] a)
+    :index (HashMap::new [Signature i64] a (signature-ops))))
 
 (defn release! [(types (mut Types))] (-> void)
-  (free! (mut (.functions types)))
-  (free! (mut (.index types))))
+  (free! (mut (.index types)))
+  (for signature (.functions types)
+    (alloc/free [i64] (.allocator types) (.arguments signature)))
+  (free! (mut (.functions types))))
 
 (defn valid? [(types (ptr Types)) (id i64)] (-> bool)
   (and (> id 0) (< id (+ 4 (len (.functions types))))))
 
-;;; The 32-bit halves encode a pair injectively, without padding or hash equality assumptions.
-;;; Input IDs are checked before packing; exhaustion is an explicit error.
-(defn function [(types (mut Types)) (argument i64) (result i64)]
+;;; Canonical identity includes arity, ordered argument types and result type.
+;;; Lookups borrow input; new signatures own a copy, never the caller's storage.
+(defn signature [(types (mut Types)) (arguments (slice i64)) (result i64)]
   (-> (Result i64 TypeError))
-  (cond (not (valid? types argument)) (Err (InvalidType argument))
-        (not (valid? types result)) (Err (InvalidType result))
-        :else
-          (let [key
-                  (+ (* (cast u64 argument) (: 4294967296 u64))
-                     (cast u64 result))]
-            (match (get (.index types) key)
-              (Some [id] (Ok id))
-              (None []
-                    (let [id (+ 4 (len (.functions types)))]
-                      (if (> id 4294967295)
-                          (Err (TypeCapacity))
-                          (do
-                            (push! (mut (.functions types))
-                                   (Function :argument argument :result result))
-                            (set! (mut (.index types)) key id)
-                            (Ok id)))))))))
+  (block :done
+    (unless (valid? types result) (break :done (Err (InvalidType result))))
+    (for argument arguments
+      (unless (valid? types argument)
+        (break :done (Err (InvalidType argument)))))
+    (let [key (Signature :arguments arguments :result result)]
+      (match (get (.index types) key)
+        (Some [id] (Ok id))
+        (None []
+              (let [id (+ 4 (len (.functions types)))]
+                (when (> id 4294967295) (break :done (Err (TypeCapacity))))
+                (let [copy
+                        (match (alloc/alloc [i64]
+                                            (.allocator types)
+                                            (len arguments))
+                          (Some [bytes] bytes)
+                          (None [] (alloc/oom)))
+                      owned (Signature :arguments copy :result result)]
+                  (for [i 0 (len arguments)] (set! copy i (get arguments i)))
+                  (push! (mut (.functions types)) owned)
+                  (set! (mut (.index types)) owned id)
+                  (Ok id))))))))
 
-(defn as-function [(types (ptr Types)) (id i64)] (-> (Option Function))
+(defn as-signature [(types (ptr Types)) (id i64)] (-> (Option Signature))
   (if (and (>= id 4) (valid? types id))
       (Some (get (.functions types) (- id 4)))
       (None)))
+
+(defn function [(types (mut Types)) (argument i64) (result i64)]
+  (-> (Result i64 TypeError))
+  (let [(mut item) argument]
+    (signature (mut types)
+               (slice::new (primitive/cast (ptr i64) (mut item)) 1)
+               result)))
+
+(defn as-function [(types (ptr Types)) (id i64)] (-> (Option Function))
+  (match (as-signature types id)
+    (Some [signature]
+          (if (= (len (.arguments signature)) 1)
+              (Some (Function
+                      :argument (get (.arguments signature) 0)
+                      :result (.result signature)))
+              (None)))
+    (None [] (None))))

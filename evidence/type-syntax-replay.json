@@ -12,7 +12,7 @@
   "reference_sha256": "70822c1658b3daebb947db25e72ad9898b56a18c13926e0b5c95d0467b9c6a68",
   "driver_sha256": "74e1f72e46a136045272bb93faec523f1e134e31810201dae26a89a199b3a7c7",
   "inputs": {
-    "seed/types.coil": "e398f5cb019e3eea3339700ba5b3685b119421eb30ac5a2045c8835d5d9a6ce9",
+    "seed/types.coil": "fe41dbf4a8465456b4f15c493416f2894c523a9dbd40e251cef92be40e109fa3",
     "seed/scope.coil": "c7be3143d3e955ecd8c05ea3c7ffb4b8b6d9981a223fc5de55507aa89f35e71f",
     "seed/resolution.coil": "b080dca9f1a7b3848105faf4e2369a3272911fe8ab22a0e23f75e23d112521c6",
     "seed/source.coil": "82dae8e1338ed36fe3283dc027d4b776f92c6122d3fe785241bd023771cc359f",
@@ -20,7 +20,7 @@
     "seed/equality_runtime.coil": "677953a98f75ce17eba81be80da3133d56da5387413e15679ba218c10e462039",
     "seed/lexical.coil": "0c5f048886da8ba0147b8530c86375f94ec9814a6ea9736b4563ceea57e3d2a6",
     "seed/text_runtime.coil": "4df8f4bed7ca2af8b8e0aef2de51a7c01788555fe64cf7fdf94acb0563b96b10",
-    "seed/generated/type_syntax.coil": "760da42aea68b0869c7443659fe498f3100f63c42a0c04745bc95d782cbfb0fe",
+    "seed/generated/type_syntax.coil": "6910894d34e15ab6bf2df3c7ac1f87121c4c0e3ba755e332a0a32e5223fd9fa5",
     "tools/check-type-syntax.py": "2f3675f4b4175498dc4c88dc874e054a858b7c5c36a27f56b645daea4d12d309",
     "compiler/frontend/types.schema": "f1a35de1b1fa276bded3fdb3efe5ed3c4fbf0b3528343c801690456704d5c192"
   }
