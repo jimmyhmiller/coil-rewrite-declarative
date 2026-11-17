@@ -1,0 +1,46 @@
+{
+  "command": [
+    "/Users/jimmyhmiller/.cargo/bin/coil",
+    "check",
+    "tests/corpus/types_traits.coil"
+  ],
+  "cwd": "/Users/jimmyhmiller/Documents/Code/projects/coil",
+  "platform": "macOS-27.2-arm64-arm-64bit-Mach-O",
+  "binary_sha256": "76ec864d316d1d1233cfd15fd17c5026bc107a48d8274201b587530695f2e050",
+  "memory": "Maximum sampled sum of RSS in the child process group, bytes; 50ms target sampling, includes shared pages per process, can miss short-lived peaks. Detached descendants are not included.",
+  "cache": "No OS cache eviction. First and subsequent fresh-process runs are identified; these are not proven cold-cache measurements.",
+  "runs": [
+    {
+      "run": 1,
+      "seconds": 0.2318437909707427,
+      "sampled_group_peak_bytes": 114343936,
+      "samples": 3,
+      "exit": 0,
+      "timed_out": false,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "run": 2,
+      "seconds": 0.23008870799094439,
+      "sampled_group_peak_bytes": 114294784,
+      "samples": 3,
+      "exit": 0,
+      "timed_out": false,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "run": 3,
+      "seconds": 0.23106595780700445,
+      "sampled_group_peak_bytes": 113786880,
+      "samples": 3,
+      "exit": 0,
+      "timed_out": false,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "source_revision": "b7a54594b42820c24c4b4cce0d9348f160bdd38e",
+  "source_status": ""
+}

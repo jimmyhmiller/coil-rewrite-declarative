@@ -33,3 +33,11 @@ Run `python3 tools/inventory.py ../coil --revision b7a54594b42820c24c4b4cce0d934
 The inventory reads Git blobs, so local edits cannot change the measurement. Every file includes its blob ID and SHA-256. Physical lines include comments and blanks. Generated backend and guide output are separate, the partially generated manifest is marked mixed, and the remaining compiler category still needs a generated-region audit. All text under scripts/tests/docs is inventoried for traceability but is not counted as production authored code.
 
 Next baseline work: classify production source and embedded generated regions precisely, capture installed compiler identity and dependency versions, pin representative workloads, measure serial cold/warm executions and process-tree memory, then map expansion transitions and the typed-to-CIR interface. No timing or authored-size improvement is claimed yet.
+
+## Initial measurements
+
+`tools/measure.py` records serial runs with executable SHA-256, source revision/status, complete output, timeout and exit status. Example: `python3 tools/measure.py --cwd ../coil --output evidence/baseline-types-check.json -- coil check tests/corpus/types_traits.coil`.
+
+The installed compiler identifies itself as `coil 0.1.0 (commit de1f0fdeb823, 2026-11-15)` and uses `/Users/jimmyhmiller/.cargo/lib/coil/stdlib`. This differs from the pinned source-inventory revision. Current measurements are exploratory and cannot serve as the final matched-revision baseline. RSS is sampled process-group sum, not exact peak physical memory; OS caches are not flushed. A finalized baseline must also pin/hash the installed stdlib and relevant environment/settings.
+
+The initial source trace is in contracts/phases-and-backend.md. Pending contracts there are explicit implementation prerequisites.
