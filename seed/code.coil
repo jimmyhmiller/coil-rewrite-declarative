@@ -43,7 +43,10 @@
             (forms/N1Row
               :f0 (.hyg form)
               :f1 module
-              :f2 (.ctxt form))))
+              :f2 (.ctxt form)
+              :f3 (.horigin form)
+              :f4 (.hflags form)
+              :f5 (.node-id form))))
     (when (or (sexp-list? form) (sexp-vec? form))
       (let [ids
               (match (get (.rows0 (.store syntax)) (.index id))
@@ -78,7 +81,10 @@
              (forms/N1Row
                :f0 0
                :f1 ""
-               :f2 0)))
+               :f2 0
+               :f3 0
+               :f4 0
+               :f5 0)))
     (match parsed
       (Err [d] (Err (ReadError (own-diagnostic! (mut syntax) d))))
       (Ok [id]
@@ -133,7 +139,10 @@
                (forms/N1Row
                  :f0 0
                  :f1 ""
-                 :f2 0)))
+                 :f2 0
+                 :f3 0
+                 :f4 0
+                 :f5 0)))
       (block
         :done
           (let [out
@@ -153,5 +162,8 @@
                             :f1
                               (forms/store-text! (mut (.store target))
                                                  (.f1 context))
-                            :f2 (.f2 context)))))))
+                            :f2 (.f2 context)
+                            :f3 (.f3 context)
+                            :f4 (.f4 context)
+                            :f5 (.f5 context)))))))
             (Ok out))))))

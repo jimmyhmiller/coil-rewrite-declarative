@@ -16,6 +16,22 @@
 (def program-phases
   "(phases\n  (input declarations Declarations)\n  (phase emit (needs (checked CheckedProgram)) (makes (image NativeImage)))\n  (phase hosts (needs (globals GlobalEnvironment)) (makes (all-globals GlobalEnvironment)))\n  (phase check (needs (all-globals GlobalEnvironment)) (makes (checked CheckedProgram)))\n  (phase register (needs (declarations Declarations)) (makes (globals GlobalEnvironment))))")
 
+(defn emit-history! [(b (mut StrBuf)) (declaration i64)] (-> void)
+  (push-str! (mut b)
+             "(defstruct ProgramHistory [(store (ptr Store)) (ids (ArrayList N")
+  (number! (mut b) declaration)
+  (push-str! (mut b)
+             "Id))])\n(defn program-history-new [(a (dyn Allocator)) (store (ptr Store))] (-> ProgramHistory) (ProgramHistory :store store :ids (ArrayList::new [N")
+  (number! (mut b) declaration)
+  (push-str! (mut b)
+             "Id] a)))\n(defn program-history-free! [(history (mut ProgramHistory))] (-> void) (free! (mut (.ids history))))\n(defn extend-program [(a (dyn Allocator)) (history (mut ProgramHistory)) (added (ptr (ArrayList N")
+  (number! (mut b) declaration)
+  (push-str! (mut b)
+             "Id)))] (-> (Result image/Image ProgramError)) (let [(mut candidate) (ArrayList::new [N")
+  (number! (mut b) declaration)
+  (push-str! (mut b)
+             "Id] a)] (defer (free! (mut candidate))) (for id (.ids history) (push! (mut candidate) id)) (for id (load added) (push! (mut candidate) id)) (match (compile-program a (.store history) (mut candidate)) (Err [e] (Err e)) (Ok [im] (for id (load added) (push! (mut (.ids history)) id)) (Ok im)))))\n"))
+
 (defn compile-one [(a (dyn Allocator)) (s (ptr Schema)) (form (ptr Sexp))]
   (-> (Result (slice u8) Diag))
   (block :done
@@ -30,24 +46,37 @@
         :done
           (Err (problem form
                         "program currently supports unary Int -> Int signatures"))))
-    (let [(mut names) (HashMap::new [(slice u8) bool] a (keyops))]
+    (let [(mut names) (HashMap::new [(slice u8) bool] a (keyops))
+          (mut cumulative?) false]
       (defer (free! (mut names)))
       (for [i 8 (sexp-count form)]
         (let [host (sexp-nth form i)]
-          (unless (and (sexp-list? host)
-                       (= (sexp-count host) 4)
-                       (sexp-sym-is (sexp-nth host 0) "host")
-                       (sexp-sym? (sexp-nth host 1))
-                       (sexp-sym-is (sexp-nth host 2) "Int")
-                       (sexp-sym-is (sexp-nth host 3) "Int"))
-            (break :done (Err (problem host "expected (host name Int Int)"))))
-          (let [name (sexp-sym (sexp-nth host 1))]
-            (match (get names name)
-              (Some [_]
-                    (break
-                      :done (Err (problem host "duplicate host declaration"))))
-              (None []))
-            (set! (mut names) name true)))))
+          (if (and (sexp-list? host)
+                   (= (sexp-count host) 1)
+                   (sexp-sym-is (sexp-nth host 0) "cumulative"))
+              (do
+                (when cumulative?
+                  (break
+                    :done
+                      (Err (problem host "duplicate cumulative program policy"))))
+                (set! cumulative? true))
+              (do
+                (unless (and (sexp-list? host)
+                             (= (sexp-count host) 4)
+                             (sexp-sym-is (sexp-nth host 0) "host")
+                             (sexp-sym? (sexp-nth host 1))
+                             (sexp-sym-is (sexp-nth host 2) "Int")
+                             (sexp-sym-is (sexp-nth host 3) "Int"))
+                  (break
+                    :done (Err (problem host "expected (host name Int Int)"))))
+                (let [name (sexp-sym (sexp-nth host 1))]
+                  (match (get names name)
+                    (Some [_]
+                          (break
+                            :done
+                              (Err (problem host "duplicate host declaration"))))
+                    (None []))
+                  (set! (mut names) name true)))))))
     (let [(mut expression) (- 0 1)
           (mut declaration) (- 0 1)
           (mut b) (StrBuf::new a)
@@ -137,11 +166,13 @@
                                  "(for [i 0 (len (load declarations))] (let [d (get (load declarations) i)] (image/symbol! (mut im) (.name d)) (set! (mut global-types) (.name d) (TypeBinding :type signature :category \"function\")) (set! (mut global-values) (.name d) (GlobalSymbol (cast u32 i))))) ")
                     (= name "hosts")
                       (for [i 8 (sexp-count form)]
-                        (push-str! (mut b) "(let [name ")
-                        (quoted! (mut b)
-                                 (sexp-sym (sexp-nth (sexp-nth form i) 1)))
-                        (push-str! (mut b)
-                                   "] (match (get global-types name) (Some [_] (break :done (Err (DuplicateFunction name)))) (None [])) (let [symbol (image/symbol! (mut im) name)] (set! (mut global-types) name (TypeBinding :type signature :category \"function\")) (set! (mut global-values) name (GlobalSymbol (cast u32 symbol))))) "))
+                        (when (sexp-sym-is (sexp-nth (sexp-nth form i) 0)
+                                           "host")
+                          (push-str! (mut b) "(let [name ")
+                          (quoted! (mut b)
+                                   (sexp-sym (sexp-nth (sexp-nth form i) 1)))
+                          (push-str! (mut b)
+                                     "] (match (get global-types name) (Some [_] (break :done (Err (DuplicateFunction name)))) (None [])) (let [symbol (image/symbol! (mut im) name)] (set! (mut global-types) name (TypeBinding :type signature :category \"function\")) (set! (mut global-values) name (GlobalSymbol (cast u32 symbol))))) ")))
                     (= name "check")
                       (push-str! (mut b)
                                  "(for [i 0 (len (load declarations))] (let [d (get (load declarations) i) result (program-check (mut type-store) store d (mut context))] (match result (Typed [ty] (unless (= ty 1) (break :done (Err (WrongReturn (.name d) ty))))) (_ (break :done (Err (InvalidBody (.name d) result))))))) ")
@@ -154,4 +185,7 @@
                           (Err (problem form
                                         "unknown program phase implementation"))))))
           (push-str! (mut b) "(Ok im))))\n")
+          (for [i 8 (sexp-count form)]
+            (when (sexp-sym-is (sexp-nth (sexp-nth form i) 0) "cumulative")
+              (emit-history! (mut b) declaration)))
           (Ok (str (load b))))))))

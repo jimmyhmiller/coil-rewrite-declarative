@@ -19,7 +19,7 @@ with tempfile.TemporaryDirectory(prefix='rewrite-lowering-') as directory:
     shutil.copyfile(ROOT/'seed/source.coil', work/'source.coil')
     shutil.copyfile(ROOT/'seed/sequence.coil', work/'sequence.coil')
     shutil.copyfile(ROOT/'runtime/native.coil', work/'native.coil')
-    for name in ['code', 'invocation']:
+    for name in ['code', 'invocation', 'syntax_reader']:
         shutil.copyfile(ROOT/f'seed/{name}.coil', work/f'{name}.coil')
     shutil.copyfile(ROOT/'seed/generated/code_forms.coil', work/'code_forms.coil')
     (work/'generated.coil').write_bytes(subprocess.check_output([str(ROOT/'build/schema-seed')], input=(ROOT/'tests/schemas/lowering.schema').read_bytes()))
@@ -81,6 +81,18 @@ with tempfile.TemporaryDirectory(prefix='rewrite-lowering-') as directory:
     (work/'main.coil').write_text((ROOT/'tests/invocation-native.coil.in').read_text())
     for flags in [[], ['--debug-checks'], ['--release']]:
         subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)
+    base = (ROOT/'tests/schemas/lowering.schema').read_bytes() + b'\n(node Function (name Text :key) (parameter Text) (body Expr))\n'
+    stage_spec = b'(module fixture.phase)\n' + base + b'(program Expr Function name parameter body Int Int (cumulative) (host last Int Int))\n'
+    runtime_spec = b'(module fixture.runtime)\n' + base + b'(program Expr Function name parameter body Int Int)\n' + (ROOT/'tests/schemas/surface.syntax').read_bytes()
+    (work/'phase.coil').write_bytes(subprocess.check_output([str(ROOT/'build/schema-seed')], input=stage_spec))
+    (work/'runtime.coil').write_bytes(subprocess.check_output([str(ROOT/'build/schema-seed')], input=runtime_spec))
+    (work/'main.coil').write_text((ROOT/'tests/staged-chain.coil.in').read_text())
+    for flags in [[], ['--debug-checks'], ['--release']]:
+        subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)
+    for invalid in [stage_spec.replace(b'(cumulative)', b'(cumulative) (cumulative)'),
+                    stage_spec.replace(b'(cumulative)', b'(cumulative extra)')]:
+        rejected = subprocess.run([str(ROOT/'build/schema-seed')], input=invalid, capture_output=True)
+        assert rejected.returncode != 0 and not rejected.stdout, rejected
     program_schema = (ROOT/'tests/schemas/lowering.schema').read_bytes() + b'\n(node Function (name Text :key) (parameter Text) (body Expr))\n(program Expr Function name parameter body Int Int)\n'
     program_schema += (ROOT/'tests/schemas/surface.syntax').read_bytes()
     (work/'generated.coil').write_bytes(subprocess.check_output([str(ROOT/'build/schema-seed')], input=program_schema))

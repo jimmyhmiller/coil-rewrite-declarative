@@ -143,3 +143,13 @@ A declared `Syntax -> Syntax` transformation now derives structural promotion in
 The promotion fixture covers all scalar kinds, exact negative-zero bits, lists/vectors, shared child identity, aliased-store rejection, source-document conflicts and use after source text poisoning/release. A native fixture promotes its selected result, unloads its image and closes its invocation before using the result. The implementation still allocates source-sized memo tables, scans them to transport metadata, and uses recursive generated row transforms; no full-compiler memory or compile-time improvement is claimed.
 
 Validation: seed and native suites passed in debug/debug-checks/release, including isolated grammar regeneration. The extended promotion fixture additionally verifies missing metadata, successful retry after failure and cycle rejection; it passed separately in all three configurations.
+
+## Cumulative native phase mechanism checkpoint
+
+The program language's optional `(cumulative)` policy derives append-only checked declaration history. Later native entries can call earlier helpers through a freshly compiled cumulative image. Duplicate/invalid additions do not change the accepted declaration prefix. Linking remains separate from history acceptance; no live-code replacement is introduced.
+
+A two-increment fixture executes phase A, promotes its returned `chain-b` guest syntax, recognizes that form, adds phase B calling the earlier helper, and executes it through a fresh invocation. Its final syntax is parsed by the runtime grammar and compiled to a separately loaded image returning 42. The runtime image has exactly one named/defined entry; no stage helper names are present. This is in-memory image evidence, not a serialized binary `nm`/`strings` check. The fixture selects nested authored syntax, and the driver remains test code. Full expansion-policy and reference-source compatibility remain incomplete.
+
+Syntax import and promotion now retain reader origin markers, transport flags and positive reader-node identity alongside hygiene/module/context fields. These fields were previously dropped. The temporary reader projection preserves those values and sharing, checks graph errors and borrows text only while the owning syntax remains live. General Code views/joins, scope-domain remapping, syntax construction, semantic capabilities and imported-reader artifacts are still missing.
+
+Validation: `tools/check-seed.py` and the final `tools/check-lowering.py` run passed, including isolated grammar regeneration and debug/debug-checks/release fixtures. Source inventories and bootstrap hashes are refreshed. These checks do not establish full toolchain compatibility or self-hosting.

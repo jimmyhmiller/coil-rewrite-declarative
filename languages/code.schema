@@ -8,7 +8,8 @@
   (CString (text Text))
   (List (items (many Syntax)))
   (Vector (items (many Syntax))))
-(node Context (scope Int) (module Text) (context Int))
+(node Context (scope Int) (module Text) (context Int)
+  (origin Int) (flags Int) (identity Int))
 (syntax Syntax
   (Integer (int value))
   (Float (float-bits bits))

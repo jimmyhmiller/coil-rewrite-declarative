@@ -1,6 +1,9 @@
 (module rewrite.testpromotion)
 (import "rewrite.code" :as code)
 (import "rewrite.codeforms" :as forms)
+(import "rewrite.syntaxreader" :as projection)
+(import "coil.reader" :use *)
+(import "coil.scratch" :use [ScratchArena])
 (import "coil.alloc" :use *)
 (import "coil.arraylist" :use *)
 (import "coil.result" :use *)
@@ -29,6 +32,9 @@
 
 (defn main [] (-> i64)
   (let [a (malloc-allocator)
+        (mut views) (zeroed ScratchArena)
+        initialized (init (mut views) a)
+        va (allocator (mut views))
         (mut input) (code/create a)
         (mut output) (code/create a)
         (mut conflict) (code/create a)
@@ -47,7 +53,10 @@
              (forms/N1Row
                :f0 17
                :f1 (forms/store-text! (mut (.store input)) "owner.module")
-               :f2 29))
+               :f2 29
+               :f3 71
+               :f4 3
+               :f5 901))
       (match (code/promote! (mut input) (mut input) outer)
         (Err [e]
              (match e
@@ -99,6 +108,10 @@
                                           (_ (set! ok false))))
                    (_ (set! ok false))))
             (Ok [_] (set! ok false)))
+          (match (projection/project va (mut input) root)
+            (Err [e]
+                 (match e (projection/ProjectionCycle [_]) (_ (set! ok false))))
+            (Ok [_] (set! ok false)))
           (set! (mut (.rows0 (.store input))) (.index root) original))
         (code/release! (mut rejected)))
       (let [promoted
@@ -116,11 +129,34 @@
         (let [context (get (.contexts output) (.index promoted))]
           (unless (and (= (.f0 context) 17)
                        (= (.f1 context) "owner.module")
-                       (= (.f2 context) 29))
+                       (= (.f2 context) 29)
+                       (= (.f3 context) 71)
+                       (= (.f4 context) 3)
+                       (= (.f5 context) 901))
             (set! ok false)))
         (match (get (.documents (.source-data (.store output))) 1)
           (Some [d] (unless (= (.name d) "owned.coil") (set! ok false)))
           (None [] (set! ok false)))
+        (let [(mut view)
+                (match (projection/project va (mut output) promoted)
+                  (Ok [f] f)
+                  (Err [_] (panic "projection")))]
+          (unless (and (= (.hyg view) 17)
+                       (= (.ctxt view) 29)
+                       (= (.horigin view) 71)
+                       (= (.hflags view) 3)
+                       (= (.node-id view) 901)
+                       (= (hmod-name (.hmod view)) "owner.module")
+                       (= (sexp-count (mut view)) 2)
+                       (= (.node-id (sexp-nth (mut view) 0))
+                          (.node-id (sexp-nth (mut view) 1))))
+            (set! ok false))
+          (let [inner (sexp-nth (mut view) 0)]
+            (unless (and (sexp-int? (sexp-nth inner 0))
+                         (= (sexp-int (sexp-nth inner 0)) 7)
+                         (sexp-sym-is (sexp-nth inner 2) "alpha")
+                         (sexp-vec? (sexp-nth inner 6)))
+              (set! ok false))))
         (for [i 0 6]
           (let [r
                   (get (.rows0 (.store output))
@@ -140,6 +176,7 @@
           (match (get (.rows0 (.store output)) (.index nine))
             (forms/N0V0 [n] (unless (= n 9) (set! ok false)))
             (_ (set! ok false))))))
+    (close! (mut views))
     (free! (mut shared))
     (code/release! (mut output))
     (code/release! (mut conflict))

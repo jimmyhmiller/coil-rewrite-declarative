@@ -1,0 +1,131 @@
+;;; Temporary reader projection for the bootstrap grammar API. Values borrow the
+;;; owned Syntax text pool; allocate the projection in a caller-owned arena.
+(module rewrite.syntaxreader)
+(import "rewrite.code" :as code)
+(import "rewrite.codeforms" :as forms)
+(import "rewrite.source" :as source)
+(import "coil.alloc" :use *)
+(import "coil.arraylist" :use *)
+(import "coil.reader" :use *)
+(import "coil.result" :use *)
+
+(defsum ProjectionError
+  (ProjectionReference [(row i64)])
+  (ProjectionMetadata [(row i64)])
+  (ProjectionCycle [(row i64)])
+  (ProjectionSequence [(row i64)])
+  (ProjectionDocument [(error source/SourceError)]))
+
+(defn project-row [(a (dyn Allocator))
+                   (syntax (ptr code/Syntax))
+                   (id forms/N0Id)
+                   (memo (mut (ArrayList (Option Sexp))))
+                   (active (mut (ArrayList bool)))]
+  (-> (Result Sexp ProjectionError))
+  (block
+    :done
+      (let [index (.index id)]
+        (unless (and (>= index 0) (< index (len (.rows0 (.store syntax)))))
+          (break :done (Err (ProjectionReference index))))
+        (match (get (load memo) index)
+          (Some [form] (break :done (Ok form)))
+          (None []))
+        (when (get (load active) index)
+          (break :done (Err (ProjectionCycle index))))
+        (unless (and (< index (len (.origins0 (.store syntax))))
+                     (< index (len (.contexts syntax))))
+          (break :done (Err (ProjectionMetadata index))))
+        (set! (mut active) index true)
+        (defer (set! (mut active) index false))
+        (let [origin (get (.origins0 (.store syntax)) index)
+              context (get (.contexts syntax) index)
+              doc
+                (match (get (.documents (.source-data (.store syntax)))
+                            (.source origin))
+                  (Some [doc] doc)
+                  (None []
+                        (break
+                          :done
+                            (Err (ProjectionDocument (source/SourceMissing (.source origin)))))))]
+          (unless (and (>= (.lo origin) 0)
+                       (>= (.hi origin) (.lo origin))
+                       (<= (.hi origin) (len (.text doc))))
+            (break
+              :done
+                (Err (ProjectionDocument (source/SourceSpan (.source origin)
+                                                            (.lo origin)
+                                                            (.hi origin))))))
+          (let [row (get (.rows0 (.store syntax)) index)
+                kind
+                  (match row
+                    (forms/N0V0 [n] (KInt n))
+                    (forms/N0V1 [bits] (KFloat bits))
+                    (forms/N0V2 [s] (KSym s))
+                    (forms/N0V3 [s] (KKw s))
+                    (forms/N0V4 [s] (KStr s))
+                    (forms/N0V5 [s] (KCStr s))
+                    (_ (let [items
+                               (match row
+                                 (forms/N0V6 [items] items)
+                                 (forms/N0V7 [items] items)
+                                 (_ (panic "syntax shape")))
+                             count
+                               (match (forms/sequence-size-0 (field syntax
+                                                                    store)
+                                                             items)
+                                 (Some [n] n)
+                                 (None []
+                                       (break
+                                         :done (Err (ProjectionSequence index)))))
+                             children
+                               (box! a
+                                     (ArrayList Sexp)
+                                     (ArrayList::new [Sexp] a))]
+                         (for [i 0 count]
+                           (let [child
+                                   (match (forms/sequence-item-0 (field syntax
+                                                                        store)
+                                                                 items
+                                                                 i)
+                                     (Some [child] child)
+                                     (None []
+                                           (break
+                                             :done
+                                               (Err (ProjectionSequence index)))))]
+                             (match (project-row a
+                                                 syntax
+                                                 child
+                                                 (mut memo)
+                                                 (mut active))
+                               (Ok [form] (push! children form))
+                               (Err [e] (break :done (Err e))))))
+                         (match row
+                           (forms/N0V6 [_] (KList children))
+                           (_ (KVec children))))))
+                (mut form) (mk-sexp kind (.lo origin) (.hi origin))]
+            (set! (.source form) (.source origin))
+            (set! (.hyg form) (.f0 context))
+            (set! (.ctxt form) (.f2 context))
+            (set! (.horigin form) (.f3 context))
+            (set! (.hflags form) (.f4 context))
+            (when (> (.f5 context) 0) (set! (.node-id form) (.f5 context)))
+            (unless (= (.f1 context) "")
+              (set! (.hmod form)
+                    (box! a HygModule (HygModule :name (.f1 context)))))
+            (set! (mut memo) index (Some (load form)))
+            (Ok (load form)))))))
+
+;;; Fresh projection cache per call; preserves sharing and rejects cycles. The
+;;; returned tree and all allocations (including failed partial trees) use a.
+;;; Text/module-name slices borrow syntax until the consumer finishes. This is
+;;; a bootstrap adapter, not a persistent artifact or a syntax ownership transfer.
+(defn project [(a (dyn Allocator)) (syntax (ptr code/Syntax)) (root forms/N0Id)]
+  (-> (Result Sexp ProjectionError))
+  (let [(mut memo) (ArrayList::new [(Option Sexp)] a)
+        (mut active) (ArrayList::new [bool] a)]
+    (defer (free! (mut memo)))
+    (defer (free! (mut active)))
+    (for [i 0 (len (.rows0 (.store syntax)))]
+      (push! (mut memo) (None))
+      (push! (mut active) false))
+    (project-row a syntax root (mut memo) (mut active))))

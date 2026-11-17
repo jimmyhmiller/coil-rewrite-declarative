@@ -239,3 +239,15 @@
             (match (code/promote! (mut target) (field invocation syntax) id)
               (Ok [out] (Ok out))
               (Err [e] (Err (PromotionFailure e))))))))
+
+;;; Import a resumed generation into a fresh invocation without sharing storage.
+(defn import! [(invocation (mut Invocation))
+               (input (ptr code/Syntax))
+               (root forms/N0Id)]
+  (-> (Result i64 InvocationError))
+  (cond (not (.active invocation)) (Err (ClosedInvocation))
+        (.running invocation) (Err (InvocationBusy))
+        :else
+          (match (code/promote! (mut (.syntax invocation)) input root)
+            (Err [e] (Err (PromotionFailure e)))
+            (Ok [id] (publish! (mut invocation) id)))))

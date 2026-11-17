@@ -89,3 +89,11 @@ Raw outputs are retained under `build/expansion-reference/`; the committed JSON 
 
 
 An owned reader-syntax representation now exists in `languages/code.schema` / `rewrite.code`. It preserves raw scalar kinds and floating-point bits, container structure, source origins and opaque hygiene/context metadata independently of the temporary reader arena. It does not yet provide the full Code operations, scoped identity registry, native handle transport or invocation context needed by the staged slice above. Those boundaries must be implemented explicitly before phase entries can exchange syntax values.
+
+## Rewrite mechanism evidence
+
+The rewrite now has invocation-owned native handles, structural promotion, import into fresh invocations, and a temporary projection back into its bootstrap grammar API. Syntax transport retains origin/transport flags and reader-node identity as well as scope/module/context metadata. A program's explicit `(cumulative)` policy generates checked declaration history; successful extensions compile a fresh image of the full prefix, and failed checks leave history unchanged.
+
+`tests/staged-chain.coil.in`, run by `tools/check-lowering.py`, exercises two phase increments. The first introduces an entry/helper and selects a nested `chain-b` template. The driver observes that guest form, introduces a later entry using the earlier helper, then promotes the returned runtime definition into a separate syntax store. The runtime grammar consumes it and native execution returns 42. Each invocation is closed before its result is consumed. The runtime image's names/definitions contain only its entry; this is not a serialized-artifact absence proof.
+
+This is rewrite mechanism evidence, not reproduction of the reference's original `staged_chain` source. Request discovery and the resumption decision remain fixture code; returned syntax is selected from authored templates rather than constructed by general Code operations. Production language-declared expansion transitions, marker routing, reference limit policies, imports, semantic capabilities and full phase/runtime artifact isolation remain required.

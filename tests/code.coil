@@ -78,6 +78,9 @@
         (set! (.hmod form) (primitive/cast (ptr HygModule) (mut module)))
         (set! (.hyg form) 51)
         (set! (.ctxt form) 27)
+        (set! (.horigin form) 71)
+        (set! (.hflags form) 3)
+        (set! (.node-id form) 901)
         (set! (.kind form) (KFloat 9221120237041090626))
         (match (forms/store-source! (mut (.store syntax)) 2 "metadata.coil" "3")
           (Ok [_])
@@ -91,7 +94,10 @@
           (let [context (get (.contexts syntax) (.index id))]
             (unless (and (= (.f0 context) 51)
                          (= (.f1 context) "owner.module")
-                         (= (.f2 context) 27))
+                         (= (.f2 context) 27)
+                         (= (.f3 context) 71)
+                         (= (.f4 context) 3)
+                         (= (.f5 context) 901))
               (set! ok false)))
           (match (get (.rows0 (.store syntax)) (.index id))
             (forms/N0V1 [bits]
