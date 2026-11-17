@@ -6,3 +6,10 @@
   (selection all selected text)
   (exclude excluded text)
   (rename renames exported local))
+
+; One immutable namespace snapshot; names here are already canonical spellings.
+(node Declaration (name Text :key))
+(node Alias (name Text :key) (target Text))
+(node ExportModule (name Text :key) (restricted Bool) (exports (many Name)) (edges (many Reexport)))
+(node Reexport (target Text) (refer Refer))
+(node Namespace (declarations (many Declaration)) (aliases (many Alias)) (modules (many ExportModule)))

@@ -17,6 +17,7 @@
 (import "rewrite.program" :as program)
 (import "rewrite.phase" :as phase)
 (import "rewrite.protocol" :as protocol)
+(import "rewrite.search" :as search)
 (import "coil.reader" :use *)
 (import "coil.arraylist" :use *)
 (import "coil.str" :use *)
@@ -245,6 +246,32 @@
 (defn compile-forms [(a (dyn Allocator)) (forms (ptr (ArrayList Sexp)))]
   (-> (Result (slice u8) Diag))
   (block :done
+    (let [(mut search-index) (- 0 1)]
+      (for [i 0 (len (load forms))]
+        (let [form (elem forms i)]
+          (when (and (sexp-list? form)
+                     (> (sexp-count form) 0)
+                     (sexp-sym-is (sexp-nth form 0) "search"))
+            (when (>= search-index 0)
+              (break
+                :done (Err (schema/problem form "duplicate search declaration"))))
+            (set! search-index i))))
+      (when (>= search-index 0)
+        (for [i 0 (len (load forms))]
+          (let [form (elem forms i)]
+            (unless (or (= i search-index)
+                        (and (sexp-list? form)
+                             (> (sexp-count form) 0)
+                             (sexp-sym-is (sexp-nth form 0) "module")))
+              (break
+                :done
+                  (Err (schema/problem form
+                                       "search module cannot contain other declarations"))))))
+        (let [module
+                (match (output-module forms)
+                  (Ok [name] name)
+                  (Err [d] (break :done (Err d))))]
+          (break :done (search/compile a module (elem forms search-index))))))
     (let [(mut protocol-index) (- 0 1)]
       (for [i 0 (len (load forms))]
         (let [form (elem forms i)]

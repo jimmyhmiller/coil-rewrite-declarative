@@ -619,3 +619,23 @@ Reverse lookup maps an exported spelling to its local name using its first renam
 `tools/capture-refer-reference.py` extracts exact refer helper/type definitions from the installed reference compiler's reported source revision and compiles them in isolation. Its evidence covers 43 policies and 387 queries in three configurations. `tools/check-refer.py` replays those observations through two different generated record layouts in all three configurations. Some collision cases exercise helper data that may not be accepted by the source import parser; no source-import compatibility follows. `tests/refer.coil` checks 2,000 renames, independent ownership, invalid references/sequences, late failure and retry with explicit allocator leak checking.
 
 This is the edge-level refer operation shared by use imports, reexports and ambient core, not a complete namespace resolver. Alias routing, declaration aliases, export visibility, recursive reexports, tier priority, ambiguity, core-provider ownership and hygiene-based macro-head lookup remain to be implemented and integrated with admission.
+
+### Ordered bounded searches
+
+`languages/search.schema` defines the grammar of a small search algebra. A search declares one nonnegative depth limit, zero or more guards, and ordered `prefer`/`follow` alternatives. Guards precede alternatives; handler names are unique within each role. At least one alternative is required. The compiler emits typed callbacks and direct decision dispatch, shared with the generic iterative search runtime. For example, `languages/exports.search` declares:
+
+```
+(search exported
+  (depth 64)
+  (guard visible)
+  (prefer direct)
+  (follow reexports))
+```
+
+A false guard rejects the query. A preferred candidate succeeds immediately when present; otherwise search proceeds to the next alternative. A follow callback transfers an owned array of child queries, visited in order, before the next alternative. The first successful child wins. Every edge consumes one depth level. At the depth boundary, no callback runs. Callback errors propagate unchanged inside `search/Callback`; negative initial depth is rejected separately.
+
+`rewrite.searchruntime` maintains an explicit DFS stack and memoizes both successes and misses by owner, name, and remaining depth. Depth is part of the key because a miss near the boundary does not establish a miss with more depth available. Callbacks must observe an immutable context during one search. Query strings and result values borrow that context; the runner frees transferred arrays on success, failure, and early return. The memo is private to one invocation. Depth bounds paths, not total work or callback execution time. Cyclic graphs terminate because every edge spends depth; this is not an unbounded reachability solver.
+
+`rewrite.namespace` compiles a namespace snapshot from generated name-schema records. It owns declaration/alias/module indexes, export sets and edge refer policies, while borrowing an immutable source Store. Release the view before releasing that Store. Duplicate declaration, alias and module keys are rejected; source-level normalization into this unique-key snapshot remains separate work. A module with no export restriction admits every spelling, whereas an explicit empty export set admits none. Visibility is checked before direct lookup; declaration aliases take one hop. Reexports use the shared refer policy and preserve edge order. Missing module records do not hide directly available declarations. Successful results borrow canonical declaration strings in the Store.
+
+`tests/namespace.coil` exercises visibility, direct/alias/reexport precedence, renamed edges, absent module records, the exact 64-depth boundary, and name/depth-sensitive memoization in cyclic graphs. `tools/check-search.py` compiles independent policies with reversed alternatives and a zero depth limit, using integer results instead of namespace names. It checks errors, guard behavior, ownership and invalid declarations in three configurations. These tests do not yet establish differential parity against the full reference resolver. Alias/slash/bare/use/core routing, ambiguity, scoped macro heads and derive admission remain incomplete.

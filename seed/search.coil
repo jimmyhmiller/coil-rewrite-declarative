@@ -1,0 +1,154 @@
+;;; Ordered search algebra: guards, preferred candidates, and recursive edges.
+(module rewrite.search)
+(import "rewrite.searchforms" :as grammar)
+(import "rewrite.schema" :use [problem])
+(import "rewrite.protocol" :use [name?])
+(import "rewrite.emit" :use [number!])
+(import "coil.alloc" :use [Allocator])
+(import "coil.arraylist" :use *)
+(import "coil.reader" :use *)
+(import "coil.result" :use *)
+(import "coil.str" :use [StrBuf])
+
+(defn role [(clause grammar/N0Row)] (-> i64)
+  (match clause
+    (grammar/N0V0 [_] 0)
+    (grammar/N0V1 [_] 1)
+    (grammar/N0V2 [_] 2)
+    (grammar/N0V3 [_] 3)))
+
+(defn name [(clause grammar/N0Row)] (-> (slice u8))
+  (match clause
+    (grammar/N0V0 [_] "")
+    (grammar/N0V1 [name] name)
+    (grammar/N0V2 [name] name)
+    (grammar/N0V3 [name] name)))
+
+(defn field! [(b (mut StrBuf)) (clause grammar/N0Row)] (-> void)
+  (push-str! (mut b)
+             (cond (= (role clause) 1) "guard-"
+                   (= (role clause) 2) "prefer-"
+                   :else "follow-"))
+  (push-str! (mut b) (name clause)))
+
+(defn compile [(a (dyn Allocator)) (module (slice u8)) (form (ptr Sexp))]
+  (-> (Result (slice u8) Diag))
+  (block
+    :done
+      (let [(mut store) (grammar/store-new a)]
+        (defer (grammar/store-free! (mut store)))
+        (let [root
+                (match (grammar/surface-1 (mut store) form)
+                  (Ok [id] (get (.rows1 store) (.index id)))
+                  (Err [d] (break :done (Err d))))
+              (mut clauses) (ArrayList::new [grammar/N0Id] a)
+              (mut limit) (- 0 1)
+              (mut rules) 0
+              (mut b) (StrBuf::new a)]
+          (defer (free! (mut clauses)))
+          (unless (name? (.f0 root))
+            (break :done (Err (problem form "invalid search name"))))
+          (match (grammar/sequence-materialize-0 a
+                                                 (mut store)
+                                                 (.f1 root)
+                                                 (mut clauses))
+            (Ok [_])
+            (Err [_]
+                 (break
+                   :done (Err (problem form "invalid search clause sequence")))))
+          (for [i 0 (len clauses)]
+            (let [clause (get (.rows0 store) (.index (get clauses i)))
+                  r (role clause)]
+              (if (= r 0)
+                  (match clause
+                    (grammar/N0V0 [n]
+                                  (when (>= limit 0)
+                                    (break
+                                      :done
+                                        (Err (problem form
+                                                      "duplicate search depth"))))
+                                  (when (< n 0)
+                                    (break
+                                      :done
+                                        (Err (problem form
+                                                      "search depth must be nonnegative"))))
+                                  (set! limit n))
+                    (_))
+                  (do
+                    (unless (name? (name clause))
+                      (break
+                        :done (Err (problem form "invalid search handler name"))))
+                    (when (and (= r 1) (> rules 0))
+                      (break
+                        :done
+                          (Err (problem form
+                                        "search guards must precede alternatives"))))
+                    (for [j 0 i]
+                      (let [previous
+                              (get (.rows0 store) (.index (get clauses j)))]
+                        (when (and (= (role previous) r)
+                                   (= (name previous) (name clause)))
+                          (break
+                            :done
+                              (Err (problem form "duplicate search handler"))))))
+                    (when (> r 1) (set! rules (+ rules 1)))))))
+          (when (< limit 0)
+            (break :done (Err (problem form "search needs a depth bound"))))
+          (when (= rules 0)
+            (break :done (Err (problem form "search needs an alternative"))))
+          (push-str! (mut b) "(module ")
+          (push-str! (mut b) module)
+          (push-str! (mut b)
+                     ")\n(import \"rewrite.searchruntime\" :as search)\n(import \"coil.alloc\" :use [Allocator])\n(import \"coil.arraylist\" :use [ArrayList])\n(import \"coil.result\" :use *)\n(import \"coil.cc\" :as cc)\n(import \"coil.primitive\" :as primitive)\n(defstruct Handlers [C V E] [")
+          (for id clauses
+            (let [clause (get (.rows0 store) (.index id))
+                  r (role clause)]
+              (when (> r 0)
+                (push-str! (mut b) "(")
+                (field! (mut b) clause)
+                (push-str! (mut b)
+                           " (fnptr (cc/C) [(ptr C) (ptr search/Query)] (Result ")
+                (push-str! (mut b)
+                           (cond (= r 1) "bool"
+                                 (= r 2) "(Option V)"
+                                 :else "(ArrayList search/Query)"))
+                (push-str! (mut b) " E)))"))))
+          (push-str! (mut b)
+                     "])\n(defstruct Context [C V E] [(user (ptr C)) (handlers (ptr (Handlers C V E)))])\n(defn step :cc (cc/C) [C V E] [(context (ptr (Context C V E))) (query (ptr search/Query)) (rule i64)] (-> (Result (search/Decision V) E)) (block :done (let [handlers (.handlers context)] (when (= rule 0) ")
+          (for id clauses
+            (let [clause (get (.rows0 store) (.index id))]
+              (when (= (role clause) 1)
+                (push-str! (mut b) "(let [f (.")
+                (field! (mut b) clause)
+                (push-str! (mut b)
+                           " handlers)] (match (f (.user context) query) (Err [e] (break :done (Err e))) (Ok [allowed] (unless allowed (break :done (Ok (search/Reject [V]))))))) "))))
+          (push-str! (mut b) ") (cond ")
+          (let [(mut index) 0]
+            (for id clauses
+              (let [clause (get (.rows0 store) (.index id))
+                    r (role clause)]
+                (when (> r 1)
+                  (push-str! (mut b) "(= rule ")
+                  (number! (mut b) index)
+                  (push-str! (mut b) ") (let [f (.")
+                  (field! (mut b) clause)
+                  (push-str! (mut b)
+                             " handlers)] (match (f (.user context) query) (Err [e] (Err e)) (Ok [value] ")
+                  (push-str! (mut b)
+                             (if (= r 2)
+                                 "(match value (Some [hit] (Ok (search/Accept [V] hit))) (None [] (Ok (search/Next [V]))))))) "
+                                 "(Ok (search/Follow [V] value))))) "))
+                  (set! index (+ index 1))))))
+          (push-str! (mut b)
+                     ":else (Ok (search/Reject [V]))))))\n(defn search-")
+          (push-str! (mut b) (.f0 root))
+          (push-str! (mut b)
+                     " [C V E] [(a (dyn Allocator)) (user (ptr C)) (handlers (ptr (Handlers C V E))) (query search/Query) (depth i64) (stats (mut search/Stats))] (-> (Result (Option V) (search/Failure E))) (block :done (when (< depth 0) (set! (.expanded stats) 0) (set! (.cached stats) 0) (break :done (Err (search/InvalidDepth [E])))) (let [(mut context) (Context [C V E] :user user :handlers handlers)] (search/run a (mut context) query (if (>= depth ")
+          (number! (mut b) limit)
+          (push-str! (mut b) ") 0 (- ")
+          (number! (mut b) limit)
+          (push-str! (mut b) " depth)) ")
+          (number! (mut b) rules)
+          (push-str! (mut b)
+                     " (mut stats) (primitive/fnptr-of step [C V E])))))\n")
+          (Ok (str (load b)))))))

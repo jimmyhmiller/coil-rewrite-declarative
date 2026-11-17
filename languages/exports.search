@@ -1,0 +1,6 @@
+(module rewrite.exportsearch)
+(search exported
+  (depth 64)
+  (guard visible)
+  (prefer direct)
+  (follow reexports))

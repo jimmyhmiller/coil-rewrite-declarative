@@ -1,0 +1,13 @@
+(module rewrite.searchforms)
+(sum Clause
+  (Depth (limit Int))
+  (Guard (name Text))
+  (Prefer (name Text))
+  (Follow (name Text)))
+(node Search (name Text) (clauses (many Clause)))
+(syntax Clause
+  (Depth (list "depth" (int limit)))
+  (Guard (list "guard" (symbol name)))
+  (Prefer (list "prefer" (symbol name)))
+  (Follow (list "follow" (symbol name))))
+(syntax Search (Search (list "search" (symbol name) (rest clauses))))
