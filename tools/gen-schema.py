@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate schema and owned-syntax parsers using the checked-in schema bootstrap."""
+"""Regenerate bootstrap grammars and protocol programs using the checked-in language seed."""
 import argparse
 import hashlib
 import json
@@ -11,8 +11,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = ROOT / 'languages/schema.schema'
 OUTPUT = ROOT / 'seed/generated/schema_forms.coil'
-GRAMMARS = [(SPEC, OUTPUT, 'rewrite.schemaforms'),
-            (ROOT/'languages/code.schema', ROOT/'seed/generated/code_forms.coil', 'rewrite.codeforms')]
+LANGUAGE_ARTIFACTS = [(SPEC, OUTPUT, 'rewrite.schemaforms'),
+            (ROOT/'languages/code.schema', ROOT/'seed/generated/code_forms.coil', 'rewrite.codeforms'),
+            (ROOT/'languages/protocol.schema', ROOT/'seed/generated/protocol_forms.coil', 'rewrite.protocolforms'),
+            (ROOT/'languages/staging.protocol', ROOT/'seed/generated/stage_protocol.coil', 'rewrite.stageprotocol')]
 
 
 def digest(data):
@@ -39,7 +41,7 @@ def main():
     compiler = ROOT / 'build/schema-seed'
     subprocess.run(['coil', 'build', 'seed/main.coil', '-o', str(compiler)], cwd=ROOT, check=True)
     generated = {}
-    for spec, output, module in GRAMMARS:
+    for spec, output, module in LANGUAGE_ARTIFACTS:
         generated[output] = generate(compiler, spec, module)
         if args.check:
             if not output.is_file() or output.read_bytes() != generated[output]:
@@ -56,20 +58,20 @@ def main():
                 '[package]\nname = "rewrite"\nentry = "seed/main.coil"\nsource-roots = ["seed"]\n')
             second = stage / 'schema-seed'
             subprocess.run(['coil', 'build', 'seed/main.coil', '-o', str(second)], cwd=stage, check=True)
-            for spec, output, module in GRAMMARS:
+            for spec, output, module in LANGUAGE_ARTIFACTS:
                 if generate(second, spec, module) != generated[output]:
                     raise RuntimeError(f'{output.relative_to(ROOT)} did not reach a fixed point')
         host = Path(shutil.which('coil')).resolve()
         version = subprocess.check_output(['coil', '--version'], text=True).strip()
         evidence = {
-            'scope': 'Schema and syntax-value grammar regeneration only; host Coil builds both stages.',
+            'scope': 'Schema, syntax-value and protocol language regeneration only; host Coil builds both stages.',
             'host_version': version,
             'host_executable_sha256': digest(host.read_bytes()),
             'specification_sha256': digest(SPEC.read_bytes()),
             'generated_sha256': digest(generated[OUTPUT]),
             'language_artifacts': {str(spec.relative_to(ROOT)): dict(
                 specification_sha256=digest(spec.read_bytes()), output=str(output.relative_to(ROOT)),
-                generated_sha256=digest(generated[output])) for spec, output, module in GRAMMARS},
+                generated_sha256=digest(generated[output])) for spec, output, module in LANGUAGE_ARTIFACTS},
             'isolated_rebuild_regeneration_equal': True,
             'seed_inputs': {str(path.relative_to(ROOT)): digest(path.read_bytes())
                             for path in sorted((ROOT / 'seed').rglob('*.coil'))},
@@ -77,7 +79,7 @@ def main():
                            'Installed host stdlib/tool dependencies are not pinned by this check.',
         }
         (ROOT / 'evidence/schema-bootstrap.json').write_text(json.dumps(evidence, indent=2) + '\n')
-    print('Schema and syntax-value parsers: current' + ('; isolated regeneration fixed point passed' if args.bootstrap_check else ''))
+    print('Schema, syntax-value and protocol artifacts: current' + ('; isolated regeneration fixed point passed' if args.bootstrap_check else ''))
 
 
 if __name__ == '__main__':

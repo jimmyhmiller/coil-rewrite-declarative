@@ -1,0 +1,346 @@
+;;; Bounded effect protocols: shape parsing and key validation are generated;
+;;; the semantic adapter resolves transitions and proves every cycle spends fuel.
+(module rewrite.protocol)
+(import "rewrite.protocolforms" :as grammar)
+(import "rewrite.source" :as source)
+(import "rewrite.emit" :use [number!])
+(import "rewrite.readers" :use [quoted!])
+(import "coil.alloc" :use *)
+(import "coil.arraylist" :use *)
+(import "coil.hashmap" :use [HashMap])
+(import "coil.str" :use *)
+(import "coil.reader" :use *)
+(import "coil.result" :use *)
+
+(defn diagnostic [(at source/Origin) (message (slice u8))] (-> Diag)
+  (Diag
+    :source (.source at)
+    :lo (.lo at)
+    :hi (.hi at)
+    :ctxt 0
+    :msg message))
+
+(defn name? [(text (slice u8))] (-> bool)
+  (block :done
+    (when (= (len text) 0) (break :done false))
+    (for [i 0 (len text)]
+      (let [c (get text i)]
+        (unless (or (and (>= c 65) (<= c 90))
+                    (and (>= c 97) (<= c 122))
+                    (and (> i 0)
+                         (or (= c 45) (= c 95) (and (>= c 48) (<= c 57)))))
+          (break :done false))))
+    true))
+
+(defn clause-name [(row grammar/N1Row)] (-> (slice u8))
+  (match row
+    (grammar/N1V0 [name _] name)
+    (grammar/N1V1 [name] name)
+    (grammar/N1V2 [name] name)
+    (grammar/N1V3 [name _] name)))
+
+(defn edges [(a (dyn Allocator))
+             (store (ptr grammar/Store))
+             (row grammar/N1Row)]
+  (-> (ArrayList grammar/N0Id))
+  (let [(mut result) (ArrayList::new [grammar/N0Id] a)]
+    (match row
+      (grammar/N1V3 [_ sequence]
+                    (let [count
+                            (match (grammar/sequence-size-0 store sequence)
+                              (Some [n] n)
+                              (None [] (panic "protocol edges")))]
+                      (for [i 0 count]
+                        (push! (mut result)
+                               (match (grammar/sequence-item-0 store sequence i)
+                                 (Some [id] id)
+                                 (None [] (panic "protocol edge")))))))
+      (_))
+    result))
+
+(defn event-name [(edge grammar/N0Row)] (-> (slice u8))
+  (match edge (grammar/N0V0 [event _] event) (grammar/N0V1 [event _ _] event)))
+
+(defn target-name [(edge grammar/N0Row)] (-> (slice u8))
+  (match edge
+    (grammar/N0V0 [_ target] target)
+    (grammar/N0V1 [_ target _] target)))
+
+(defn index-id [(index (ptr (HashMap (slice u8) grammar/N1Id)))
+                (name (slice u8))] (-> i64)
+  (match (get (load index) name) (Some [id] (.index id)) (None [] (- 0 1))))
+
+(defn compile [(a (dyn Allocator)) (module-name (slice u8)) (form (ptr Sexp))]
+  (-> (Result (slice u8) Diag))
+  (block
+    :done
+      (let [(mut store) (grammar/store-new a)
+            root
+              (match (grammar/surface-2 (mut store) form)
+                (Ok [id] id)
+                (Err [d] (break :done (Err d))))
+            root-at (get (.origins2 store) (.index root))
+            clauses (.f0 (get (.rows2 store) (.index root)))
+            count
+              (match (grammar/sequence-size-1 (mut store) clauses)
+                (Some [n] n)
+                (None [] (panic "protocol clauses")))
+            (mut states) (ArrayList::new [grammar/N1Id] a)
+            (mut budgets) (ArrayList::new [grammar/N1Id] a)
+            (mut events) (ArrayList::new [(slice u8)] a)
+            (mut event-index) (HashMap::new [(slice u8) bool] a (keyops))
+            (mut start) ""
+            (mut finish) (- 0 1)]
+        (for [i 0 count]
+          (let [id
+                  (match (grammar/sequence-item-1 (mut store) clauses i)
+                    (Some [id] id)
+                    (None [] (panic "protocol clause")))
+                row (get (.rows1 store) (.index id))
+                at (get (.origins1 store) (.index id))]
+            (unless (name? (clause-name row))
+              (break :done (Err (diagnostic at "invalid protocol name"))))
+            (match row
+              (grammar/N1V0 [_ limit]
+                            (when (< limit 0)
+                              (break
+                                :done
+                                  (Err (diagnostic at
+                                                   "protocol budget must be nonnegative"))))
+                            (push! (mut budgets) id))
+              (grammar/N1V1 [name]
+                            (unless (= start "")
+                              (break
+                                :done
+                                  (Err (diagnostic at
+                                                   "duplicate protocol start"))))
+                            (set! start name))
+              (grammar/N1V2 [_]
+                            (when (>= finish 0)
+                              (break
+                                :done
+                                  (Err (diagnostic at
+                                                   "duplicate protocol finish"))))
+                            (set! finish (.index id))
+                            (push! (mut states) id))
+              (grammar/N1V3 [_ _] (push! (mut states) id)))))
+        (when (or (= start "") (< finish 0))
+          (break
+            :done
+              (Err (diagnostic root-at "protocol needs one start and finish"))))
+        (let [(mut state-index)
+                (match (grammar/index-1-0 a
+                                          (field (mut store) rows1)
+                                          (mut states))
+                  (Ok [index] index)
+                  (Err [_]
+                       (break
+                         :done
+                           (Err (diagnostic root-at "duplicate protocol state")))))
+              (mut budget-index)
+                (match (grammar/index-1-0 a
+                                          (field (mut store) rows1)
+                                          (mut budgets))
+                  (Ok [index] index)
+                  (Err [_]
+                       (break
+                         :done
+                           (Err (diagnostic root-at "duplicate protocol budget")))))
+              initial (index-id (mut state-index) start)
+              (mut incoming) (ArrayList::new [i64] a)
+              (mut ready) (ArrayList::new [i64] a)]
+          (when (< initial 0)
+            (break
+              :done (Err (diagnostic root-at "unknown protocol start state"))))
+          (for [i 0 (len (.rows1 store))] (push! (mut incoming) 0))
+          (for id states
+            (let [row (get (.rows1 store) (.index id))
+                  at (get (.origins1 store) (.index id))
+                  (mut es) (edges a (mut store) row)]
+              (when (and (!= (.index id) finish) (= (len es) 0))
+                (break
+                  :done (Err (diagnostic at "protocol state needs an outcome"))))
+              (match (grammar/index-0-0 a (field (mut store) rows0) (mut es))
+                (Err [_]
+                     (break
+                       :done (Err (diagnostic at "duplicate protocol outcome"))))
+                (Ok [_]))
+              (for eid es
+                (let [edge (get (.rows0 store) (.index eid))
+                      eat (get (.origins0 store) (.index eid))
+                      event (event-name edge)
+                      target (index-id (mut state-index) (target-name edge))]
+                  (unless (name? event)
+                    (break
+                      :done (Err (diagnostic eat "invalid protocol event name"))))
+                  (when (< target 0)
+                    (break
+                      :done
+                        (Err (diagnostic eat "unknown protocol target state"))))
+                  (match (get event-index event)
+                    (None []
+                          (set! (mut event-index) event true)
+                          (push! (mut events) event))
+                    (Some [_]))
+                  (match edge
+                    (grammar/N0V0 [_ _]
+                                  (set! (mut incoming)
+                                        target
+                                        (+ 1 (get incoming target))))
+                    (grammar/N0V1 [_ _ budget]
+                                  (when (< (index-id (mut budget-index) budget)
+                                           0)
+                                    (break
+                                      :done
+                                        (Err (diagnostic eat
+                                                         "unknown protocol budget"))))))))))
+          (when (= (len events) 0)
+            (break
+              :done (Err (diagnostic root-at "protocol needs an effect state"))))
+          ; Remove all spending edges. A cycle that remains could run forever.
+          (for id states
+            (when (= (get incoming (.index id)) 0)
+              (push! (mut ready) (.index id))))
+          (let [(mut cursor) 0]
+            (while (< cursor (len ready))
+              (let [row (get (.rows1 store) (get ready cursor))
+                    es (edges a (mut store) row)]
+                (for eid es
+                  (match (get (.rows0 store) (.index eid))
+                    (grammar/N0V0 [_ target]
+                                  (let [id (index-id (mut state-index) target)
+                                        remaining (- (get incoming id) 1)]
+                                    (set! (mut incoming) id remaining)
+                                    (when (= remaining 0)
+                                      (push! (mut ready) id))))
+                    (_))))
+              (set! cursor (+ cursor 1))))
+          (unless (= (len ready) (len states))
+            (break
+              :done
+                (Err (diagnostic root-at
+                                 "protocol cycle must spend a finite budget"))))
+          ; All declared states, including finish, must be reachable from start.
+          (let [(mut seen) (ArrayList::new [bool] a)
+                (mut pending) (ArrayList::new [i64] a)
+                (mut cursor) 0]
+            (for [i 0 (len (.rows1 store))] (push! (mut seen) false))
+            (push! (mut pending) initial)
+            (set! (mut seen) initial true)
+            (while (< cursor (len pending))
+              (let [es
+                      (edges a
+                             (mut store)
+                             (get (.rows1 store) (get pending cursor)))]
+                (for eid es
+                  (let [target
+                          (index-id (mut state-index)
+                                    (target-name (get (.rows0 store)
+                                                      (.index eid))))]
+                    (unless (get seen target)
+                      (set! (mut seen) target true)
+                      (push! (mut pending) target)))))
+              (set! cursor (+ cursor 1)))
+            (unless (= (len pending) (len states))
+              (break
+                :done (Err (diagnostic root-at "unreachable protocol state")))))
+          (let [(mut b) (StrBuf::new a)]
+            (push-str! (mut b) "(module ")
+            (push-str! (mut b) module-name)
+            (push-str! (mut b)
+                       ")\n(import \"coil.result\" :use *)\n(import \"coil.cc\" :as cc)\n(defsum Event ")
+            (for event events
+              (push-str! (mut b) "(Event-")
+              (push-str! (mut b) event)
+              (push-str! (mut b) ")"))
+            (push-str! (mut b)
+                       ")\n(defn state-name [(state i64)] (-> (slice u8)) (block :done ")
+            (for id states
+              (push-str! (mut b) "(when (= state ")
+              (number! (mut b) (.index id))
+              (push-str! (mut b) ") (break :done ")
+              (quoted! (mut b) (clause-name (get (.rows1 store) (.index id))))
+              (push-str! (mut b) "))"))
+            (push-str! (mut b)
+                       "\"<unknown>\"))\n(defn budget-name [(budget i64)] (-> (slice u8)) (block :done ")
+            (for id budgets
+              (push-str! (mut b) "(when (= budget ")
+              (number! (mut b) (.index id))
+              (push-str! (mut b) ") (break :done ")
+              (quoted! (mut b) (clause-name (get (.rows1 store) (.index id))))
+              (push-str! (mut b) "))"))
+            (push-str! (mut b)
+                       "\"<unknown>\"))\n(defn event-name [(event Event)] (-> (slice u8)) (match event ")
+            (for event events
+              (push-str! (mut b) "(Event-")
+              (push-str! (mut b) event)
+              (push-str! (mut b) " [] ")
+              (quoted! (mut b) event)
+              (push-str! (mut b) ")"))
+            (push-str! (mut b)
+                       "))\n(defsum Failure [E] (HandlerError [(state i64) (error E)]) (UnexpectedEvent [(state i64) (event Event)]) (Exhausted [(budget i64) (limit i64)]))\n(defstruct Handlers [C E] [")
+            (for id states
+              (unless (= (.index id) finish)
+                (push-str! (mut b) "(step-")
+                (push-str! (mut b)
+                           (clause-name (get (.rows1 store) (.index id))))
+                (push-str! (mut b)
+                           " (fnptr (cc/C) [(ptr C)] (Result Event E)))")))
+            (push-str! (mut b)
+                       "])\n(defn run [C E] [(context (ptr C)) (handlers (ptr (Handlers C E)))] (-> (Result bool (Failure E))) (block :done (let [(mut state) ")
+            (number! (mut b) initial)
+            (for id budgets
+              (push-str! (mut b) " (mut spent")
+              (number! (mut b) (.index id))
+              (push-str! (mut b) ") 0"))
+            (push-str! (mut b) "] (loop (when (= state ")
+            (number! (mut b) finish)
+            (push-str! (mut b) ") (break :done (Ok true))) (cond ")
+            (for id states
+              (unless (= (.index id) finish)
+                (push-str! (mut b) "(= state ")
+                (number! (mut b) (.index id))
+                (push-str! (mut b) ") (let [step (.step-")
+                (push-str! (mut b)
+                           (clause-name (get (.rows1 store) (.index id))))
+                (push-str! (mut b)
+                           " handlers) event (match (step context) (Ok [event] event) (Err [e] (break :done (Err (HandlerError [E] state e)))))] (match event ")
+                (let [es (edges a (mut store) (get (.rows1 store) (.index id)))]
+                  (for eid es
+                    (let [edge (get (.rows0 store) (.index eid))]
+                      (push-str! (mut b) "(Event-")
+                      (push-str! (mut b) (event-name edge))
+                      (push-str! (mut b) " [] ")
+                      (match edge
+                        (grammar/N0V1 [_ _ budget]
+                                      (let [bid
+                                              (index-id (mut budget-index)
+                                                        budget)
+                                            limit
+                                              (match (get (.rows1 store) bid)
+                                                (grammar/N1V0 [_ n] n)
+                                                (_ (panic "budget")))]
+                                        (push-str! (mut b) "(when (>= spent")
+                                        (number! (mut b) bid)
+                                        (push-str! (mut b) " ")
+                                        (number! (mut b) limit)
+                                        (push-str! (mut b)
+                                                   ") (break :done (Err (Exhausted [E] ")
+                                        (number! (mut b) bid)
+                                        (push-str! (mut b) " ")
+                                        (number! (mut b) limit)
+                                        (push-str! (mut b) ")))) (set! spent")
+                                        (number! (mut b) bid)
+                                        (push-str! (mut b) " (+ spent")
+                                        (number! (mut b) bid)
+                                        (push-str! (mut b) " 1))")))
+                        (_))
+                      (push-str! (mut b) "(set! state ")
+                      (number! (mut b)
+                               (index-id (mut state-index) (target-name edge)))
+                      (push-str! (mut b) "))"))))
+                (push-str! (mut b)
+                           "(_ (break :done (Err (UnexpectedEvent [E] state event)))))) ")))
+            (push-str! (mut b)
+                       ":else (panic \"invalid generated protocol state\"))) (Ok true))))\n")
+            (Ok (str (load b))))))))

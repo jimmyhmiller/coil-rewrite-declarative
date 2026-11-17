@@ -462,4 +462,31 @@ Every successful extension produces a fresh native image containing the cumulati
 
 `tests/staged-chain.coil.in` exercises two native increments. The first introduces an earlier helper and entry, selects nested `chain-b` guest syntax, and promotes it. The driver recognizes that guest form, introduces a second entry that calls the earlier helper, and imports the resumed generation into a fresh invocation. The final returned function is projected into the runtime grammar, checked/lowered and executed with result 42. The runtime image has exactly its runtime entry and no stage helper names. Negative cases establish duplicate rejection and failure of the second entry without the earlier helper. This fixture selects authored syntax templates; it does not yet construct arbitrary new Code.
 
-The driver and request ordering in this test are still handwritten fixture logic. Production expansion rules, marker routing, limit policies, imported readers, semantic models, runtime Code constructors/normalization and serialized-artifact phase isolation remain outstanding. This checkpoint proves the cumulative execution and lifetime mechanisms; it does not establish full before-expand or reference staged-chain parity.
+The guest discovery and execution adapters remain fixture logic; transition order and bounded repetition now come from the protocol language described below. Full production expansion rules, marker routing, limit policies, imported readers, semantic models, runtime Code constructors/normalization and serialized-artifact phase isolation remain outstanding. This checkpoint proves the cumulative execution and lifetime mechanisms; it does not establish full before-expand or reference staged-chain parity.
+
+## Bounded effect protocols
+
+`languages/protocol.schema` defines the protocol grammar; its generated parser and key indexes are used by `seed/protocol.coil`. A protocol module contains an optional module declaration and exactly one protocol, with no schema declarations mixed in. For example, `languages/staging.protocol` declares routing, installation, invocation and resumption as separate states:
+
+```text
+(protocol
+  (budget requests 64)
+  (start route)
+  (finish complete)
+  (state route
+    (on Done complete)
+    (spend Request requests install))
+  (state install (on Ready invoke))
+  (state invoke (on Returned resume))
+  (state resume (on Again route)))
+```
+
+An `on` edge selects its target after the state's handler returns that event. A `spend` edge first checks and consumes one unit of its named budget, then selects its target. If the budget is exhausted, the target handler is not called. The source handler has already run; effects are not rolled back. Completion is checked before calling another handler, so a successful final outcome remains successful at an exact budget boundary. Counters start fresh for every `run`.
+
+The seed compiler uses a compilation arena for its parser, indexes and intermediate graph storage. It resolves all state and budget names, checks unique states/budgets and per-state outcomes through generated indexes, rejects unreachable states, and requires every nonterminal state to have an outcome. It removes spending edges and requires the remaining graph to be acyclic. Thus every control-flow cycle spends a finite budget. This bounds protocol transitions assuming handlers return; it does not bound a handler's own time or memory. A protocol needs one start, one finish, and at least one effect state. Budgets may be zero; acyclic protocols need none. Names use ASCII letters initially, followed by letters, digits, hyphens or underscores.
+
+The compiler emits an `Event` sum with `Event-NAME` constructors, a typed `Handlers[C E]` record containing one `step-STATE` C function pointer per effect state, and `run(context, handlers)`. Handlers return `Result Event E`. The driver uses compiled state dispatch and direct typed calls; no protocol parser or transition-table interpreter runs in the generated application. Success is `Ok true`. Failure identifies a handler error, an event not declared for the current state, or an exhausted budget. Generated `state-name`, `event-name` and `budget-name` functions give readable labels without relying on numeric declaration positions.
+
+The staging fixture now runs through this generated driver. Its effect adapters still perform guest-tag discovery, construct phase declaration batches and bridge to the compiler/JIT; they remain fixture code. The declared model supplies transition order, completion and bounded repetition. Its 64-request budget is an explicit policy used by this test, **not** Coil's reference 16/64 round policy. Captured boundary-count evidence and additional protocol vocabulary are still needed before claiming the reference expansion policy is implemented.
+
+`tools/gen-schema.py` now regenerates the schema grammar, owned syntax grammar, protocol grammar and staged protocol program, then checks their fixed point under an isolated seed rebuild. This is language-toolchain regeneration with a host Coil dependency, not full compiler self-hosting. Protocol coverage includes independent retry/poll budgets, acyclic operation, zero/exact/exceeded fuel, repeated fresh runs, callback failures, unexpected events, invalid definitions and callback signature rejection.

@@ -153,3 +153,13 @@ A two-increment fixture executes phase A, promotes its returned `chain-b` guest 
 Syntax import and promotion now retain reader origin markers, transport flags and positive reader-node identity alongside hygiene/module/context fields. These fields were previously dropped. The temporary reader projection preserves those values and sharing, checks graph errors and borrows text only while the owning syntax remains live. General Code views/joins, scope-domain remapping, syntax construction, semantic capabilities and imported-reader artifacts are still missing.
 
 Validation: `tools/check-seed.py` and the final `tools/check-lowering.py` run passed, including isolated grammar regeneration and debug/debug-checks/release fixtures. Source inventories and bootstrap hashes are refreshed. These checks do not establish full toolchain compatibility or self-hosting.
+
+## Declared protocol control checkpoint
+
+A generic protocol language now compiles named effect states, typed outcomes, completion and finite budgets into a direct driver. Its grammar and key indexes are themselves generated from a schema specification. Duplicate/unresolved definitions, unreachable states and cycles without a spending edge are rejected before code emission. Typed handlers return either a declared event or a caller-defined error; an outcome illegal in the current state and an exhausted budget are explicit failures.
+
+The cumulative native fixture now uses this driver for routing, installation, invocation and resumption. Its guest discovery and compiler/JIT adapters remain test code. The 64-request bound in `languages/staging.protocol` is a policy used by this test, not Coil's reference before-expand round accounting. Full request/declaration semantics, source marker routing, constructors, semantic capabilities, reader imports and exact reference limits remain incomplete.
+
+Protocol tests cover zero, exact and exceeded budgets; independent retry/poll budgets; acyclic protocols without budgets; fresh repeated runs; handler failures; unexpected outcomes; invalid graph/name/shape contracts; and rejected callback signatures. A fuel check occurs after its source handler returns and before its target handler runs; no rollback of source effects is promised. The graph proof assumes handlers return and does not bound their own execution.
+
+Validation: the complete seed and final native suites passed. Isolated seed regeneration now compares all four language artifacts, including the protocol grammar and staged protocol driver. The independent protocol client and boundary/error tests passed in debug/debug-checks/release. No whole-compiler performance, complete expansion compatibility or self-hosting claim follows.

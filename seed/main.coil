@@ -12,6 +12,7 @@
 (import "rewrite.lower" :as lower)
 (import "rewrite.program" :as program)
 (import "rewrite.phase" :as phase)
+(import "rewrite.protocol" :as protocol)
 (import "coil.reader" :use *)
 (import "coil.arraylist" :use *)
 (import "coil.str" :use *)
@@ -219,35 +220,62 @@
 
 (defn compile-forms [(a (dyn Allocator)) (forms (ptr (ArrayList Sexp)))]
   (-> (Result (slice u8) Diag))
-  (block
-    :done
-      (let [module-name
-              (match (output-module forms)
-                (Err [d] (break :done (Err d)))
-                (Ok [name] name))
-            schema
-              (match (schema/parse-forms a forms)
-                (Err [d] (break :done (Err d)))
-                (Ok [schema] (box! a schema/Schema schema)))
-            bindings
-              (match (binding/parse a schema forms)
-                (Err [d] (break :done (Err d)))
-                (Ok [bindings] (box! a binding/Bindings bindings)))
-            order
-              (match (phase/schedule a compiler-phases 0)
-                (Err [d] (break :done (Err d)))
-                (Ok [order] order))
-            (mut output) (StrBuf::new a)]
-        (for [i 0 (len order)]
-          (match (compile-stage a
-                                schema
-                                bindings
-                                module-name
-                                forms
-                                (get order i))
-            (Err [d] (break :done (Err d)))
-            (Ok [text] (push-str! (mut output) text))))
-        (Ok (str (load output))))))
+  (block :done
+    (let [(mut protocol-index) (- 0 1)]
+      (for [i 0 (len (load forms))]
+        (let [form (elem forms i)]
+          (when (and (sexp-list? form)
+                     (> (sexp-count form) 0)
+                     (sexp-sym-is (sexp-nth form 0) "protocol"))
+            (when (>= protocol-index 0)
+              (break
+                :done
+                  (Err (schema/problem form "duplicate protocol declaration"))))
+            (set! protocol-index i))))
+      (when (>= protocol-index 0)
+        (for [i 0 (len (load forms))]
+          (let [form (elem forms i)]
+            (unless (or (= i protocol-index)
+                        (and (sexp-list? form)
+                             (> (sexp-count form) 0)
+                             (sexp-sym-is (sexp-nth form 0) "module")))
+              (break
+                :done
+                  (Err (schema/problem form
+                                       "protocol module cannot contain schema declarations"))))))
+        (let [module-name
+                (match (output-module forms)
+                  (Ok [name] name)
+                  (Err [d] (break :done (Err d))))]
+          (break
+            :done (protocol/compile a module-name (elem forms protocol-index))))))
+    (let [module-name
+            (match (output-module forms)
+              (Err [d] (break :done (Err d)))
+              (Ok [name] name))
+          schema
+            (match (schema/parse-forms a forms)
+              (Err [d] (break :done (Err d)))
+              (Ok [schema] (box! a schema/Schema schema)))
+          bindings
+            (match (binding/parse a schema forms)
+              (Err [d] (break :done (Err d)))
+              (Ok [bindings] (box! a binding/Bindings bindings)))
+          order
+            (match (phase/schedule a compiler-phases 0)
+              (Err [d] (break :done (Err d)))
+              (Ok [order] order))
+          (mut output) (StrBuf::new a)]
+      (for [i 0 (len order)]
+        (match (compile-stage a
+                              schema
+                              bindings
+                              module-name
+                              forms
+                              (get order i))
+          (Err [d] (break :done (Err d)))
+          (Ok [text] (push-str! (mut output) text))))
+      (Ok (str (load output))))))
 
 (defn main [] (-> i64)
   (let [arena (arena-new 16777216)
