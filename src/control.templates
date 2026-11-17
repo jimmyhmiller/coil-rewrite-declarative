@@ -5,3 +5,4 @@
 ("scope" 1 rest (block* (arg 1) (tail 2)))
 ("return-from" 2 exact (break (arg 1) (arg 2)))
 ("defer" 0 rest (defer* (tail 1)))
+("cond" 0 pairs-right (if-keyword "else" (value) (if (item) (value) (rest))) 0)
