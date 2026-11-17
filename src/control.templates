@@ -1,3 +1,7 @@
 ("while" 1 rest (loop (if (arg 1) (do (tail 2)) (break))))
 ("when" 1 rest (if (arg 1) (do (tail 2)) 0))
 ("unless" 1 rest (if (arg 1) 0 (do (tail 2))))
+("block" 1 rest (block* (arg 1) (tail 2)))
+("scope" 1 rest (block* (arg 1) (tail 2)))
+("return-from" 2 exact (break (arg 1) (arg 2)))
+("defer" 0 rest (defer* (tail 1)))

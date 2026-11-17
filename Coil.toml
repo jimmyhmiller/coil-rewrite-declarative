@@ -15,6 +15,7 @@ source-roots = ["dsls", "src"]
 ".patterns" = "rewrite.pattern-reader"
 
 [modules]
+"rewrite.logic" = "src/logic.templates"
 "rewrite.control" = "src/control.templates"
 "rewrite.operators" = "src/core.operators"
 "rewrite.native" = "src/native.lowering"

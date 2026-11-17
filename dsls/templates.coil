@@ -6,8 +6,10 @@
 
 ;; Compile syntax constructors once. Captured subtrees retain their original
 ;; identity and spans. Introduced syntax takes the invocation's span.
-(defn template [(form Code) (arity i64)] (-> Code)
-  (cond (p/code-int? form) `(mk-sexp-src (KInt ~form) site)
+(defn template [(form Code) (arity i64) (fold bool)] (-> Code)
+  (cond (and fold (p/code-eq form `(item))) `(load (sexp-nth site position))
+        (and fold (p/code-eq form `(rest))) `(load folded)
+        (p/code-int? form) `(mk-sexp-src (KInt ~form) site)
         (p/code-sym? form) `(mk-sexp-src (KSym ~(p/code-str form)) site)
         (p/code-list? form)
           (if (and (= (p/code-count form) 2) (p/code-eq (get form 0) `arg))
@@ -31,7 +33,7 @@
                                                 (push! (mut children)
                                                        (load (sexp-nth site k)))))
                                            `(push! (mut children)
-                                                   ~(template item arity))))))
+                                                   ~(template item arity fold))))))
                 `(let [(mut children) (ArrayList::new [Sexp] a)]
                    ~@(p/code-list-done actions)
                    (mk-sexp-src (KList (box-items a children)) site))))
@@ -45,19 +47,28 @@
         (when (!= (p/code-count rule) 4)
           (p/error "expected (name arity exact|rest template)"))
         (let [n (get rule 1)
-              mode (get rule 2)]
+              mode (get rule 2)
+              fold (p/code-eq mode `fold-right)
+              body (template (get rule 3) (p/code-int n) fold)]
+          (when (and fold (< (p/code-int n) 1))
+            (p/error "fold-right requires an initial operand"))
           (p/code-list-push! arms
                              `(and (= name ~(get rule 0))
                                    ~(cond (p/code-eq mode `exact) `(= argc ~n)
-                                          (p/code-eq mode `rest) `(>= argc ~n)
+                                          (or fold (p/code-eq mode `rest))
+                                            `(>= argc ~n)
                                           :else
                                             (do
                                               (p/error "unknown template arity")
                                               `false))))
           (p/code-list-push! arms
-                             `(Some (box-sexp a
-                                              ~(template (get rule 3)
-                                                         (p/code-int n))))))))
+                             (if fold
+                                 `(let [(mut folded) (load (sexp-nth site argc))]
+                                    (for [offset 1 (+ (- argc ~n) 1)]
+                                      (let [position (- argc offset)]
+                                        (set! folded ~body)))
+                                    (Some (box-sexp a (load folded))))
+                                 `(Some (box-sexp a ~body)))))))
     (p/code-read (meta/source `(do
                                  (import "coil.reader" :use *)
                                  (import "coil.arraylist" :use *)

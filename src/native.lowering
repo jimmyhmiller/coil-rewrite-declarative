@@ -60,6 +60,7 @@
   [(f (mut Frame)) (im (mut image/Image))
    (signatures (hm/HashMap (slice u8) (ptr Sexp))) (expr (ptr Sexp))] (Result i32 Diag)
   (where (< (.control f) 0) (yield (Ok (: -1 i32))))
+  (where (contains? (.guards (.checked f)) (.node-id expr)) (yield (Ok (.control f))))
   (on (get (.expanded (.checked f)) (.node-id expr)) (Some [expanded])
     (yield (lower-expression (mut f) (mut im) signatures expanded)))
   (on (get (.types (.checked f)) (.node-id expr)) (Some [type])
@@ -111,16 +112,20 @@
     (yield (lower-sequence (mut f) (mut im) signatures expr 2)))
   (on (sequence-expression expr) (Sequence [])
     (yield (lower-sequence (mut f) (mut im) signatures expr 1)))
-  (where (repetition? expr)
+  (where (or (repetition? expr) (named-block? expr))
     (bind incoming (.control f))
     (bind header (nodes/loop-header (mut (.g f)) incoming))
     (bind edges (box! (.a f) LoopEdges (LoopEdges :backs (al/ArrayList::new [i32] (.a f))
                          :exits (al/ArrayList::new [i32] (.a f)) :values (al/ArrayList::new [i32] (.a f)))))
     (perform (set! (mut (.loops f)) (.node-id expr) edges))
     (perform (set! (.control f) header))
-    (need _ (lower-sequence (mut f) (mut im) signatures expr
+    (need normal (lower-sequence (mut f) (mut im) signatures expr
                             (if (sexp-kw? (sexp-nth expr 1)) 2 1)))
-    (perform (when (>= (.control f) 0) (push! (mut (.backs edges)) (.control f))))
+    (perform (when (>= (.control f) 0)
+               (if (named-block? expr)
+                   (do (push! (mut (.exits edges)) (nodes/jump-edge (mut (.g f)) (.control f)))
+                       (push! (mut (.values edges)) normal))
+                   (push! (mut (.backs edges)) (.control f)))))
     (bind back (merge-controls (mut (.g f)) (.backs edges)))
     (perform (if (< back 0)
                  (do (graph/replace-uses! (mut (.g f)) header incoming) (graph/drop! (mut (.g f)) header))
@@ -137,6 +142,7 @@
     (need value (if (> (sexp-count expr) first-value)
                     (lower-expression (mut f) (mut im) signatures (sexp-nth expr first-value))
                     (Ok (nodes/literal (mut (.g f)) ir/T-I64 0))))
+    (need _ (run-cleanups (mut f) (mut im) signatures expr))
     (perform (when (>= (.control f) 0)
                (push! (mut (.exits edges)) (nodes/jump-edge (mut (.g f)) (.control f)))
                (push! (mut (.values edges)) value)))
@@ -144,7 +150,8 @@
     (yield (Ok (: -1 i32))))
   (where (next-iteration? expr)
     (need edges (jump-edges f expr))
-    (perform (push! (mut (.backs edges)) (nodes/jump-edge (mut (.g f)) (.control f))))
+    (need _ (run-cleanups (mut f) (mut im) signatures expr))
+    (perform (when (>= (.control f) 0) (push! (mut (.backs edges)) (nodes/jump-edge (mut (.g f)) (.control f)))))
     (perform (set! (.control f) -1))
     (yield (Ok (: -1 i32))))
   (on (conditional expr) (Branches [condition then else])
@@ -230,6 +237,16 @@
       (otherwise (yield (Err (mk-diag (.lo name) (.hi name) "missing native cell"))))))
   (otherwise (yield (Err (mk-diag (.lo name) (.hi name) "unresolved native cell")))))
 
+(translate run-cleanups
+  [(f (mut Frame)) (im (mut image/Image)) (signatures (hm/HashMap (slice u8) (ptr Sexp)))
+   (site (ptr Sexp))] (Result i32 Diag)
+  (on (get (.on-exit (.checked f)) (.node-id site)) (Some [actions])
+    (each-element cleanup actions
+      (need done (lower-expression (mut f) (mut im) signatures cleanup) (< (.control f) 0))
+      (yield 0))
+    (yield (Ok (.control f))))
+  (otherwise (yield (Ok (.control f)))))
+
 (translate lower-sequence
   [(f (mut Frame)) (im (mut image/Image))
    (signatures (hm/HashMap (slice u8) (ptr Sexp)))
@@ -240,6 +257,7 @@
       (need value (lower-expression (mut f) (mut im) signatures item) (< (.control f) 0))
       (perform (set! last-value value))
       (yield 0))
+    (need done (run-cleanups (mut f) (mut im) signatures expr) (< (.control f) 0))
     (yield (Ok (load last-value)))))
 
 (translate lower-function
@@ -253,11 +271,9 @@
     (walk position param parameters 0
       (need _ (lower-parameter (mut f) position param))
       (yield 0))
-    (walk position expr form 4
-      (bind last? (= (+ position 1) (sexp-count form)))
-      (need value (lower-expression (mut f) (mut im) signatures expr))
-      (perform (when (and (>= (.control f) 0) (and last? (!= rep ir/T-CTRL))) (nodes/finish (mut (.g f)) (.control f) value)))
-      (yield 0))
+    (need value (lower-sequence (mut f) (mut im) signatures form 4))
+    (perform (when (and (>= (.control f) 0) (!= rep ir/T-CTRL))
+               (nodes/finish (mut (.g f)) (.control f) value)))
     (perform (when (and (>= (.control f) 0) (= rep ir/T-CTRL)) (nodes/finish-void (mut (.g f)) (.control f))))
     (choose
       (on (host/append-graph! a (mut im) (image/symbol! (mut im) (sexp-sym name)) (.g f))

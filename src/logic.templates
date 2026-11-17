@@ -1,0 +1,5 @@
+("and" 0 exact true)
+("and" 1 fold-right (if (item) (rest) false))
+("or" 0 exact false)
+("or" 1 fold-right (if (item) true (rest)))
+("not" 1 exact (if (arg 1) false true))

@@ -32,3 +32,5 @@
 (recognize repetition? (list "loop" _ ...))
 (recognize exit-loop? (list "break" ...))
 (recognize next-iteration? (list "continue" ...))
+(recognize named-block? (list "block*" _ ...))
+(extract cleanup-form CleanupForm Guard NoGuard (list "defer*" (capture cleanup _)))
