@@ -72,7 +72,12 @@
   (list "fnptr" (list (capture convention symbol))
         (capture parameters (vector ...)) (capture result _)))
 (extract structure StructDeclaration Struct NoStruct
-  (list "defstruct" (capture name symbol) (capture fields (vector ...))))
+  (list "defstruct" (capture name symbol) (capture fields (vector ...)))
+  (list "defstruct" (capture name symbol) (keyword "layout") _ (capture fields (vector ...))))
+(extract layout-annotation LayoutAnnotation Annotated NoAnnotation
+  (list "defstruct" symbol (keyword "layout") (capture expression _) _))
+(extract layout-constructor LayoutConstructor Constructor NoConstructor
+  (list (capture name symbol) ...))
 (recognize offset-name? "offsetof")
 (extract field-offset-query FieldOffsetQuery OffsetOf NoOffsetOf
   (list (matches offset-name?) (capture type symbol) (capture field symbol)))
