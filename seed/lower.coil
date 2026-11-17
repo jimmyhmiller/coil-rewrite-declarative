@@ -1,0 +1,153 @@
+;;; Scalar lowering rules derive CIR traversal and branch/SSA construction.
+(module rewrite.lower)
+(import "rewrite.schema" :use *)
+(import "rewrite.emit" :use [number!])
+(import "coil.alloc" :use *)
+(import "coil.arraylist" :use *)
+(import "coil.reader" :use *)
+(import "coil.result" :use *)
+(import "coil.str" :use *)
+
+(defn field-number [(v (ptr Variant)) (name (ptr Sexp)) (ty (slice u8))]
+  (-> i64)
+  (block :found
+    (for [i 0 (len (.fields v))]
+      (let [f (elem (field v fields) i)]
+        (when (and (sexp-sym-is name (.name f)) (= (.type-name f) ty))
+          (break :found i))))
+    (- 0 1)))
+
+(defn child! [(b (mut StrBuf)) (node i64) (field i64)] (-> void)
+  (push-str! (mut b) "(lower-")
+  (number! (mut b) node)
+  (push-str! (mut b) " rows f")
+  (number! (mut b) field)
+  (push-str! (mut b) " function)"))
+
+(defn rule! [(b (mut StrBuf))
+             (n (ptr Node))
+             (ni i64)
+             (vi i64)
+             (rule (ptr Sexp))] (-> (Result i64 Diag))
+  (block :done
+    (unless (and (sexp-list? rule) (= (sexp-count rule) 2))
+      (break
+        :done (Err (problem rule "expected (Variant lowering-expression)"))))
+    (let [expression (sexp-nth rule 1)
+          v (elem (field n variants) vi)]
+      (unless (and (sexp-list? expression) (> (sexp-count expression) 0))
+        (break :done (Err (problem expression "expected lowering operation"))))
+      (let [op (sexp-nth expression 0)
+            constant? (sexp-sym-is op "const")
+            boolean? (sexp-sym-is op "bool")
+            add? (sexp-sym-is op "add")
+            branch? (sexp-sym-is op "if")
+            arity (cond (or constant? boolean?) 1 add? 2 branch? 3 :else 0)
+            (mut fields) (ArrayList::new [i64] (malloc-allocator))]
+        (defer (free! (mut fields)))
+        (unless (and (> arity 0) (= (sexp-count expression) (+ arity 1)))
+          (break
+            :done
+              (Err (problem expression
+                            "unknown lowering operation or wrong arity"))))
+        (for [i 1 (+ arity 1)]
+          (let [field (sexp-nth expression i)
+                index
+                  (field-number v
+                                field
+                                (cond constant? "Int"
+                                      boolean? "Bool"
+                                      :else (.name n)))]
+            (when (< index 0)
+              (break
+                :done
+                  (Err (problem field
+                                "lowering field has wrong type or is missing"))))
+            (push! (mut fields) index)))
+        (push-str! (mut b) "(N")
+        (number! (mut b) ni)
+        (push-str! (mut b) "V")
+        (number! (mut b) vi)
+        (push-str! (mut b) " [")
+        (for [i 0 (len (.fields v))]
+          (push-str! (mut b) " f")
+          (number! (mut b) i))
+        (push-str! (mut b) "] ")
+        (cond (or constant? boolean?)
+                (do
+                  (push-str! (mut b) "(cir/iconst! function ")
+                  (when boolean? (push-str! (mut b) "(if "))
+                  (push-str! (mut b) "f")
+                  (number! (mut b) (get fields 0))
+                  (when boolean? (push-str! (mut b) " 1 0)"))
+                  (push-str! (mut b) ")"))
+              add?
+                (do
+                  (push-str! (mut b) "(let [left ")
+                  (child! (mut b) ni (get fields 0))
+                  (push-str! (mut b) " right ")
+                  (child! (mut b) ni (get fields 1))
+                  (push-str! (mut b)
+                             "] (cir/op2! function cop/OP-ADD cop/T-I64 left right 0 0))"))
+              :else
+                (do
+                  (push-str! (mut b) "(let [condition ")
+                  (child! (mut b) ni (get fields 0))
+                  (push-str! (mut b)
+                             " yes (cir/new-block! function) no (cir/new-block! function) join (cir/new-block! function) result (cir/new-var! function cop/T-I64)] (cir/condbr! function condition yes no) (cir/set-block! function yes) (cir/def-var! function result ")
+                  (child! (mut b) ni (get fields 1))
+                  (push-str! (mut b)
+                             ") (cir/br! function join) (cir/set-block! function no) (cir/def-var! function result ")
+                  (child! (mut b) ni (get fields 2))
+                  (push-str! (mut b)
+                             ") (cir/br! function join) (cir/set-block! function join) (cir/use-var! function result))")))
+        (push-str! (mut b) ")\n")
+        (Ok 0)))))
+
+(defn compile-one [(a (dyn Allocator)) (s (ptr Schema)) (form (ptr Sexp))]
+  (-> (Result (slice u8) Diag))
+  (block :done
+    (unless (>= (sexp-count form) 2)
+      (break :done (Err (problem form "lower requires a sum name"))))
+    (let [(mut ni) (- 0 1)
+          (mut b) (StrBuf::new a)]
+      (for [i 0 (len (.nodes s))]
+        (when (sexp-sym-is (sexp-nth form 1) (.name (elem (field s nodes) i)))
+          (set! ni i)))
+      (when (< ni 0) (break :done (Err (problem form "unknown lowering sum"))))
+      (let [n (elem (field s nodes) ni)]
+        (unless (.sum? n)
+          (break :done (Err (problem form "lower requires a sum"))))
+        (push-str! (mut b)
+                   "(import \"native.cir\" :as cir)\n(import \"native.cir-ops\" :as cop)\n(defn lower-")
+        (number! (mut b) ni)
+        (push-str! (mut b) " [(rows (ptr (ArrayList N")
+        (number! (mut b) ni)
+        (push-str! (mut b) "Row))) (id N")
+        (number! (mut b) ni)
+        (push-str! (mut b)
+                   "Id) (function (ptr cir/Func))] (-> u32) (match (lookup-")
+        (number! (mut b) ni)
+        (push-str! (mut b)
+                   " rows id) (None [] (panic \"invalid lowering reference\")) (Some [row] (match row ")
+        (for [vi 0 (len (.variants n))]
+          (let [(mut count) 0]
+            (for [r 2 (sexp-count form)]
+              (let [rule (sexp-nth form r)]
+                (unless (and (sexp-list? rule) (= (sexp-count rule) 2))
+                  (break :done (Err (problem rule "expected lowering case"))))
+                (when (sexp-sym-is (sexp-nth rule 0)
+                                   (.name (elem (field n variants) vi)))
+                  (set! count (+ count 1))
+                  (match (rule! (mut b) n ni vi rule)
+                    (Err [d] (break :done (Err d)))
+                    (Ok [_] 0)))))
+            (unless (= count 1)
+              (break
+                :done
+                  (Err (problem form
+                                "each variant needs exactly one lowering case"))))))
+        (unless (= (- (sexp-count form) 2) (len (.variants n)))
+          (break :done (Err (problem form "extra lowering case"))))
+        (push-str! (mut b) "))))\n")
+        (Ok (str (load b)))))))

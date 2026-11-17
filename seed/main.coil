@@ -3,6 +3,7 @@
 (import "rewrite.emit" :as emit)
 (import "rewrite.readers" :as readers)
 (import "rewrite.judgment" :as judgment)
+(import "rewrite.lower" :as lower)
 (import "coil.reader" :use *)
 (import "coil.arraylist" :use *)
 (import "coil.str" :use *)
@@ -29,6 +30,24 @@
               (push-str! (mut output) (readers/emit a sp))
               (for [i 0 (len (load forms))]
                 (let [form (elem forms i)]
+                  (when (and (sexp-list? form)
+                             (> (sexp-count form) 0)
+                             (sexp-sym-is (sexp-nth form 0) "lower"))
+                    (for [j 0 i]
+                      (let [previous (elem forms j)]
+                        (when (and (sexp-list? previous)
+                                   (>= (sexp-count previous) 2)
+                                   (>= (sexp-count form) 2)
+                                   (sexp-sym? (sexp-nth form 1))
+                                   (sexp-sym-is (sexp-nth previous 0) "lower")
+                                   (sexp-sym-is (sexp-nth previous 1)
+                                                (sexp-sym (sexp-nth form 1))))
+                          (break
+                            :done
+                              (Err (schema/problem form "duplicate lowering"))))))
+                    (match (lower/compile-one a sp form)
+                      (Err [d] (break :done (Err d)))
+                      (Ok [text] (push-str! (mut output) text))))
                   (when (judgment? form)
                     (for [j 0 i]
                       (let [previous (elem forms j)]

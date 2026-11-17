@@ -105,3 +105,19 @@ Premises can match structured function types and bind their components:
 Patterns recurse through `Fn`; scalar leaves require exact type identity. The first occurrence of a variable, including inside a pattern, binds it. Later occurrences require equality, even within the same pattern, so `(Fn ?same ?same)` describes functions whose argument and result types agree. Variable slots are assigned by the first occurrence's source position, independent of spelling. A non-function where `Fn` is required returns `ExpectedFunction` identifying the child and actual type; scalar/component disagreement retains `Mismatch` and premise location.
 
 Source-driven tests cover successful calls, argument mismatch, non-callable values, nested calls, repeated pattern variables and nested function patterns. This is structural matching of already concrete types. It does not implement metavariable unification, overload search, polymorphic instantiation or Coil's complete call semantics.
+
+Scalar native lowering is now a schema-checked language:
+
+```
+(lower Expr
+  (Integer (const value))
+  (Boolean (bool value))
+  (Add (add left right))
+  (Choose (if condition yes no)))
+```
+
+Every sum variant needs exactly one lowering case. Operators validate their field names/types. `add` evaluates children left-to-right; `if` generates true/false blocks, a join and an SSA variable, evaluating each branch within its own block. Integer and boolean values currently use CIR i64. This is a limited scalar representation, not Coil's ABI/layout implementation.
+
+The generated internal `lower-N` function requires an acyclic, fully checked graph with rules covering all reached variants. It does not recheck types or validate graph cycles; callers must successfully run the judgment first. Invalid references indicate a violated internal precondition. The source reader constructs acyclic graphs. No machine code should be emitted for rejected source.
+
+`python3 tools/check-lowering.py` compiles source through generated reading, checking and lowering, then executes the retained direct native backend's result. Tests include both conditional arms, nested joins inside arithmetic and rejection before lowering, in debug/debug-checks/release host builds. The harness uses the retained backend's test image loader; this is acceptance scaffolding, not the eventual production lifetime-managed linker. Direct calls, lexical values, object output, runtime source/debug locations and general lowering types remain pending. `lower` contains no raw Coil escape hatch.

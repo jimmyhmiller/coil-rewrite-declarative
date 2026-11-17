@@ -119,8 +119,8 @@
         (for [i 0 (len (load forms))]
           (unless (and (sexp-list? (elem forms i))
                        (> (sexp-count (elem forms i)) 0)
-                       (sexp-sym-is (sexp-nth (elem forms i) 0)
-                                    "judgment"))
+                       (or (sexp-sym-is (sexp-nth (elem forms i) 0) "judgment")
+                           (sexp-sym-is (sexp-nth (elem forms i) 0) "lower")))
             (match (parse-node a (elem forms i))
               (Err [d] (break :result (Err d)))
               (Ok [n]
