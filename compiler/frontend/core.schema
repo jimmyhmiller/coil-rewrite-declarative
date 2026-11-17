@@ -71,7 +71,7 @@
     (phase hosts (needs (globals GlobalEnvironment)) (makes (all-globals GlobalEnvironment)))
     (phase check (needs (all-globals GlobalEnvironment)) (makes (checked CheckedProgram)))
     (phase register (needs (declarations Declarations)) (makes (globals GlobalEnvironment)))))
-(source-program Function (command))
+(source-program Function)
 
 (diagnostics Expr
   (UnboundName [at name] "unbound name '{}'" name)

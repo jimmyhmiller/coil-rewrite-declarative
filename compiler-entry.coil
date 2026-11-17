@@ -1,5 +1,90 @@
 (module rewrite.entry)
-(import "rewrite.corecompiler" :as compiler)
+(import "rewrite.corecompiler" :use *)
+(import "rewrite.native" :as native)
+(import "coil.alloc" :use *)
+(import "coil.arraylist" :use *)
+(import "coil.result" :use *)
+(import "coil.fs" :as fs)
+(import "coil.str" :as text)
+(import "coil.scratch" :use [ScratchArena])
+(import "coil.primitive" :as primitive)
+(import "declarative.rt.jit" :as jit)
 
 (defn main [(argc i32) (argv (ptr (ptr i8)))] (-> i64)
-  (compiler/main argc argv))
+  (block :command
+    (when (< argc 3)
+      (println "usage: coil-rewrite check <file.coil> | run <file.coil> <entry> [integer ...]")
+      (break :command 2))
+    (let [action (text/from-cstr (load (index argv 1)))
+          checking? (= action "check")
+          valid?
+            (or (and checking? (= argc 3)) (and (= action "run") (>= argc 4)))
+          (mut scratch) (zeroed ScratchArena)
+          initialized (init (mut scratch) (malloc-allocator))
+          a (allocator (mut scratch))
+          path (text/from-cstr (load (index argv 2)))
+          entry (if (>= argc 4) (text/from-cstr (load (index argv 3))) "")
+          (mut arguments) (ArrayList::new [i64] a)
+          (mut store) (store-new a)]
+      (defer (close! (mut scratch)))
+      (defer (store-free! (mut store)))
+      (defer (free! (mut arguments)))
+      (unless valid?
+        (println "expected check <file.coil> or run <file.coil> <entry> [integer ...]")
+        (break :command 2))
+      (for [i 4 (cast i64 argc)]
+        (match (text/parse-int (text/from-cstr (load (index argv i))))
+          (Some [value] (push! (mut arguments) value))
+          (None [] (println "invalid integer argument") (break :command 2))))
+      (let [text
+              (match (fs/read-file a path)
+                (Ok [v] v)
+                (Err [_] (println "cannot read {}" path) (break :command 1)))
+            image
+              (match (process-source a (mut store) path text 1 (not checking?))
+                (Ok [v] v)
+                (Err [e]
+                     (match e
+                       (SourceRead [d]
+                                   (println "{}:{}: {}" path (.lo d) (.msg d)))
+                       (SourceDeclaration [d]
+                                          (println "{}:{}: {}"
+                                                   path
+                                                   (.lo d)
+                                                   (.msg d)))
+                       (SourceChecking [e]
+                                       (match e
+                                         (DuplicateParameter [name]
+                                                             (println "duplicate parameter: {}"
+                                                                      name))
+                                         (DuplicateFunction [name]
+                                                            (println "duplicate function: {}"
+                                                                     name))
+                                         (InvalidBody [name reason]
+                                                      (report-body (mut store)
+                                                                   path
+                                                                   text
+                                                                   name
+                                                                   reason))
+                                         (WrongReturn [name _]
+                                                      (println "wrong return type in {}"
+                                                               name))
+                                         (InvalidFunction [_]
+                                                          (println "invalid function reference"))))
+                       (SourceDocument [_] (println "invalid source document")))
+                     (break :command 1)))
+            (mut symbol) -1]
+        (when checking? (break :command 0))
+        (for [i 0 (len (.names image))]
+          (when (= (get (.names image) i) entry) (set! symbol i)))
+        (when (< symbol 0)
+          (println "entry not found: {}" entry)
+          (break :command 1))
+        (unless (= (entry-arity (mut store) symbol) (len arguments))
+          (println "entry argument count mismatch")
+          (break :command 1))
+        (let [loaded (native/load-image a image)
+              address (primitive/cast i64 (jit/address-of loaded symbol))]
+          (defer (jit/unload! loaded))
+          (println "{}" (native/invoke-integers a address (slice arguments))))))
+    0))

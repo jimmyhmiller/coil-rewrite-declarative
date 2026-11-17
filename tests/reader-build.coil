@@ -31,6 +31,18 @@
             source (include-str "compiler/integer-functions.coil")]
         (defer (close! (mut arena)))
         (defer (compiler/store-free! (mut store)))
+        (let [(mut checked) (compiler/store-new a)]
+          (defer (compiler/store-free! (mut checked)))
+          (match (compiler/process-source a
+                                          (mut checked)
+                                          "integer-functions.coil"
+                                          source
+                                          1
+                                          false)
+            (Err [_] (panic "checking rejected fixture"))
+            (Ok [image]
+                (assert (> (len (.names image)) 0))
+                (assert (= (len (.code image)) 0)))))
         (match (compiler/compile-source a
                                         (mut store)
                                         "integer-functions.coil"

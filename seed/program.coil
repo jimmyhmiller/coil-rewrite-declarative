@@ -1,7 +1,6 @@
 ;;; Program declarations derive global signature collection and all-body validation.
 (module rewrite.program)
 (import "rewrite.schema" :use *)
-(import "rewrite.command" :as command)
 (import "rewrite.lower" :use [field-number])
 (import "rewrite.emit" :use [number!])
 (import "rewrite.index" :use [index-name!])
@@ -257,10 +256,10 @@
                            ") (.body declaration) function local)))\n"
                            ") (.body declaration) function (mut local))))\n"))
             (push-str! (mut b)
-                       "(defn compile-program [(a (dyn Allocator)) (store (ptr Store)) (ids (ptr (ArrayList N")
+                       "(defn process-program [(a (dyn Allocator)) (store (ptr Store)) (ids (ptr (ArrayList N")
             (number! (mut b) declaration)
             (push-str! (mut b)
-                       "Id)))] (-> (Result image/Image ProgramError)) (block :done (let [declarations (match (program-functions a store ids) (Err [error] (break :done (Err error))) (Ok [items] (box! a (ArrayList ProgramFunction) items))) (mut type-store) (types/create a) signature (match (types/function (mut type-store) 1 1) (Ok [id] id) (Err [_] (panic \"cannot construct program signature\"))) (mut im) (image/create a) (mut global-types) (HashMap::new [(slice u8) TypeBinding] a (keystr/keyops)) (mut global-values) (HashMap::new [(slice u8) ValueBinding] a (keystr/keyops)) (mut context) (scope-global (mut global-types)) (mut values) (scope-global (mut global-values))] (defer (types/release! (mut type-store))) (defer (free! (mut global-types))) (defer (free! (mut global-values))) ")
+                       "Id))) (emit? bool)] (-> (Result image/Image ProgramError)) (block :done (let [declarations (match (program-functions a store ids) (Err [error] (break :done (Err error))) (Ok [items] (box! a (ArrayList ProgramFunction) items))) (mut type-store) (types/create a) signature (match (types/function (mut type-store) 1 1) (Ok [id] id) (Err [_] (panic \"cannot construct program signature\"))) (mut im) (image/create a) (mut global-types) (HashMap::new [(slice u8) TypeBinding] a (keystr/keyops)) (mut global-values) (HashMap::new [(slice u8) ValueBinding] a (keystr/keyops)) (mut context) (scope-global (mut global-types)) (mut values) (scope-global (mut global-values))] (defer (types/release! (mut type-store))) (defer (free! (mut global-types))) (defer (free! (mut global-values))) ")
             (for [step 0 (len order)]
               (let [name (get order step)]
                 (cond (= name "register")
@@ -286,13 +285,18 @@
                                    "(for [i 0 (len (load declarations))] (let [d (get (load declarations) i) result (program-check (mut type-store) store d (mut context))] (match result (Typed [ty] (unless (= ty 1) (break :done (Err (WrongReturn (.name d) ty))))) (_ (break :done (Err (InvalidBody (.name d) result))))))) ")
                       (= name "emit")
                         (push-str! (mut b)
-                                   "(for [i 0 (len (load declarations))] (let [d (get (load declarations) i) (mut function) (cir/Func::new)] (cir/set-block! (mut function) (cir/new-block! (mut function))) (cir/ret1! (mut function) (program-lower store d (mut function) (mut values))) (cir/finish! (mut function)) (native/emit! a (mut im) (mut function) i) (cir/func-free! (mut function)))) ")
+                                   "(when emit? (for [i 0 (len (load declarations))] (let [d (get (load declarations) i) (mut function) (cir/Func::new)] (cir/set-block! (mut function) (cir/new-block! (mut function))) (cir/ret1! (mut function) (program-lower store d (mut function) (mut values))) (cir/finish! (mut function)) (native/emit! a (mut im) (mut function) i) (cir/func-free! (mut function))))) ")
                       :else
                         (break
                           :done
                             (Err (problem form
                                           "unknown program phase implementation"))))))
             (push-str! (mut b) "(Ok im))))\n")
+            (push-str! (mut b)
+                       "(defn compile-program [(a (dyn Allocator)) (store (ptr Store)) (ids (ptr (ArrayList N")
+            (number! (mut b) declaration)
+            (push-str! (mut b)
+                       "Id)))] (-> (Result image/Image ProgramError)) (process-program a store ids true))\n")
             (for [i 9 (sexp-count form)]
               (when (sexp-sym-is (sexp-nth (sexp-nth form i) 0) "cumulative")
                 (emit-history! (mut b) declaration)))
@@ -318,11 +322,7 @@
                             (form (ptr Sexp))]
   (-> (Result (slice u8) Diag))
   (block :done
-    (unless (and (or (= (sexp-count form) 2)
-                     (and (= (sexp-count form) 3)
-                          (sexp-list? (sexp-nth form 2))
-                          (= (sexp-count (sexp-nth form 2)) 1)
-                          (sexp-sym-is (sexp-nth (sexp-nth form 2) 0) "command")))
+    (unless (and (= (sexp-count form) 2)
                  (sexp-sym? (sexp-nth form 1)))
       (break
         :done (Err (problem form "expected (source-program FunctionSchema)"))))
@@ -355,12 +355,13 @@
             (Err (problem form
                           "source-program requires one entry with matching syntax and program declarations"))))
       (push-str! (mut b)
-                 "(defsum ProgramSourceError (SourceRead [(diagnostic Diag)]) (SourceDeclaration [(diagnostic Diag)]) (SourceChecking [(error ProgramError)]) (SourceDocument [(error source/SourceError)]))\n(defn compile-source [(a (dyn Allocator)) (store (mut Store)) (path (slice u8)) (text (slice u8)) (source-id i64)] (-> (Result image/Image ProgramSourceError)) (block :done (match (store-source! (mut store) source-id path text) (Err [e] (break :done (Err (SourceDocument e)))) (Ok [_])) (let [forms (match (read-all a text source-id) (Err [d] (break :done (Err (SourceRead d)))) (Ok [v] v)) (mut declarations) (ArrayList::new [N")
+                 "(defsum ProgramSourceError (SourceRead [(diagnostic Diag)]) (SourceDeclaration [(diagnostic Diag)]) (SourceChecking [(error ProgramError)]) (SourceDocument [(error source/SourceError)]))\n(defn process-source [(a (dyn Allocator)) (store (mut Store)) (path (slice u8)) (text (slice u8)) (source-id i64) (emit? bool)] (-> (Result image/Image ProgramSourceError)) (block :done (match (store-source! (mut store) source-id path text) (Err [e] (break :done (Err (SourceDocument e)))) (Ok [_])) (let [forms (match (read-all a text source-id) (Err [d] (break :done (Err (SourceRead d)))) (Ok [v] v)) (mut declarations) (ArrayList::new [N")
       (number! (mut b) declaration)
       (push-str! (mut b)
                  "Id] a)] (defer (free! (mut declarations))) (for [i 0 (len forms)] (match (surface-")
       (number! (mut b) declaration)
       (push-str! (mut b)
-                 " (mut store) (elem forms i)) (Err [d] (break :done (Err (SourceDeclaration d)))) (Ok [v] (push! (mut declarations) v)))) (match (compile-program a store (mut declarations)) (Err [e] (Err (SourceChecking e))) (Ok [image] (Ok image))))))\n")
-      (when (= (sexp-count form) 3) (push-str! (mut b) (command/emit)))
+                 " (mut store) (elem forms i)) (Err [d] (break :done (Err (SourceDeclaration d)))) (Ok [v] (push! (mut declarations) v)))) (match (process-program a store (mut declarations) emit?) (Err [e] (Err (SourceChecking e))) (Ok [image] (Ok image))))))\n")
+      (push-str! (mut b)
+                 "(defn compile-source [(a (dyn Allocator)) (store (mut Store)) (path (slice u8)) (text (slice u8)) (source-id i64)] (-> (Result image/Image ProgramSourceError)) (process-source a (mut store) path text source-id true))\n")
       (Ok (finish! (mut b))))))

@@ -4,6 +4,7 @@ Build from the repository root with the installed Coil toolchain.
 
 ```sh
 coil build -o coil-rewrite
+./coil-rewrite check tests/compiler/integer-functions.coil
 ./coil-rewrite run tests/compiler/integer-functions.coil composed 1
 coil run tests/reader-build.coil --debug-checks
 ```
