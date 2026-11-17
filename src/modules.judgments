@@ -31,6 +31,11 @@
     (External [name parameters result] (Function form name parameters result))
     (_ (ordinary-function form))))
 
+(value declaration-name [(form (ptr coil.reader.Sexp))] (Option (ptr coil.reader.Sexp))
+  (match (constant-declaration form)
+    (Constant [name _] (Some name))
+    (_ (match (callable form) (Function [_ name _ _] (Some name)) (_ (None [(ptr coil.reader.Sexp)]))))))
+
 (predicate external? [(form (ptr coil.reader.Sexp))]
   (match (foreign-signature form) (External [_ _ _] true) (_ false)))
 
@@ -83,7 +88,7 @@
 (predicate exported? [(scope (ptr ModuleScope)) (name (slice u8))]
   (or (not (.explicit-exports scope)) (contains? (.exports scope) name)))
 
-(derive find-function [(lookup Lookup) (site (ptr coil.reader.Sexp))] (Option (ptr coil.reader.Sexp))
+(derive find-declaration [(lookup Lookup) (site (ptr coil.reader.Sexp))] (Option (ptr coil.reader.Sexp))
   (with name (coil.reader.sexp-sym site)
     (each-index i (len name)
       (when (and (> i 0) (= (get name i) (: 47 u8)))
@@ -406,17 +411,19 @@
                     (perform (push! (mut (.visibility unit)) (VisibilityCheck :scope scope :name item :definition? true)))))
                 (when (not (export-form? form)) (perform (push! (.declarations unit) (load form))))))
             (record (.owners unit) (.node-id form) scope)
-            (cases (callable form)
-              ((Function [_ name _ _])
+            (cases (declaration-name form)
+              ((Some [name])
                 (with spelling (coil.reader.sexp-sym name)
-                  (with canonical (definition-name allocator (load namespace) (and entry? (= (load namespace) (.root sources))) spelling)
+                  (with canonical (definition-name allocator (load namespace) (and entry? (= (load namespace) (.root sources))
+                                           (match (ordinary-function form) (Function [_ _ _ _] true) (_ false))) spelling)
                     (cases (get (.globals unit) canonical)
                       ((Some [prior])
-                        (require (and (external? prior) (external? form)) form "duplicate function declaration")
+                        (require (and (external? prior) (external? form)) form "duplicate declaration")
                         (require (same-foreign-signature? prior form) form "extern declared with conflicting signatures"))
                       (_))
                     (record (.globals unit) canonical form)
-                    (record (.symbols unit) (.node-id form) (if (external? form) (external-symbol form name) canonical))
+                    (when (match (callable form) (Function [_ _ _ _] true) (_ false))
+                      (record (.symbols unit) (.node-id form) (if (external? form) (external-symbol form name) canonical)))
                     (record (.locals scope) spelling form)
                     (when (and (!= (load namespace) "") (!= canonical "main"))
                       (with member (subslice canonical (+ (len (load namespace)) 1) (len canonical))

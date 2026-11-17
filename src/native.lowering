@@ -109,6 +109,8 @@
     (yield (Ok (nodes/literal (mut (.g f)) expected (cast u64 (sexp-int expr))))))
   (where (true-literal? expr) (yield (Ok (nodes/literal (mut (.g f)) ir/T-BOOL 1))))
   (where (false-literal? expr) (yield (Ok (nodes/literal (mut (.g f)) ir/T-BOOL 0))))
+  (on (get (.constants (.checked f)) (.node-id expr)) (Some [literal])
+    (yield (lower-value (mut f) (mut im) signatures literal expected)))
   (where (identifier? expr)
     (yield (read-binding (mut f) expr expected)))
   (on (explicit-load expr) (LoadLocal [name])
@@ -291,6 +293,7 @@
 (translate lower-function
   [(a (dyn Allocator)) (im (mut image/Image))
    (signatures modules/Lookup) (checked checker/Checked) (form (ptr Sexp))] (Result i64 Diag)
+  (on (constant-declaration form) (Constant [_ _]) (yield (Ok 0)))
   (where (modules/external? form) (yield (Ok 0)))
   (on (ordinary-function form) (Function [_ name parameters result])
     (need rep (machine-type (checker/scalar-type result) result))

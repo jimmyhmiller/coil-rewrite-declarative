@@ -80,6 +80,10 @@ run_both 42 '(defn main [] (-> i64) (call sum 20 22)) (defn sum [(a i64) (b i64)
 compare 1 '(defn call [] (-> i64) 1)'
 compare 1 '(defn main [] (-> i64) (call if true 42 0))'
 compare 1 '(defn main [] (-> i64) (call (main)))'
+run_both 42 '(module app) (module values) (export answer) (const answer later) (const later 42) (module app) (import "values" :as v) (defn main [] (-> i64) (cast i64 (small v/answer))) (defn small [(x u8)] (-> u8) x)'
+run_both 42 '(const enabled true) (const scale 0.5) (defn main [] (-> i64) (if enabled (cast i64 (* 84.0 scale)) 0))'
+compare 1 '(const a b) (const b a) (defn main [] (-> i64) 0)'
+compare 1 '(const a 300) (defn f [] (-> u8) a)'
 run_both 72 '(defn main [] (-> i64) (third 9 45 72)) (defn third [(x i64) (y i64) (z i64)] (-> i64) z)'
 run_both 19 '(defn main [] (-> i64) (discard false -7) 19) (defn discard [(x bool) (y i8)] (-> i8) y)'
 

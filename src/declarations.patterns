@@ -57,3 +57,5 @@
         (capture parameters (vector ...)) (list "->" (capture result _)))
   (list "extern" (capture name symbol) (keyword "cc") (list "coil.cc.C") (keyword "as") (capture link string)
         (capture parameters (vector ...)) (list "->" (capture result _))))
+(extract constant-declaration ConstantDeclaration Constant NoConstant
+  (list "const" (capture name symbol) (capture initializer _)))

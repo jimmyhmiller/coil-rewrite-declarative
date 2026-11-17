@@ -12,7 +12,9 @@
 
 (context LoopScope [(cleanup-depth i64) (unlabelled bool) (id i64) (label (slice u8)) (expected Expectation) (result (Option (slice u8)))])
 (context Checked
-  [(callees (coil.hashmap.HashMap i64 (ptr coil.reader.Sexp)))
+  [(constants (coil.hashmap.HashMap i64 (ptr coil.reader.Sexp)))
+   (evaluating (coil.hashmap.HashMap i64 bool))
+   (callees (coil.hashmap.HashMap i64 (ptr coil.reader.Sexp)))
    (active-cleanups (coil.arraylist.ArrayList (ptr coil.reader.Sexp)))
    (barrier i64)
    (guards (coil.hashmap.HashMap i64 bool))
@@ -63,6 +65,29 @@
                    (float-type? (scalar-type type)) (coil.reader.sexp-sym-is type "bool")))
            type "unsupported type"))
 
+(derive constant-value [(unit (ptr rewrite.modules.SourceUnit)) (checked (mut Checked))
+                        (form (ptr coil.reader.Sexp))] (ptr coil.reader.Sexp)
+  (cases (get (.constants checked) (.node-id form))
+    ((Some [value]) (conclude value))
+    (_))
+  (cases (constant-declaration form)
+    ((Constant [_ init])
+      (require (not (contains? (.evaluating checked) (.node-id form))) init "cyclic constant initializer")
+      (record (.evaluating checked) (.node-id form) true)
+      (when (or (int-literal? init) (float-literal? init) (true-literal? init) (false-literal? init))
+        (record (.constants checked) (.node-id form) init)
+        (conclude init))
+      (when (identifier? init)
+        (obtain resolution (rewrite.modules.find-declaration (rewrite.modules.lookup-for unit form) init)
+          (cases resolution
+            ((Some [found])
+              (obtain value (constant-value unit (mut checked) found)
+                (record (.constants checked) (.node-id form) value)
+                (conclude value)))
+            (_ (reject init "unbound constant")))))
+      (reject init "unsupported constant initializer"))
+    (_ (reject form "expected a constant declaration"))))
+
 (derive synthesize
   [(signatures rewrite.modules.Lookup)
    (checked (mut Checked))
@@ -85,7 +110,13 @@
         (cases (get (.types checked) binding)
           ((Some [t]) (conclude t))
           (_ (reject expr "binding has no checked type"))))
-      (_ (reject expr "unbound identifier"))))
+      (_ (obtain resolution (rewrite.modules.find-declaration signatures expr)
+           (cases resolution
+             ((Some [found])
+               (obtain value (constant-value (.unit signatures) (mut checked) found)
+                 (record (.constants checked) (.node-id expr) value)
+                 (obtain t (synthesize signatures (mut checked) locals value expected) (conclude t))))
+             (_ (reject expr "unbound identifier")))))))
   (cases (type-ascription expr)
     ((Ascribed [value type])
       (prove (check-type type))
@@ -218,7 +249,7 @@
               (obtain t (check-expression signatures (mut checked) locals expanded expected) (conclude t)))
             (_))))
       (require (not (contains? locals (coil.reader.sexp-sym operator))) operator "local value is not callable")
-      (obtain resolution (rewrite.modules.find-function signatures operator)
+      (obtain resolution (rewrite.modules.find-declaration signatures operator)
         (cases resolution
           ((None [])
             (when (not (explicit-call? expr))
@@ -331,7 +362,7 @@
   (cases (application item)
     ((Apply [head])
       (with name (coil.reader.sexp-sym head)
-        (when (not (or (contains? locals name) (match (rewrite.modules.find-function signatures head) (Ok [result] (match result (Some [_] true) (_ false))) (Err [_] true))))
+        (when (not (or (contains? locals name) (match (rewrite.modules.find-declaration signatures head) (Ok [result] (match result (Some [_] true) (_ false))) (Err [_] true))))
           (obtain expansion (rewrite.control.expand-call (.alc locals) item name)
             (cases expansion
               ((Some [expanded])
@@ -390,12 +421,14 @@
                         "linker symbol must be nonempty and contain no NUL byte"))
              (when (not (coil.reader.sexp-sym-is result "void")) (prove (check-type result)))
              (each-child parameter parameters 0 position (prove (check-type parameter))))
-           (_ (reject form "unsupported declaration")))))))
+           (_ (require (match (constant-declaration form) (Constant [_ _] true) (_ false)) form "unsupported declaration")))))))
 
 (derive check-functions
   [(allocator (dyn coil.alloc.Allocator))
    (unit (ptr rewrite.modules.SourceUnit))] Checked
-  (with (mut checked) (Checked :callees (coil.hashmap.HashMap::new-scalar [i64 (ptr coil.reader.Sexp)] allocator) :active-cleanups (coil.arraylist.ArrayList::new [(ptr coil.reader.Sexp)] allocator)
+  (with (mut checked) (Checked :constants (coil.hashmap.HashMap::new-scalar [i64 (ptr coil.reader.Sexp)] allocator)
+                               :evaluating (coil.hashmap.HashMap::new-scalar [i64 bool] allocator)
+                               :callees (coil.hashmap.HashMap::new-scalar [i64 (ptr coil.reader.Sexp)] allocator) :active-cleanups (coil.arraylist.ArrayList::new [(ptr coil.reader.Sexp)] allocator)
                                :barrier 0 :guards (coil.hashmap.HashMap::new-scalar [i64 bool] allocator)
                                :on-exit (coil.hashmap.HashMap::new-scalar [i64 (coil.arraylist.ArrayList (ptr coil.reader.Sexp))] allocator)
                                :targets (coil.hashmap.HashMap::new-scalar [i64 i64] allocator)
@@ -420,5 +453,5 @@
             (prove (check-body (rewrite.modules.lookup-for unit form) (mut checked) locals form (rewrite.modules.function-body-start form parameters)
                      (if (coil.reader.sexp-sym-is result "void") (Discard)
                          (Expect (scalar-type result)))))))
-        (_ (require (rewrite.modules.external? form) form "unsupported declaration"))))
+        (_ (when (not (rewrite.modules.external? form)) (prove (constant-value unit (mut checked) form))))))
     (conclude checked)))
