@@ -493,3 +493,56 @@ TOML
     grep -F -- '--unknown-coil-test-option' diagnostic >/dev/null
     cmp previous-build executable
 )
+
+mkdir -p foreign-deps/app/src foreign-deps/api/src foreign-deps/base/native foreign-deps/unused/src
+(
+    cd foreign-deps
+    cat > app/Coil.toml <<'TOML'
+[package]
+name = "app"
+entry = "src/main.coil"
+[dependencies]
+api = { path = "../api" }
+unused = { path = "../unused" }
+TOML
+    cat > api/Coil.toml <<'TOML'
+[package]
+name = "api"
+[dependencies]
+base = { path = "../base" }
+[cc]
+sources = ["bridge.c"]
+TOML
+    cat > base/Coil.toml <<'TOML'
+[package]
+name = "base"
+[cc]
+sources = ["native/value.c"]
+include-dirs = ["native"]
+flags = ["-DOFFSET=5"]
+TOML
+    cat > unused/Coil.toml <<'TOML'
+[package]
+name = "unused"
+[link]
+libs = ["missing_unused_library"]
+TOML
+    echo '(module app.main) (import "api.bridge" :as api) (defn main [] (-> i64) (api/read))' > app/src/main.coil
+    echo '(module api.bridge) (extern read :as "foreign_bridge" [] (-> i64))' > api/src/bridge.coil
+    echo 'long foreign_value(void); long foreign_bridge(void) { return foreign_value() + 1; }' > api/bridge.c
+    echo '#define BASE 30' > base/native/value.h
+    printf '#include <value.h>\nlong foreign_value(void) { return BASE + OFFSET; }\n' > base/native/value.c
+    echo '(module unused.lib) (defn value [] (-> i64) 1)' > unused/src/lib.coil
+    cd app
+    for compiler in coil ../../rewrite; do
+        status=0
+        "$compiler" run || status=$?
+        [ "$status" -eq 36 ]
+    done
+    echo '(module app.main) (import "unused.lib" :as missing) (defn main [] (-> i64) (missing/value))' > src/main.coil
+    for compiler in coil ../../rewrite; do
+        if "$compiler" build -o rejected >diagnostic 2>&1; then exit 1; fi
+        grep -F 'missing_unused_library' diagnostic >/dev/null
+        [ ! -e rejected ]
+    done
+)

@@ -171,8 +171,10 @@
 
 
 (context SourceFile [(path (slice u8)) (bytes (slice u8))])
-(context PackageRoot [(path (slice u8)) (excludes (slice u8))])
-(context Sources [(packages (coil.hashmap.HashMap (slice u8) bool))
+(context NativePackage [(root (slice u8)) (manifest (Option (ptr coil.project.Manifest)))
+                        (requires (coil.arraylist.ArrayList (slice u8)))])
+(context PackageRoot [(owner (slice u8)) (path (slice u8)) (excludes (slice u8))])
+(context Sources [(packages (coil.hashmap.HashMap (slice u8) (ptr NativePackage)))
                   (dependency-roots (coil.arraylist.ArrayList PackageRoot))
                   (mapped-paths (coil.hashmap.HashMap (slice u8) bool))
                   (manifest (Option (ptr coil.project.Manifest))) (indexed bool)
@@ -195,6 +197,10 @@
           ((Some [canonical]) (record (.mapped-paths sources) canonical true))
           (_))))))
 
+(predicate package-contains? [(root (slice u8)) (path (slice u8))]
+  (and (coil.str.starts-with path root)
+       (or (= (len root) (len path)) (= root "/") (= (get path (len root)) (: 47 u8)))))
+
 (judgment dependency-roots [(allocator (dyn coil.alloc.Allocator)) (sources (ptr Sources))
                             (root (slice u8)) (manifest (ptr coil.project.Manifest)) (origin (slice u8))]
   (with excludes (coil.project.m-excludes-env-at allocator manifest root)
@@ -204,43 +210,50 @@
           (with path (coil.path.path-join allocator root (get (load roots) i))
             (cases (coil.project.m-realpath allocator path)
               ((Some [canonical])
-                (when (not (or (= canonical root) (coil.str.starts-with canonical (coil.text.sconcat allocator root "/"))))
+                (when (not (package-contains? root canonical))
                   (fail (coil.text.sconcat3 allocator origin " declares a source root outside the package: " canonical)))
-                (perform (push! (mut (.dependency-roots sources)) (PackageRoot :path canonical :excludes excludes))))
+                (perform (push! (mut (.dependency-roots sources)) (PackageRoot :owner root :path canonical :excludes excludes))))
               (_))))
         (when (= before (len (.dependency-roots sources)))
-          (perform (push! (mut (.dependency-roots sources)) (PackageRoot :path root :excludes excludes))))))))
+          (perform (push! (mut (.dependency-roots sources)) (PackageRoot :owner root :path root :excludes excludes))))))))
+
+(value native-package [(allocator (dyn coil.alloc.Allocator)) (root (slice u8))] (ptr NativePackage)
+  (box! allocator NativePackage (NativePackage :root root :manifest (None [(ptr coil.project.Manifest)])
+    :requires (coil.arraylist.ArrayList::new [(slice u8)] allocator))))
 
 (judgment read-dependencies [(allocator (dyn coil.alloc.Allocator)) (sources (ptr Sources))
-                             (root (slice u8)) (manifest (ptr coil.project.Manifest))]
+                             (owner (ptr NativePackage)) (manifest (ptr coil.project.Manifest))]
   (each-index i (len (load (.deps manifest)))
     (with dep (elem (.deps manifest) i)
-      (with origin (coil.text.sconcat3 allocator (coil.path.path-join allocator root "Coil.toml") ":"
+      (with origin (coil.text.sconcat3 allocator (coil.path.path-join allocator (.root owner) "Coil.toml") ":"
                      (coil.text.sconcat3 allocator (coil.text.i64->str allocator (.line dep)) ": dependency " (.name dep)))
         (when (= (len (.path dep)) 0) (fail (coil.text.sconcat allocator origin " requires Git dependency resolution")))
-        (with path (coil.path.path-join allocator root (.path dep))
+        (with path (coil.path.path-join allocator (.root owner) (.path dep))
           (cases (coil.project.m-realpath allocator path)
             ((Some [base])
+              (perform (push! (mut (.requires owner)) base))
               (when (not (contains? (.packages sources) base))
-                (record (.packages sources) base true)
-                (with file (coil.path.path-join allocator base "Coil.toml")
-                  (cases (coil.fs.read-file allocator file)
-                    ((Ok [bytes])
-                      (with package (coil.project.parse-manifest allocator bytes)
-                        (when (> (len (.project-path package)) 0)
-                          (fail (coil.text.sconcat allocator "dependency is a project pointer: " file)))
-                        (prove (package-mappings allocator sources base package))
-                        (prove (dependency-roots allocator sources base package origin))
-                        (prove (read-dependencies allocator sources base package))))
-                    (_
-                      (when (not (coil.project.dir? (coil.str.to-cstr allocator base)))
-                        (fail (coil.text.sconcat allocator "dependency is not a directory: " base)))
-                      (perform (push! (mut (.dependency-roots sources)) (PackageRoot :path base :excludes ""))))))))
+                (with nested (native-package allocator base)
+                  (record (.packages sources) base nested)
+                  (with file (coil.path.path-join allocator base "Coil.toml")
+                    (cases (coil.fs.read-file allocator file)
+                      ((Ok [bytes])
+                        (with package (coil.project.parse-manifest allocator bytes)
+                          (when (> (len (.project-path package)) 0)
+                            (fail (coil.text.sconcat allocator "dependency is a project pointer: " file)))
+                          (perform (set! (.manifest nested) (Some package)))
+                          (prove (package-mappings allocator sources base package))
+                          (prove (dependency-roots allocator sources base package origin))
+                          (prove (read-dependencies allocator sources nested package))))
+                      (_
+                        (when (not (coil.project.dir? (coil.str.to-cstr allocator base)))
+                          (fail (coil.text.sconcat allocator "dependency is not a directory: " base)))
+                        (perform (push! (mut (.dependency-roots sources)) (PackageRoot :owner base :path base :excludes "")))))))))
             (_ (fail (coil.text.sconcat3 allocator origin " path does not exist: " path)))))))))
 
 (derive source-catalog [(allocator (dyn coil.alloc.Allocator)) (path (slice u8)) (bytes (slice u8))] (ptr Sources)
   (with sources (box! allocator Sources (Sources
-        :packages (coil.hashmap.HashMap::new [(slice u8) bool] allocator (coil.str.keyops-borrowed))
+        :packages (coil.hashmap.HashMap::new [(slice u8) (ptr NativePackage)] allocator (coil.str.keyops-borrowed))
         :mapped-paths (coil.hashmap.HashMap::new [(slice u8) bool] allocator (coil.str.keyops-borrowed))
         :dependency-roots (coil.arraylist.ArrayList::new [PackageRoot] allocator)
         :manifest (None [(ptr coil.project.Manifest)]) :indexed false
@@ -257,9 +270,10 @@
         (with manifest (coil.project.parse-manifest allocator text)
           (perform (set! (.manifest sources) (Some manifest)))
           (with root (coil.path.cwd-slice allocator)
-            (record (.packages sources) root true)
-            (prove (package-mappings allocator sources root manifest))
-            (prove (read-dependencies allocator sources root manifest)))))
+            (with owner (native-package allocator root)
+              (record (.packages sources) root owner)
+              (prove (package-mappings allocator sources root manifest))
+              (prove (read-dependencies allocator sources owner manifest))))))
       (_))
     (conclude sources)))
 
@@ -316,7 +330,7 @@
         (with directory (coil.path.dirname (.path entry))
           (cases (coil.project.m-realpath allocator (if (= directory "") "/" directory))
             ((Some [root])
-              (prove (index-source-root allocator sources site (PackageRoot :path root :excludes ""))))
+              (prove (index-source-root allocator sources site (PackageRoot :owner "" :path root :excludes ""))))
             (_ (reject site "cannot resolve entry source directory"))))))))
 
 (predicate namespace-import? [(name (slice u8))]
