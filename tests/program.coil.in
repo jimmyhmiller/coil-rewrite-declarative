@@ -1,0 +1,43 @@
+(module fixture.main)
+(import "rewrite.generated" :use *)
+(import "rewrite.native" :as native)
+(import "coil.scratch" :use [ScratchArena])
+(import "coil.alloc" :use *)
+(import "coil.reader" :use *)
+(import "coil.result" :use *)
+(import "coil.arraylist" :use *)
+(import "coil.primitive" :as primitive)
+(import "coil.cc" :as cc)
+(import "declarative.rt.jit" :as jit)
+(import "declarative.rt.image" :as image)
+(defn check [(text (slice u8)) (expected i64)] (-> bool)
+  (let [(mut arena) (zeroed ScratchArena) initialized (init (mut arena) (malloc-allocator))
+        a (allocator (mut arena)) (mut store) (store-new a) (mut ids) (ArrayList::new [N1Id] a)
+        ok (block :done
+          (match (read-all a text 0)
+            (Err [_] (break :done false))
+            (Ok [forms] (for [i 0 (len (load forms))]
+              (match (parse-1 (mut store) (elem forms i))
+                (Err [_] (break :done false)) (Ok [id] (push! (mut ids) id))))))
+          (match (program-functions a (mut store) (mut ids))
+            (Err [_] false)
+            (Ok [functions]
+              (match (compile-program a (mut store) (box! a (ArrayList ProgramFunction) functions))
+                (Err [e] (match e
+                  (DuplicateFunction [_] (= expected 1))
+                  (InvalidBody [_ _] (= expected 2))
+                  (WrongReturn [_ _] (= expected 3)) (_ false)))
+                (Ok [im]
+                  (let [loaded (native/load-image a im)
+                        run (primitive/cast (fnptr (cc/C) [i64] i64) (jit/address-of loaded 0))
+                        value (run 41)]
+                    (jit/unload! loaded)
+                    (= value expected)))))))]
+    (store-free! (mut store)) (free! (mut ids)) (close! (mut arena)) ok))
+(defn main [] (-> i64)
+  (if (and
+    (check "(Function \"main\" \"n\" (Call (Variable \"inc\") (Variable \"n\"))) (Function \"inc\" \"x\" (Add (Variable \"x\") (Integer 1)))" 42)
+    (check "(Function \"main\" \"n\" (Integer 42)) (Function \"main\" \"x\" (Integer 1))" 1)
+    (check "(Function \"main\" \"n\" (Integer 42)) (Function \"bad\" \"x\" (Variable \"missing\"))" 2)
+    (check "(Function \"main\" \"n\" (Boolean true))" 3)
+    (check "(Function \"main\" \"main\" (Add (Variable \"main\") (Integer 1)))" 42)) 0 1))

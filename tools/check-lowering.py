@@ -50,6 +50,11 @@ with tempfile.TemporaryDirectory(prefix='rewrite-lowering-') as directory:
     (work/'main.coil').write_text((ROOT/'tests/calls.coil.in').read_text())
     for flags in [[], ['--debug-checks'], ['--release']]:
         subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)
+    program_schema = (ROOT/'tests/schemas/lowering.schema').read_bytes() + b'\n(node Function (name Text) (parameter Text) (body Expr))\n(program Expr Function name parameter body Int Int)\n'
+    (work/'generated.coil').write_bytes(subprocess.check_output([str(ROOT/'build/schema-seed')], input=program_schema))
+    (work/'main.coil').write_text((ROOT/'tests/program.coil.in').read_text())
+    for flags in [[], ['--debug-checks'], ['--release']]:
+        subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)
 print('Source -> generated checking/lowering -> CIR -> native execution passed')
 
 source = (ROOT/'tests/schemas/lowering.schema').read_bytes()
@@ -57,3 +62,19 @@ for invalid in [source + b'(lower Expr)', source.replace(b'(const value)', b'(co
     result = subprocess.run([str(ROOT/'build/schema-seed')], input=invalid, capture_output=True)
     assert result.returncode != 0 and not result.stdout, result
 print('Invalid lowering definitions rejected before output')
+
+program = b'(program Expr Function name parameter body Int Int)'
+record = b'\n(node Function (name Text) (parameter Text) (body Expr))\n'
+valid_program = source + record + program
+for invalid, message in [
+    (valid_program + program, b'duplicate program declaration'),
+    (source + record + program.replace(b'program Expr', b'program Missing'), b'program requires'),
+    (valid_program.replace(b'(program Expr Function name parameter body Int Int)', b'(program Expr Function name name body Int Int)'), b'invalid program fields'),
+    (valid_program.replace(b'body Int Int)', b'body Bool Int)'), b'unary Int -> Int'),
+    (source.split(b'(lower Expr')[0] + record + program, b'program requires'),
+    (source.split(b'(judgment Expr')[0] + b'(lower Expr' + source.split(b'(lower Expr')[1] + record + program, b'program requires'),
+]:
+    result = subprocess.run([str(ROOT/'build/schema-seed')], input=invalid, capture_output=True)
+    assert result.returncode != 0 and not result.stdout, result
+    assert message in result.stderr, result
+print('Invalid program declarations rejected before output')

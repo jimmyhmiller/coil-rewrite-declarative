@@ -1,6 +1,6 @@
 # Compatibility ledger
 
-All rewrite capabilities below are **unimplemented**. Existing tests are intended evidence, not evidence the rewrite passes. Reference revision: b7a54594b42820c24c4b4cce0d9348f160bdd38e in ../coil. The reference harness reports failures without necessarily returning failure: inspect per-step outcomes, refusals, and coverage before accepting a gate.
+Full compatibility for every surface below remains **unimplemented**. The seed currently demonstrates constructor readers, concrete typing judgments, scalar native lowering, and unary Int-to-Int function programs; these fixtures do not establish Coil compatibility. Existing tests are intended evidence, not evidence the rewrite passes. Reference revision: b7a54594b42820c24c4b4cce0d9348f160bdd38e in ../coil. The reference harness reports failures without necessarily returning failure: inspect per-step outcomes, refusals, and coverage before accepting a gate.
 
 | Required surface | Reference evidence | Rewrite acceptance |
 |---|---|---|

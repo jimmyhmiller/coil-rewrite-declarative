@@ -138,3 +138,16 @@ The native suite includes shadowing, outer-name lookup in initializers, branch-l
 `runtime/native.coil` now owns the direct-backend image boundary instead of using `tests.direct/load-compiled`. The caller supplies allocation storage for compilation state and image metadata, keeps it live through execution, unloads executable memory, then releases its arena. The adapter currently links only symbols defined in its image and supports the scalar operations exercised here; runtime helper resolution, recoverable link diagnostics, object output and general ABI handling remain required.
 
 The call acceptance fixture registers an `increment` function's signature and symbol explicitly, checks and lowers both function bodies from source, links them in one image, and executes a caller containing a direct call plus a branch-selected indirect call. It verifies exactly two CIR call instructions even though a let-bound result is used twice. Source-level function declaration syntax and module orchestration remain to replace the fixture's registration code. Scalar and call suites use growing ScratchArena storage and explicit unload/release order.
+
+Program declarations now derive function registration and body orchestration:
+
+```
+(node Function (name Text) (parameter Text) (body Expr))
+(program Expr Function name parameter body Int Int)
+```
+
+There is one program declaration per generated module; its expression schema must have both a judgment and a lowering. The declaration selects a record's two distinct Text fields and expression body field. `program-functions` converts reader-produced record IDs into declarations, rejecting invalid IDs. `compile-program` collects all global signatures and symbols, rejects duplicate names, checks every body, and only then lowers and emits functions. Forward references are available during checking; parameters shadow global names. The returned image uses declaration order for symbol IDs. Callers own the scratch arena and executable-image unload lifetime, as for the native adapter.
+
+`tests/program.coil.in` exercises forward calls, duplicate names, an invalid later body, wrong return types, and parameter/global shadowing. The native harness runs it in debug, debug-checks, and release. DSL checks reject duplicate program declarations, missing judgment/lowering dependencies, invalid fields, and unsupported signatures before publishing generated output.
+
+This first program form only supports unary Int-to-Int functions. Its orchestration implementation is a fixed Coil generator template, counted as authored machinery; it is not yet the planned composable phase language. Global duplicate detection and per-function global value contexts are quadratic in declaration count. Replace these with indexed symbol infrastructure as module workloads arrive, and derive orchestration from reusable phase contracts before treating this as the final language architecture. Full Coil syntax, macro expansion, general signatures, modules, effects, artifacts, and self-hosting remain outstanding.
