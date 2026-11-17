@@ -9,12 +9,12 @@
     },
     "authored-seed-and-runtime": {
       "files": 61,
-      "bytes": 687440,
-      "physical_lines": 12513
+      "bytes": 687620,
+      "physical_lines": 12518
     },
     "generated-language-toolchain": {
       "files": 18,
-      "bytes": 622228,
+      "bytes": 622210,
       "physical_lines": 1310
     },
     "retained-authored-machinery-and-specifications": {
@@ -339,8 +339,8 @@
     {
       "path": "seed/generated/core_compiler.coil",
       "category": "generated-language-toolchain",
-      "sha256": "8c432d1026f9ef85c9f0f29a523a428b765f4297cc1d64a4725d6deee08159ac",
-      "bytes": 85566,
+      "sha256": "a74badec02159dff80bdb503a8c5e929723f0a8b09899c04a37325488aeeb065",
+      "bytes": 85548,
       "physical_lines": 168
     },
     {
@@ -472,9 +472,9 @@
     {
       "path": "seed/lower.coil",
       "category": "authored-seed-and-runtime",
-      "sha256": "7842d859c3d3f9de957bc1f1cb8ae586c928d018608ca51502335db88607cab4",
-      "bytes": 12755,
-      "physical_lines": 266
+      "sha256": "ee2e2d1f9b7707ac1c14439e0cde5dc8351fb3fa34a7bace5c8ca26bff3bb16a",
+      "bytes": 12935,
+      "physical_lines": 271
     },
     {
       "path": "seed/macro_head.coil",

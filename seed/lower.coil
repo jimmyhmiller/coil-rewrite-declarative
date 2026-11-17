@@ -67,7 +67,8 @@
               (cond lookup? 0
                     bind? (- (sexp-count expression) 1)
                     (or constant? boolean? identity?) 1
-                    (or binary? call?) 2
+                    call? (- (sexp-count expression) 1)
+                    binary? 2
                     branch? 3
                     :else 0)
             (mut fields) (ArrayList::new [i64] (malloc-allocator))]
@@ -173,10 +174,14 @@
                 (do
                   (push-str! (mut b) "(let [callee ")
                   (child! (mut b) ni (get fields 0))
-                  (push-str! (mut b) " argument ")
-                  (child! (mut b) ni (get fields 1))
                   (push-str! (mut b)
-                             " (mut args) (ArrayList::new [u32] (malloc-allocator)) (mut flags) (ArrayList::new [u32] (malloc-allocator)) (mut results) (ArrayList::new [u8] (malloc-allocator))] (defer (free! (mut args))) (defer (free! (mut flags))) (defer (free! (mut results))) (push! (mut args) argument) (push! (mut flags) 0) (push! (mut results) (cast u8 cop/T-I64)) (let [value (cir/val function callee) direct (and (= (cast i64 (.op value)) cop/OP-SYM) (= (.imm2 value) 0))] (cir/call! function (if direct (cast u32 (.imm value)) (cir/none)) (if direct (cir/none) callee) (mut args) (mut flags) (mut results) false)))"))
+                             " (mut args) (ArrayList::new [u32] (malloc-allocator)) (mut flags) (ArrayList::new [u32] (malloc-allocator)) (mut results) (ArrayList::new [u8] (malloc-allocator))] (defer (free! (mut args))) (defer (free! (mut flags))) (defer (free! (mut results))) ")
+                  (for [i 1 arity]
+                    (push-str! (mut b) "(push! (mut args) ")
+                    (child! (mut b) ni (get fields i))
+                    (push-str! (mut b) ") (push! (mut flags) 0) "))
+                  (push-str! (mut b)
+                             "(push! (mut results) (cast u8 cop/T-I64)) (let [value (cir/val function callee) direct (and (= (cast i64 (.op value)) cop/OP-SYM) (= (.imm2 value) 0))] (cir/call! function (if direct (cast u32 (.imm value)) (cir/none)) (if direct (cir/none) callee) (mut args) (mut flags) (mut results) false)))"))
               binary?
                 (do
                   (push-str! (mut b) "(let [left ")
