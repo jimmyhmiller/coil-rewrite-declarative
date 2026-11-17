@@ -50,7 +50,7 @@ with tempfile.TemporaryDirectory(prefix='rewrite-lowering-') as directory:
     (work/'main.coil').write_text((ROOT/'tests/calls.coil.in').read_text())
     for flags in [[], ['--debug-checks'], ['--release']]:
         subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)
-    program_schema = (ROOT/'tests/schemas/lowering.schema').read_bytes() + b'\n(node Function (name Text) (parameter Text) (body Expr))\n(program Expr Function name parameter body Int Int)\n'
+    program_schema = (ROOT/'tests/schemas/lowering.schema').read_bytes() + b'\n(node Function (name Text :key) (parameter Text) (body Expr))\n(program Expr Function name parameter body Int Int)\n'
     (work/'generated.coil').write_bytes(subprocess.check_output([str(ROOT/'build/schema-seed')], input=program_schema))
     (work/'main.coil').write_text((ROOT/'tests/program.coil.in').read_text())
     for flags in [[], ['--debug-checks'], ['--release']]:
@@ -64,9 +64,10 @@ for invalid in [source + b'(lower Expr)', source.replace(b'(const value)', b'(co
 print('Invalid lowering definitions rejected before output')
 
 program = b'(program Expr Function name parameter body Int Int)'
-record = b'\n(node Function (name Text) (parameter Text) (body Expr))\n'
+record = b'\n(node Function (name Text :key) (parameter Text) (body Expr))\n'
 valid_program = source + record + program
 for invalid, message in [
+    (valid_program.replace(b'name Text :key', b'name Text'), b'program name field requires :key'),
     (valid_program + program, b'duplicate program declaration'),
     (source + record + program.replace(b'program Expr', b'program Missing'), b'program requires'),
     (valid_program.replace(b'(program Expr Function name parameter body Int Int)', b'(program Expr Function name name body Int Int)'), b'invalid program fields'),

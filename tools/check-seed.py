@@ -104,3 +104,21 @@ with tempfile.TemporaryDirectory(prefix='rewrite-reader-') as directory:
     for flags in [[], ['--debug-checks'], ['--release']]:
         subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)
 print('Schema-derived source readers and typing pipeline passed')
+
+with tempfile.TemporaryDirectory(prefix='rewrite-index-') as directory:
+    work = Path(directory)
+    shutil.copyfile(ROOT/'seed/types.coil', work/'types.coil')
+    (work/'Coil.toml').write_text('[package]\nname="fixture"\nentry="main.coil"\nsource-roots=["."]\n')
+    keyed = b'(node Entry (label Text :key) (serial Int :key) (flag Bool :key))'
+    (work/'generated.coil').write_bytes(subprocess.check_output([str(ROOT/'build/schema-seed')], input=keyed))
+    (work/'main.coil').write_text((ROOT/'tests/index.coil.in').read_text())
+    for flags in [[], ['--debug-checks'], ['--release']]:
+        subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)
+for source, diagnostic in [
+    (b'(sum Entry (Named (name Text :key)))', b'key requires a scalar field on a record'),
+    (b'(node Entry (parent Entry :key))', b'key requires a scalar field on a record'),
+    (b'(node Entry (name Text :unknown))', b'optional :key'),
+]:
+    result = subprocess.run([str(ROOT/'build/schema-seed')], input=source, capture_output=True)
+    assert result.returncode != 0 and not result.stdout and diagnostic in result.stderr, result
+print('Schema keys: content lookup, growth, subset identity, duplicate provenance and rejection passed')

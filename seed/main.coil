@@ -1,6 +1,7 @@
 (module rewrite.main)
 (import "rewrite.schema" :as schema)
 (import "rewrite.emit" :as emit)
+(import "rewrite.index" :as index)
 (import "rewrite.readers" :as readers)
 (import "rewrite.judgment" :as judgment)
 (import "rewrite.lower" :as lower)
@@ -29,27 +30,43 @@
                   (mut output) (StrBuf::new a)]
               (push-str! (mut output) (emit/emit a sp))
               (push-str! (mut output) (readers/emit a sp))
+              (push-str! (mut output) (index/emit a sp))
               (for [i 0 (len (load forms))]
                 (let [form (elem forms i)]
-                  (when (and (sexp-list? form) (> (sexp-count form) 0) (sexp-sym-is (sexp-nth form 0) "program"))
+                  (when (and (sexp-list? form)
+                             (> (sexp-count form) 0)
+                             (sexp-sym-is (sexp-nth form 0) "program"))
                     (for [j 0 i]
                       (let [previous (elem forms j)]
-                        (when (and (sexp-list? previous) (> (sexp-count previous) 0)
+                        (when (and (sexp-list? previous)
+                                   (> (sexp-count previous) 0)
                                    (sexp-sym-is (sexp-nth previous 0) "program"))
-                          (break :done (Err (schema/problem form "duplicate program declaration"))))))
-                    (let [(mut has-judgment) false (mut has-lowering) false]
+                          (break
+                            :done
+                              (Err (schema/problem form
+                                                   "duplicate program declaration"))))))
+                    (let [(mut has-judgment) false
+                          (mut has-lowering) false]
                       (when (>= (sexp-count form) 2)
                         (for [j 0 (len (load forms))]
                           (let [other (elem forms j)]
-                            (when (and (sexp-list? other) (>= (sexp-count other) 2)
+                            (when (and (sexp-list? other)
+                                       (>= (sexp-count other) 2)
                                        (sexp-sym? (sexp-nth form 1))
-                                       (sexp-sym-is (sexp-nth other 1) (sexp-sym (sexp-nth form 1))))
-                              (when (sexp-sym-is (sexp-nth other 0) "judgment") (set! has-judgment true))
-                              (when (sexp-sym-is (sexp-nth other 0) "lower") (set! has-lowering true))))))
+                                       (sexp-sym-is (sexp-nth other 1)
+                                                    (sexp-sym (sexp-nth form 1))))
+                              (when (sexp-sym-is (sexp-nth other 0) "judgment")
+                                (set! has-judgment true))
+                              (when (sexp-sym-is (sexp-nth other 0) "lower")
+                                (set! has-lowering true))))))
                       (unless (and has-judgment has-lowering)
-                        (break :done (Err (schema/problem form "program requires judgment and lowering for its expression schema")))))
+                        (break
+                          :done
+                            (Err (schema/problem form
+                                                 "program requires judgment and lowering for its expression schema")))))
                     (match (program/compile-one a sp form)
-                      (Err [d] (break :done (Err d))) (Ok [text] (push-str! (mut output) text))))
+                      (Err [d] (break :done (Err d)))
+                      (Ok [text] (push-str! (mut output) text))))
                   (when (and (sexp-list? form)
                              (> (sexp-count form) 0)
                              (sexp-sym-is (sexp-nth form 0) "lower"))

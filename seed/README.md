@@ -142,7 +142,7 @@ The call acceptance fixture registers an `increment` function's signature and sy
 Program declarations now derive function registration and body orchestration:
 
 ```
-(node Function (name Text) (parameter Text) (body Expr))
+(node Function (name Text :key) (parameter Text) (body Expr))
 (program Expr Function name parameter body Int Int)
 ```
 
@@ -150,4 +150,10 @@ There is one program declaration per generated module; its expression schema mus
 
 `tests/program.coil.in` exercises forward calls, duplicate names, an invalid later body, wrong return types, and parameter/global shadowing. The native harness runs it in debug, debug-checks, and release. DSL checks reject duplicate program declarations, missing judgment/lowering dependencies, invalid fields, and unsupported signatures before publishing generated output.
 
-This first program form only supports unary Int-to-Int functions. Its orchestration implementation is a fixed Coil generator template, counted as authored machinery; it is not yet the planned composable phase language. Global duplicate detection and per-function global value contexts are quadratic in declaration count. Replace these with indexed symbol infrastructure as module workloads arrive, and derive orchestration from reusable phase contracts before treating this as the final language architecture. Full Coil syntax, macro expansion, general signatures, modules, effects, artifacts, and self-hosting remain outstanding.
+This first program form only supports unary Int-to-Int functions. Its orchestration implementation is a fixed Coil generator template, counted as authored machinery; it is not yet the planned composable phase language. Global duplicate detection uses the schema-derived unique index. Per-function global value contexts remain quadratic in declaration count. Replace these with indexed symbol infrastructure as module workloads arrive, and derive orchestration from reusable phase contracts before treating this as the final language architecture. Full Coil syntax, macro expansion, general signatures, modules, effects, artifacts, and self-hosting remain outstanding.
+
+Record fields can declare unique keys, for example `(label Text :key)` or `(serial Int :key)`. For each such field the schema compiler derives `index-N-F(allocator, rows, ids)`, returning a typed HashMap from field values to nominal row IDs. The selected ID sequence defines the scope of uniqueness; unselected rows do not participate. Keys may be Text, Int, or Bool. Multiple key fields define independent indexes, not a compound key. Sum variants and reference-valued keys are rejected until their equality semantics are specified.
+
+Index construction checks IDs and reports `DuplicateKey(node, field, first, second)` with both original row IDs, or `InvalidIndexReference(node, id)`. The first duplicate in selection order determines the diagnostic. Failed construction releases the partial map. Successful maps belong to the caller and must be freed. Text keys own copies and compare by content; IDs remain meaningful only for the original row table. An index is a snapshot: appending or editing rows does not update it, and building one does not make the mutable row table permanently unique.
+
+Function-name fields must now declare `:key`. `compile-program` takes the selected function-record IDs directly, derives their unique-name index, converts the records, and proceeds to all-body checking. This removes the quadratic duplicate scan from the program template. The generic key mechanism is also exercised independently with 10,000 multi-key records, non-contiguous selections, duplicate provenance, repeated IDs, and invalid references. It is the first part of schema-driven indexing, not yet a complete scope, namespace, or module binding language.

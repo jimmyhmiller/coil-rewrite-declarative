@@ -5,7 +5,8 @@
 (import "coil.reader" :use *)
 (import "coil.result" :use *)
 
-(defstruct Field [(name (slice u8)) (type-name (slice u8)) (origin Sexp)])
+(defstruct Field
+  [(name (slice u8)) (type-name (slice u8)) (key? bool) (origin Sexp)])
 
 (defstruct Variant [(name (slice u8)) (fields (ArrayList Field)) (origin Sexp)])
 
@@ -32,15 +33,21 @@
     false))
 
 (defn parse-field [(form (ptr Sexp))] (-> (Result Field Diag))
-  (if (not (and (sexp-list? form) (= (sexp-count form) 2)))
-      (Err (problem form "expected (field-name Type)"))
+  (if (not (and (sexp-list? form)
+                (or (= (sexp-count form) 2) (= (sexp-count form) 3))))
+      (Err (problem form "expected (field-name Type [:key])"))
       (let [name (sexp-nth form 0)
             ty (sexp-nth form 1)]
-        (if (not (and (sexp-sym? name) (sexp-sym? ty)))
-            (Err (problem form "field name and type must be symbols"))
+        (if (not (and (sexp-sym? name)
+                      (sexp-sym? ty)
+                      (or (= (sexp-count form) 2)
+                          (and (sexp-kw? (sexp-nth form 2))
+                               (= (sexp-kw (sexp-nth form 2)) "key")))))
+            (Err (problem form "field needs symbol name/type and optional :key"))
             (Ok (Field
                   :name (sexp-sym name)
                   :type-name (sexp-sym ty)
+                  :key? (= (sexp-count form) 3)
                   :origin (load form)))))))
 
 (defn parse-variant [(a (dyn Allocator)) (form (ptr Sexp)) (offset i64)]
@@ -120,7 +127,9 @@
           (unless (and (sexp-list? (elem forms i))
                        (> (sexp-count (elem forms i)) 0)
                        (or (sexp-sym-is (sexp-nth (elem forms i) 0) "judgment")
-                           (or (sexp-sym-is (sexp-nth (elem forms i) 0) "lower") (sexp-sym-is (sexp-nth (elem forms i) 0) "program"))))
+                           (or (sexp-sym-is (sexp-nth (elem forms i) 0) "lower")
+                               (sexp-sym-is (sexp-nth (elem forms i) 0)
+                                            "program"))))
             (match (parse-node a (elem forms i))
               (Err [d] (break :result (Err d)))
               (Ok [n]
@@ -135,6 +144,12 @@
               (let [variant (elem (field n variants) v)]
                 (for [j 0 (len (.fields variant))]
                   (let [f (elem (field variant fields) j)]
+                    (when (and (.key? f)
+                               (or (.sum? n) (not (scalar? (.type-name f)))))
+                      (break
+                        :result
+                          (Err (problem (field f origin)
+                                        "key requires a scalar field on a record"))))
                     (unless (or (scalar? (.type-name f))
                                 (known? (mut nodes) (.type-name f)))
                       (break

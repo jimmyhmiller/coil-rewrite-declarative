@@ -19,10 +19,7 @@
             (Ok [forms] (for [i 0 (len (load forms))]
               (match (parse-1 (mut store) (elem forms i))
                 (Err [_] (break :done false)) (Ok [id] (push! (mut ids) id))))))
-          (match (program-functions a (mut store) (mut ids))
-            (Err [_] false)
-            (Ok [functions]
-              (match (compile-program a (mut store) (box! a (ArrayList ProgramFunction) functions))
+          (match (compile-program a (mut store) (mut ids))
                 (Err [e] (match e
                   (DuplicateFunction [_] (= expected 1))
                   (InvalidBody [_ _] (= expected 2))
@@ -32,7 +29,7 @@
                         run (primitive/cast (fnptr (cc/C) [i64] i64) (jit/address-of loaded 0))
                         value (run 41)]
                     (jit/unload! loaded)
-                    (= value expected)))))))]
+                    (= value expected)))))]
     (store-free! (mut store)) (free! (mut ids)) (close! (mut arena)) ok))
 (defn main [] (-> i64)
   (if (and

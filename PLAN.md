@@ -106,3 +106,11 @@ Performance proposal: no more than 5% median cold compile-time or peak-memory re
 Largest risks: phase semantics hidden in current control flow; a generic rule engine introducing allocation/search costs; language proliferation; duplicated bootstrap implementations; source reductions overwhelmed by machinery; caches retaining whole compiler generations. Address them with the vertical slice, explicit execution plans, source accounting, regeneration checks and repeated-edit memory tests.
 
 The immediate implementation task is milestone 1 followed by the smallest end-to-end typing slice. Do not begin by copying all 81,525 frontend lines into a new notation. The architectural question to answer first is whether a handful of semantic rules can generate correct, fast checking and lowering while also serving the language compilers themselves.
+
+## Implementation checkpoint: schema keys
+
+The seed now derives row storage, constructor readers, concrete type judgments, scalar CIR lowering, and unary function program compilation. Record fields annotated `:key` derive typed unique indexes with duplicate provenance. Function registration consumes this shared mechanism; a separate multi-key record client checks growth and identity behavior. This establishes part of binding/index generation, not module semantics.
+
+Milestone 2 remains incomplete: Coil surface syntax, the independent language with different binding semantics, a language-toolchain component expressed in the DSLs, and early metaprogramming are still required. Program orchestration still lives in a fixed template. Next, separate local lexical bindings from indexed global symbols and stop constructing every global CIR symbol in every function. Then express phase prerequisites and representation transitions as checked contracts shared by the source compiler and language toolchain. Do not broaden the fixed template into another handwritten frontend.
+
+`python3 tools/count-rewrite.py` records hashed working-tree inventories for seed/runtime, retained authored backend, generated backend, tests, and tools. Physical lines and bytes are reported separately. This inventory does not yet establish the code-only count, total bootstrap dependency size, or matched-workload performance improvement required by the final gates.

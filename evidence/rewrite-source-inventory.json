@@ -1,0 +1,2115 @@
+{
+  "scope": "Working-tree seed, runtime, tests, tools and complete pinned backend; per-file hashes identify inputs.",
+  "caveats": "Physical lines include comments and blanks. Templates count as authored source. This is not a code-only LOC count or a complete toolchain reduction claim. Host Coil/stdlib bootstrap dependencies are not vendored or included. Generated seed output is ephemeral and not included; retained generated backend is separate.",
+  "totals": {
+    "authored-seed-and-runtime": {
+      "files": 11,
+      "bytes": 81971,
+      "physical_lines": 1455
+    },
+    "retained-authored-machinery-and-specifications": {
+      "files": 161,
+      "bytes": 1354047,
+      "physical_lines": 27126
+    },
+    "retained-generated": {
+      "files": 77,
+      "bytes": 2579227,
+      "physical_lines": 21992
+    },
+    "retained-metadata": {
+      "files": 11,
+      "bytes": 72395,
+      "physical_lines": 832
+    },
+    "retained-tests": {
+      "files": 13,
+      "bytes": 154943,
+      "physical_lines": 2869
+    },
+    "rewrite-build-and-validation-tools": {
+      "files": 7,
+      "bytes": 27036,
+      "physical_lines": 503
+    },
+    "rewrite-tests-and-fixtures": {
+      "files": 16,
+      "bytes": 26900,
+      "physical_lines": 542
+    }
+  },
+  "files": [
+    {
+      "path": "runtime/native.coil",
+      "category": "authored-seed-and-runtime",
+      "sha256": "844d73a7f1c72f705aa27cde0e3eb8067eae74d43651c90be115673790db3590",
+      "bytes": 1516,
+      "physical_lines": 38
+    },
+    {
+      "path": "seed/README.md",
+      "category": "authored-seed-and-runtime",
+      "sha256": "62c44832b59c206bdcc2ee45852fc28554ca51b100db472d02c57ccd6389ce47",
+      "bytes": 20045,
+      "physical_lines": 159
+    },
+    {
+      "path": "seed/emit.coil",
+      "category": "authored-seed-and-runtime",
+      "sha256": "0406ef880aeb00a783a8263fcc2bf1648b35ac5c6f39f6a9b5f2ceb8ef7d52a1",
+      "bytes": 4517,
+      "physical_lines": 85
+    },
+    {
+      "path": "seed/index.coil",
+      "category": "authored-seed-and-runtime",
+      "sha256": "c243db42e49793f5ee2a762065d3916e4ce63406a6ed8aa9523b40336c9c055d",
+      "bytes": 3318,
+      "physical_lines": 66
+    },
+    {
+      "path": "seed/judgment.coil",
+      "category": "authored-seed-and-runtime",
+      "sha256": "93f013b890cf22899bffab4bf6343dc9d1daaebf2c6b64b712ac4e32652c2862",
+      "bytes": 14571,
+      "physical_lines": 336
+    },
+    {
+      "path": "seed/lower.coil",
+      "category": "authored-seed-and-runtime",
+      "sha256": "cdd867dd4d83d1a6eee0e34f97ff4cc1081f453c6625c9ea7fe524fdab5eb004",
+      "bytes": 9377,
+      "physical_lines": 197
+    },
+    {
+      "path": "seed/main.coil",
+      "category": "authored-seed-and-runtime",
+      "sha256": "280cd23c09fa17abf01423aa8e540b08c81c4bc2dcfa76555d68d00061e32463",
+      "bytes": 5894,
+      "physical_lines": 125
+    },
+    {
+      "path": "seed/program.coil",
+      "category": "authored-seed-and-runtime",
+      "sha256": "8de5eb11384c8764585fe1e90076dc5b6df2d74a1477bec8dc808e838b43ebf5",
+      "bytes": 7618,
+      "physical_lines": 105
+    },
+    {
+      "path": "seed/readers.coil",
+      "category": "authored-seed-and-runtime",
+      "sha256": "e3b4fd73429ca9ae837ae0befd617a55208433ba6863a64c6f00c60f055eb59b",
+      "bytes": 6111,
+      "physical_lines": 128
+    },
+    {
+      "path": "seed/schema.coil",
+      "category": "authored-seed-and-runtime",
+      "sha256": "56952d04b3a0037341122db038b68d547db43abfadcc7aeb2cca65c0321e890c",
+      "bytes": 6974,
+      "physical_lines": 165
+    },
+    {
+      "path": "seed/types.coil",
+      "category": "authored-seed-and-runtime",
+      "sha256": "e398f5cb019e3eea3339700ba5b3685b119421eb30ac5a2045c8835d5d9a6ce9",
+      "bytes": 2030,
+      "physical_lines": 51
+    },
+    {
+      "path": "tests/backend/Coil.toml",
+      "category": "rewrite-tests-and-fixtures",
+      "sha256": "e9ddfea0a1af62560cb10673809c8cbcbde948275d7eda292f93f3efede6b476",
+      "bytes": 211,
+      "physical_lines": 4
+    },
+    {
+      "path": "tests/backend/main.coil",
+      "category": "rewrite-tests-and-fixtures",
+      "sha256": "b216f890ed4c5f6ad66388625be4ccdfe40c77fb8e8ee72c7e45a2b6ecbd6c09",
+      "bytes": 187,
+      "physical_lines": 4
+    },
+    {
+      "path": "tests/calls.coil.in",
+      "category": "rewrite-tests-and-fixtures",
+      "sha256": "72d1dbecab995e9c7add4d2429b397113ad0f5e60c11cf8a82fe362ba1a75a0d",
+      "bytes": 3877,
+      "physical_lines": 66
+    },
+    {
+      "path": "tests/generated.coil.in",
+      "category": "rewrite-tests-and-fixtures",
+      "sha256": "c35fb185e5959a22f7e8cd64e20104019147b2e7500d0765ba62a1a161e0b6c4",
+      "bytes": 1181,
+      "physical_lines": 28
+    },
+    {
+      "path": "tests/index.coil.in",
+      "category": "rewrite-tests-and-fixtures",
+      "sha256": "79b2d368708e9379fff283c2e9afd56e9d274da5d5023bcf31904fab949fd4ac",
+      "bytes": 3084,
+      "physical_lines": 64
+    },
+    {
+      "path": "tests/judgment.coil.in",
+      "category": "rewrite-tests-and-fixtures",
+      "sha256": "cdde61b016ef140c01459205e8d5d920bd4d4282dff385c294a5ac90468bc349",
+      "bytes": 4036,
+      "physical_lines": 71
+    },
+    {
+      "path": "tests/lowering.coil.in",
+      "category": "rewrite-tests-and-fixtures",
+      "sha256": "656eda4d6fd7595feb0b14463d6295b57afb6d515fbbfb56ce808b7c1bfd732c",
+      "bytes": 2892,
+      "physical_lines": 54
+    },
+    {
+      "path": "tests/program.coil.in",
+      "category": "rewrite-tests-and-fixtures",
+      "sha256": "9905f92718eb09a70595296f3511d1d04422de7472c6c10f41940e63ee4b3ab0",
+      "bytes": 2116,
+      "physical_lines": 40
+    },
+    {
+      "path": "tests/reader.coil.in",
+      "category": "rewrite-tests-and-fixtures",
+      "sha256": "10af0faabc97fa453b8f8490ba0ab212542fb899c37a9ff2e2e468d117e1e3e7",
+      "bytes": 3141,
+      "physical_lines": 60
+    },
+    {
+      "path": "tests/schema.coil",
+      "category": "rewrite-tests-and-fixtures",
+      "sha256": "3b98e6fbc42bd0bb1c964ed1cb02a81aa8547bc467f5aa3a369112bc869028c4",
+      "bytes": 1323,
+      "physical_lines": 36
+    },
+    {
+      "path": "tests/schemas/expressions.schema",
+      "category": "rewrite-tests-and-fixtures",
+      "sha256": "f463d438905372447bb97c0654a1e612713c9c393524f49d0927443471e18ccb",
+      "bytes": 69,
+      "physical_lines": 2
+    },
+    {
+      "path": "tests/schemas/lowering.schema",
+      "category": "rewrite-tests-and-fixtures",
+      "sha256": "2c5aca55080ac7c59a0be282a36dee5132e60843b5b6df208b9dc63b0bfb66b6",
+      "bytes": 739,
+      "physical_lines": 11
+    },
+    {
+      "path": "tests/schemas/recursive.schema",
+      "category": "rewrite-tests-and-fixtures",
+      "sha256": "e91dba7a9de65a4c8a1692fd67fa868ea7aa37694a1eaa90afa8ff1d66b2aa1c",
+      "bytes": 117,
+      "physical_lines": 4
+    },
+    {
+      "path": "tests/schemas/typing.schema",
+      "category": "rewrite-tests-and-fixtures",
+      "sha256": "3ff7eabb95cd486204ca04c91fbc3ba266e77beee8ed00bef4fc355dbca5cdb9",
+      "bytes": 984,
+      "physical_lines": 26
+    },
+    {
+      "path": "tests/types.coil",
+      "category": "rewrite-tests-and-fixtures",
+      "sha256": "cd4b2daf0ba9014e66522048ff11c66226c3d78dc82ce76e2b9e1ec81cad12ab",
+      "bytes": 2054,
+      "physical_lines": 50
+    },
+    {
+      "path": "tests/variants.coil.in",
+      "category": "rewrite-tests-and-fixtures",
+      "sha256": "6319fb707c819fd44f4fc1c79e7a11962498db0b758fc33919ee66f4c543bcb2",
+      "bytes": 889,
+      "physical_lines": 22
+    },
+    {
+      "path": "tools/check-backend.py",
+      "category": "rewrite-build-and-validation-tools",
+      "sha256": "2d01da71932a9ff534ed1e329a0bacfb71dabbfe193151e4bc73d9097ba0ad7c",
+      "bytes": 1687,
+      "physical_lines": 33
+    },
+    {
+      "path": "tools/check-lowering.py",
+      "category": "rewrite-build-and-validation-tools",
+      "sha256": "78c9c65168d32b4946b78f0ca4dd21523dc49b0123638687f020c591d96b43ef",
+      "bytes": 5250,
+      "physical_lines": 81
+    },
+    {
+      "path": "tools/check-seed.py",
+      "category": "rewrite-build-and-validation-tools",
+      "sha256": "d7bd1eb92c3f26b0f7349287bf2c15ab8c0bb7971c2fe7415bf539066553ebe2",
+      "bytes": 8417,
+      "physical_lines": 124
+    },
+    {
+      "path": "tools/count-rewrite.py",
+      "category": "rewrite-build-and-validation-tools",
+      "sha256": "9b5431ed6693447100c051dd4d9eac6bff3e593d3178cf9b5315ad1270ec0a77",
+      "bytes": 2433,
+      "physical_lines": 56
+    },
+    {
+      "path": "tools/inventory.py",
+      "category": "rewrite-build-and-validation-tools",
+      "sha256": "ca8b37bdc5fac5cd117678d58549d8b645b093e1a92f61ca71f0e8f532e6e088",
+      "bytes": 3201,
+      "physical_lines": 78
+    },
+    {
+      "path": "tools/measure.py",
+      "category": "rewrite-build-and-validation-tools",
+      "sha256": "0f220f79b78963f0c66a5405bb67dc7b6fa77b6b73370f2f350f95ce0a0991ac",
+      "bytes": 3748,
+      "physical_lines": 79
+    },
+    {
+      "path": "tools/vendor-backend.py",
+      "category": "rewrite-build-and-validation-tools",
+      "sha256": "619bea39ea886132b49e7098e6ad2b3e9b167d08fb1cc9dc728a17b956a94af4",
+      "bytes": 2300,
+      "physical_lines": 52
+    },
+    {
+      "path": "vendor/coil/scripts/compiler/gen-declarative.py",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "e36d590716e5d8dabeb876049b18df6c58658cbd12fd323297cb3a814d1a2cea",
+      "bytes": 7514,
+      "physical_lines": 165
+    },
+    {
+      "path": "vendor/coil/scripts/compiler/project_config.py",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "aba5a06a7494447ff81b2418f16874fdda56ba60110223b5c76b7da63a3b883e",
+      "bytes": 923,
+      "physical_lines": 23
+    },
+    {
+      "path": "vendor/coil/snapshot.json",
+      "category": "retained-metadata",
+      "sha256": "33c3117d3119bf7f85a7dfb6b645d91569d00e64198cd1ec29f67bd386767067",
+      "bytes": 30180,
+      "physical_lines": 274
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/Coil.toml",
+      "category": "retained-metadata",
+      "sha256": "4f3d8dd134d487e1e2485fe607d435ac1df88c4a7922e3366511d7b13eef7d5c",
+      "bytes": 321,
+      "physical_lines": 9
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/LICENSE",
+      "category": "retained-metadata",
+      "sha256": "c553a2f17f80823a406d8ffb23c47eb07779adb1bf7cdcd6b9865a1ebbc1e815",
+      "bytes": 1138,
+      "physical_lines": 23
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/NOTICE",
+      "category": "retained-metadata",
+      "sha256": "9e644bbcf3f7b4574481c63c6b49d74207743f6a4f3aa1c40076d676753327e8",
+      "bytes": 2477,
+      "physical_lines": 53
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/adapter/cir.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "f6dc9aefc415c0228f1c7063d68e0013baa9b36c15b03369ed95c79edb8a04dd",
+      "bytes": 3682,
+      "physical_lines": 77
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/adapter/dump.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "8917892fbc430505fb5e0dbedad86a051f58d81e7b0880abfc89ae92af02a96b",
+      "bytes": 1488,
+      "physical_lines": 29
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/adapter/target-a64.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "74c1eb371f432104488bb3d1ecf9aac23109f0e7ef04f2e60cb644ec4c81017e",
+      "bytes": 256,
+      "physical_lines": 6
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/adapter/target-x64.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "dd77b390d2694fa80417cc5b87c43cb343ecc856e6254e0c5e623f50a78d726b",
+      "bytes": 255,
+      "physical_lines": 6
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/adapter/target.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "3e09154cd037d22408ed896a4cc66d3d90acdf299753915a671a8ca4296154cc",
+      "bytes": 365,
+      "physical_lines": 10
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/adapter/view.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "a7d684bc0db85dc0271cc9abb75044cdd627271ba881edfb3fbde0ecdcf75145",
+      "bytes": 5948,
+      "physical_lines": 105
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/a64-direct/frames.coil",
+      "category": "retained-generated",
+      "sha256": "5d22cdae6e0c12234a4453ef2bf6e1469960262ee92e6f911475e27c06fe1103",
+      "bytes": 5616,
+      "physical_lines": 47
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/a64-direct/lower.coil",
+      "category": "retained-generated",
+      "sha256": "0281c0b5b70537748ce793b5515aa919f19247e77b9ea1375c4c8c1b83928353",
+      "bytes": 30477,
+      "physical_lines": 338
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/a64-direct/mach.coil",
+      "category": "retained-generated",
+      "sha256": "9a4067d8db6a5914d0486399dbb6966ed01abda234f48256b0d799ce1d47341b",
+      "bytes": 8612,
+      "physical_lines": 59
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/a64-direct/plans.coil",
+      "category": "retained-generated",
+      "sha256": "70319aef661736c337e9b385f3b762876325e61a8b81cd97b0b25cc14bbd24a5",
+      "bytes": 965,
+      "physical_lines": 10
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/a64-direct/regs.coil",
+      "category": "retained-generated",
+      "sha256": "3a3a9fd8d6c9cf42157263e9573bfd4502ecff3eaf45ec7252f7bb089ac386bf",
+      "bytes": 15741,
+      "physical_lines": 87
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/a64-direct/select.coil",
+      "category": "retained-generated",
+      "sha256": "39f5a429905e76887b4faf70ccb3278e97c4c31038b53e93a94d38aa6e47cf20",
+      "bytes": 166825,
+      "physical_lines": 788
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/a64-direct/unit.coil",
+      "category": "retained-generated",
+      "sha256": "b90020a2a1238ba34034944cabedb99d58d9dfda46a59ba54f030d15805c2c85",
+      "bytes": 12109,
+      "physical_lines": 385
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/a64-direct/walk.coil",
+      "category": "retained-generated",
+      "sha256": "80715292e7da14f1c755e0dae002648025d53172add722a6450968517699a7fa",
+      "bytes": 84131,
+      "physical_lines": 177
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/a64/abi.coil",
+      "category": "retained-generated",
+      "sha256": "c6cf5b17763d659279904051ccf68d29fdf9cec7489a314b3300117019a3f542",
+      "bytes": 963,
+      "physical_lines": 24
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/a64/alloc.coil",
+      "category": "retained-generated",
+      "sha256": "90f3ec38be8b4c2f61344a13da02e6ba2c55121ea1ea0146ca438ae1df4bac36",
+      "bytes": 31299,
+      "physical_lines": 87
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/a64/atomics.coil",
+      "category": "retained-generated",
+      "sha256": "d53912a3d91178477c9c3c5675837027ef8c6878cd602221f7b0226e3f4845fa",
+      "bytes": 3455,
+      "physical_lines": 17
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/a64/blocks.coil",
+      "category": "retained-generated",
+      "sha256": "d3bab54ae34ac197945c96253ae39a6f4abab995f3f592f6f265b4908e6ca344",
+      "bytes": 11559,
+      "physical_lines": 36
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/a64/cfg.coil",
+      "category": "retained-generated",
+      "sha256": "1ba019385586435f5cc545be40b28541bddd73a3449b33b6c8ec6f7173334d6b",
+      "bytes": 11246,
+      "physical_lines": 47
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/a64/copies.coil",
+      "category": "retained-generated",
+      "sha256": "c2966cb25b62db311344b2748dd5a194d1481bb702414b495200c902630c1b54",
+      "bytes": 7644,
+      "physical_lines": 28
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/a64/emit.coil",
+      "category": "retained-generated",
+      "sha256": "f675cd6250117da09f69a3f592e1e9e3a83cebab3de5f986b4f010e3d8fa7ceb",
+      "bytes": 24205,
+      "physical_lines": 71
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/a64/facts.coil",
+      "category": "retained-generated",
+      "sha256": "b84496b7461880db65e873a2080e2a618cd34f56cd3c614a7ed74449a993dc6a",
+      "bytes": 20460,
+      "physical_lines": 229
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/a64/forward.coil",
+      "category": "retained-generated",
+      "sha256": "9a69cf8353e661a3664ca8a521638da404fbeda9d7201d51cccd1f6dd80602c9",
+      "bytes": 7965,
+      "physical_lines": 34
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/a64/frames.coil",
+      "category": "retained-generated",
+      "sha256": "0cfb2e4e7e4fd64fc93c396d6577e12c4db92a5ef03482d205eb348e1a32154b",
+      "bytes": 5556,
+      "physical_lines": 46
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/a64/loops.coil",
+      "category": "retained-generated",
+      "sha256": "a38ca14d73dfcbd63b5b2522b46416958aea6efb4b8f92f8540ec13f13adc564",
+      "bytes": 37130,
+      "physical_lines": 73
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/a64/lower.coil",
+      "category": "retained-generated",
+      "sha256": "36e880fe80dd3f5964284926c3276fe4bb5c7ba4d8c155340bddbf2d54ba879d",
+      "bytes": 183414,
+      "physical_lines": 1216
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/a64/mach.coil",
+      "category": "retained-generated",
+      "sha256": "b61fc12dd4931a4f76492facfed8c8b6bc696611d648852df4a16daa233c05a2",
+      "bytes": 6174,
+      "physical_lines": 59
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/a64/macho.coil",
+      "category": "retained-generated",
+      "sha256": "6d79854f8d26755b189bfecbd573fba54816f9499c72c83f193c4caad2cf01b0",
+      "bytes": 7035,
+      "physical_lines": 76
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/a64/narrow.coil",
+      "category": "retained-generated",
+      "sha256": "a50c943942bd8a126cf8c75884453c1fd0d7d5f46318ea2cc0c586d8c8d3007b",
+      "bytes": 37266,
+      "physical_lines": 571
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/a64/plans.coil",
+      "category": "retained-generated",
+      "sha256": "95549324fca59a5a858318e6e12128ba9038a06a911f21190ab34b7c4d348f32",
+      "bytes": 5226,
+      "physical_lines": 30
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/a64/promote.coil",
+      "category": "retained-generated",
+      "sha256": "f0d0eb9df1f9d94d1646bd2e8d1e4f9f36211b559b18ae5d8aa05edc0680efa6",
+      "bytes": 7513,
+      "physical_lines": 32
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/a64/schedule.coil",
+      "category": "retained-generated",
+      "sha256": "9512ca48e24dfa7dda864ed816d38f6b001ea040f86de151d7268f09905bfdee",
+      "bytes": 10758,
+      "physical_lines": 32
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/a64/select.coil",
+      "category": "retained-generated",
+      "sha256": "56816c471504762f108fe8edff0d62ab275d6599022fb64b8f769320796b51b1",
+      "bytes": 28291,
+      "physical_lines": 70
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/a64/selects.coil",
+      "category": "retained-generated",
+      "sha256": "dddb80e96b141cb3ac54aefb5de7bda1be132c435318aef831e4dffbb72db66f",
+      "bytes": 3695,
+      "physical_lines": 17
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/a64/simplify.coil",
+      "category": "retained-generated",
+      "sha256": "a6bfb1388edb50efae8f494495ab510b563f43e9099b5d5aae0fd295af2d0dec",
+      "bytes": 71203,
+      "physical_lines": 818
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/a64/split.coil",
+      "category": "retained-generated",
+      "sha256": "b36874a852ba4b5ee0c9596f443deeaee3a80632fa2defae36fa839b2216f754",
+      "bytes": 4755,
+      "physical_lines": 23
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/a64/switches.coil",
+      "category": "retained-generated",
+      "sha256": "ff7c02bf85a761c2777d3b05d5cb0444cc8152fd74edfa028c6aa24231774cf2",
+      "bytes": 5860,
+      "physical_lines": 22
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/a64/tails.coil",
+      "category": "retained-generated",
+      "sha256": "b2b659b117f998d588d45151319f3a55faee6e0db00980c791be5f9110741df8",
+      "bytes": 7853,
+      "physical_lines": 27
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/a64/target.coil",
+      "category": "retained-generated",
+      "sha256": "3bff45e74cc704d3e159f442b8679cde55cf4220fa72a7b75cf237e821f913a8",
+      "bytes": 272179,
+      "physical_lines": 690
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/a64/unit.coil",
+      "category": "retained-generated",
+      "sha256": "b1075655e903cd1d33265a47a309f75986f6a8469cb1ebcb20bd6861e53c9be9",
+      "bytes": 35372,
+      "physical_lines": 953
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/backend/nodes.coil",
+      "category": "retained-generated",
+      "sha256": "af9b5f9fdcb3b7324d001c873040f0573c953d3cc335f576767aa598aeaa4b61",
+      "bytes": 95736,
+      "physical_lines": 1769
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/cir/ops.coil",
+      "category": "retained-generated",
+      "sha256": "0dd3ba079ae63ecb43a440fe3a4dd3f2633d54782b59e63d23b85a2cfb43d2fb",
+      "bytes": 24472,
+      "physical_lines": 298
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/machine-a64.coil",
+      "category": "retained-generated",
+      "sha256": "19126c457edc9476c97694a71c40a1a23b3761bcb3fd2196dc082a7db69af173",
+      "bytes": 120334,
+      "physical_lines": 2251
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/machine-x64.coil",
+      "category": "retained-generated",
+      "sha256": "6771b29f865c455b324c3598f01b266b42385cec781236aeaf4c479e30ed836d",
+      "bytes": 120334,
+      "physical_lines": 2251
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/x64-direct/frames.coil",
+      "category": "retained-generated",
+      "sha256": "ef356143a06f48162d331c440fb2748732a9fb580fb86a52aed51ff8a1650676",
+      "bytes": 5616,
+      "physical_lines": 47
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/x64-direct/lower.coil",
+      "category": "retained-generated",
+      "sha256": "dae71819acbe4dbfbe095e459759eef3e699fb6acab0e1a96290e5f35e830060",
+      "bytes": 20167,
+      "physical_lines": 324
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/x64-direct/mach.coil",
+      "category": "retained-generated",
+      "sha256": "31401c0c85ae33d8c9a1a2097d06537f78e4d1ce4fbf5f14317a6ac14cc790dc",
+      "bytes": 8612,
+      "physical_lines": 59
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/x64-direct/plans.coil",
+      "category": "retained-generated",
+      "sha256": "f577eec104ffe0b623b2fc6bb3b8c91e96d426fe8b8a5957f1b0531baeeb664b",
+      "bytes": 965,
+      "physical_lines": 10
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/x64-direct/regs.coil",
+      "category": "retained-generated",
+      "sha256": "0cc4baf4ef87efa7c315b6bf943b19b4161efa1f48acfe11526e78e6531d9aa7",
+      "bytes": 15741,
+      "physical_lines": 87
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/x64-direct/select.coil",
+      "category": "retained-generated",
+      "sha256": "1d56d80ee9c09817795df6ed534e0b635851b1d8bdbb2a8dde49e9de5ccf928c",
+      "bytes": 175666,
+      "physical_lines": 815
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/x64-direct/unit.coil",
+      "category": "retained-generated",
+      "sha256": "3ccd729604b47fe443c713cb9850e01cd1780c4021355a11ef46d9e55768e3e1",
+      "bytes": 12109,
+      "physical_lines": 385
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/x64-direct/walk.coil",
+      "category": "retained-generated",
+      "sha256": "92beb654bc360368aae89caf436da44443dd48c984f37e988109d2340d4f9f20",
+      "bytes": 84131,
+      "physical_lines": 177
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/x64/abi.coil",
+      "category": "retained-generated",
+      "sha256": "1304c15a66ea61f1aa1401104ea3f9924c320abdc3bcad9262bfbbbd94987705",
+      "bytes": 922,
+      "physical_lines": 24
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/x64/alloc.coil",
+      "category": "retained-generated",
+      "sha256": "c188553e4db0392a652c5fdee19046ac8cfdc1466fbec91d25109e27a5fafd2d",
+      "bytes": 31299,
+      "physical_lines": 87
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/x64/atomics.coil",
+      "category": "retained-generated",
+      "sha256": "3d2449a50d377d765df08cbd42434b55cb203f9b0d68753f77a61856a13941dd",
+      "bytes": 3455,
+      "physical_lines": 17
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/x64/blocks.coil",
+      "category": "retained-generated",
+      "sha256": "5a32079d218e1c7fdb4e40f755eda7bf8ab4cff0e6dda75c70f2df4ecb103da2",
+      "bytes": 11559,
+      "physical_lines": 36
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/x64/cfg.coil",
+      "category": "retained-generated",
+      "sha256": "ac12b3f1d1dc1448ba27ee3d27a4d684da30872341abb7179fc9d073505670c0",
+      "bytes": 11246,
+      "physical_lines": 47
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/x64/copies.coil",
+      "category": "retained-generated",
+      "sha256": "67be131271182cdba34fb03103985412eee9d10c36497bd8cce371620e738b39",
+      "bytes": 7644,
+      "physical_lines": 28
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/x64/elf.coil",
+      "category": "retained-generated",
+      "sha256": "1cd4cf564a0315f3576117f8a15a6e12d872c7aafcdae502a1e047c1a2fe3370",
+      "bytes": 8061,
+      "physical_lines": 82
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/x64/emit.coil",
+      "category": "retained-generated",
+      "sha256": "b14bf44179d391a6c9be633e91c36e2cf0c04ee1cb64e93befd9bf6a0e6b584e",
+      "bytes": 24205,
+      "physical_lines": 71
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/x64/facts.coil",
+      "category": "retained-generated",
+      "sha256": "37a14cf93c963090ca58e10bd1f2b57f78381a1cdd47bc342cf79f4fc4dc20c2",
+      "bytes": 20460,
+      "physical_lines": 229
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/x64/forward.coil",
+      "category": "retained-generated",
+      "sha256": "71c6ede9400d53ece6162d2813fba8cd66d767590b67d3680058e7bce35020a2",
+      "bytes": 7965,
+      "physical_lines": 34
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/x64/frames.coil",
+      "category": "retained-generated",
+      "sha256": "fc544359da5404abb4a07ddaebbde74ad88ca98123fbf2e6f606667b375a392d",
+      "bytes": 5556,
+      "physical_lines": 46
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/x64/loops.coil",
+      "category": "retained-generated",
+      "sha256": "45d197ca98235c635fc5ee2a928caf4a7d02910d62068efd3b44dc3b4c4c38b2",
+      "bytes": 37130,
+      "physical_lines": 73
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/x64/lower.coil",
+      "category": "retained-generated",
+      "sha256": "f7781a2523f655ea31a1b2c433583e75140d617c4a9431a15a6507c201397f91",
+      "bytes": 161523,
+      "physical_lines": 1094
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/x64/mach.coil",
+      "category": "retained-generated",
+      "sha256": "4b83a967d55f3cb6d997f24ca5c108b5e6ea67c76ef2a996600f0dffecf45951",
+      "bytes": 6174,
+      "physical_lines": 59
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/x64/narrow.coil",
+      "category": "retained-generated",
+      "sha256": "0bfc3beb711d12e933e68f032802b9d31e91fb1eed779996a2a7c56415f37622",
+      "bytes": 37266,
+      "physical_lines": 571
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/x64/plans.coil",
+      "category": "retained-generated",
+      "sha256": "53135e4e2cf77e3b5971819a0fab3d4de1421412138d2a8d4a1a9a2be59531d8",
+      "bytes": 5226,
+      "physical_lines": 30
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/x64/promote.coil",
+      "category": "retained-generated",
+      "sha256": "3db59e00f4a5516fa03b4ca072a923e87a48a8c6d96cf05e2333e3a2ed63422d",
+      "bytes": 7513,
+      "physical_lines": 32
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/x64/schedule.coil",
+      "category": "retained-generated",
+      "sha256": "05b9756019ccb28ac70a700de1534d4b7f8804afe8546fc5ea1b1a5ee777c6ba",
+      "bytes": 10758,
+      "physical_lines": 32
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/x64/select.coil",
+      "category": "retained-generated",
+      "sha256": "eaea846343f122c9d87e55195e70af8ad165735d16cd10e93cc4236d2a841c10",
+      "bytes": 28291,
+      "physical_lines": 70
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/x64/selects.coil",
+      "category": "retained-generated",
+      "sha256": "451771eb483a4aedc637643b2e89e5d7f1d044a58ceabaaa073942850c69b939",
+      "bytes": 3695,
+      "physical_lines": 17
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/x64/simplify.coil",
+      "category": "retained-generated",
+      "sha256": "1244329df2abfc232a76ecbaf967024b0b5fc0f417e9e0d973313f4758bb639b",
+      "bytes": 71203,
+      "physical_lines": 818
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/x64/split.coil",
+      "category": "retained-generated",
+      "sha256": "47ceb39b70c6545393342cce71a53674d82a41ff92b2a0fb193afdafce3ff8e1",
+      "bytes": 4755,
+      "physical_lines": 23
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/x64/switches.coil",
+      "category": "retained-generated",
+      "sha256": "3a0507913f384172b482386e57e1b35ae101830434511aa1ef859e351b3376ee",
+      "bytes": 5860,
+      "physical_lines": 22
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/x64/tails.coil",
+      "category": "retained-generated",
+      "sha256": "ee2c518682953428c301d90bbf2f45939d3dd8ee5dc3e50687732a83de9661a4",
+      "bytes": 7853,
+      "physical_lines": 27
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/x64/target.coil",
+      "category": "retained-generated",
+      "sha256": "389f8502540886fc4b821f4accc35e5f0652937e8c38f84918b6f76da0008bd4",
+      "bytes": 36615,
+      "physical_lines": 401
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/generated/x64/unit.coil",
+      "category": "retained-generated",
+      "sha256": "6080693e1a9d8e28e1f05da22b3c2adf30505f80148f0603347bc7b51f62343f",
+      "bytes": 35372,
+      "physical_lines": 953
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/rt/bits.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "f107b85a071ea00766263fb0e4a7b456b5ddba0185f04d1fd8b38762ec7c8c20",
+      "bytes": 14011,
+      "physical_lines": 356
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/rt/bytes.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "166a27914eb58c862b2d6b8f209464e47528d985a32a4b8dd80c62b20aa79b59",
+      "bytes": 1007,
+      "physical_lines": 28
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/rt/clock.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "0333743677509ce93c5f77b02a31e5ad3f422169689db79a2ec06ab3630fdfa7",
+      "bytes": 611,
+      "physical_lines": 16
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/rt/graph.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "3a5f25b5518b3474d5f2431be8007fc636a07a82f0424830b2f33a25e19e438b",
+      "bytes": 25807,
+      "physical_lines": 611
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/rt/image.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "bbc02aba326771376c862a834d4af2d9fe81201051ecc1f5617cb48a3f643436",
+      "bytes": 3292,
+      "physical_lines": 76
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/rt/jit.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "33d376862d14a37121891de5b465db8556b7f0d47a42690c6390b909f190d1b3",
+      "bytes": 6257,
+      "physical_lines": 116
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/rt/lists.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "f7a0f1a6836a0ac94549548a6d70b3147531f38b7fc2572784e87b28aa1df877",
+      "bytes": 4072,
+      "physical_lines": 108
+    },
+    {
+      "path": "vendor/coil/src/compiler/declarative/rt/memory.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "e7c19a1b02cca5848e6619e2e76291dcc2086856d37626b6bdaa69b6002c14c5",
+      "bytes": 1270,
+      "physical_lines": 26
+    },
+    {
+      "path": "vendor/coil/src/compiler/native/Coil.toml",
+      "category": "retained-metadata",
+      "sha256": "2094a13acf7ae12b478c954f66b290433da86f9cefa934b8ace9616109495244",
+      "bytes": 286,
+      "physical_lines": 6
+    },
+    {
+      "path": "vendor/coil/src/compiler/native/LICENSE",
+      "category": "retained-metadata",
+      "sha256": "ad566ebbdbd6c8e3c8633fcde083e060075f4c33711058569c36b78324cd0c59",
+      "bytes": 11254,
+      "physical_lines": 92
+    },
+    {
+      "path": "vendor/coil/src/compiler/native/LICENSES/Apache-2.0.txt",
+      "category": "retained-metadata",
+      "sha256": "074e6e32c86a4c0ef8b3ed25b721ca23aca83df277cd88106ef7177c354615ff",
+      "bytes": 10280,
+      "physical_lines": 73
+    },
+    {
+      "path": "vendor/coil/src/compiler/native/LICENSES/LLVM-exception.txt",
+      "category": "retained-metadata",
+      "sha256": "e34c58338bd89d43e709e226610d8f32b3e3c47f4ad9a99a8dc1d4ac7842488e",
+      "bytes": 919,
+      "physical_lines": 15
+    },
+    {
+      "path": "vendor/coil/src/compiler/native/NOTICE",
+      "category": "retained-metadata",
+      "sha256": "dc87f494b91537ce97c973554b4c57a5485a592c80eed5253cdf9efd6e6d3265",
+      "bytes": 1715,
+      "physical_lines": 35
+    },
+    {
+      "path": "vendor/coil/src/compiler/native/generated/asm.coil",
+      "category": "retained-generated",
+      "sha256": "c0f0fbd183e8e62e6c6492ae828420ac8012a10c4ce22287a970284b60a37114",
+      "bytes": 8328,
+      "physical_lines": 120
+    },
+    {
+      "path": "vendor/coil/src/compiler/native/generated/buf.coil",
+      "category": "retained-generated",
+      "sha256": "d6f6fe87dca6a2bfece188e3e6cb64830be4f34151c6fd50caaedcf87b06edeb",
+      "bytes": 8871,
+      "physical_lines": 59
+    },
+    {
+      "path": "vendor/coil/src/compiler/native/generated/cir-copies.coil",
+      "category": "retained-generated",
+      "sha256": "968fe37b829f2db675e3e036fcdd8583e78280ccfeb7d9f10b13799355004242",
+      "bytes": 65526,
+      "physical_lines": 519
+    },
+    {
+      "path": "vendor/coil/src/compiler/native/generated/cir-ops.coil",
+      "category": "retained-generated",
+      "sha256": "d05be6a48491626f7c8515f810b34f002345f87d302cb49d3ef7053aa25440de",
+      "bytes": 3636,
+      "physical_lines": 96
+    },
+    {
+      "path": "vendor/coil/src/compiler/native/generated/cir.coil",
+      "category": "retained-generated",
+      "sha256": "92320fb4e85213e8e00def5f3a6421ace94f6a829fa158895d0d89f34bc17310",
+      "bytes": 44825,
+      "physical_lines": 583
+    },
+    {
+      "path": "vendor/coil/src/declarative/Coil.toml",
+      "category": "retained-metadata",
+      "sha256": "7051aadedad3ab8ebe3276b53ea47abdf9fba0771e51d6ed08c4e586c5f0d4f4",
+      "bytes": 5019,
+      "physical_lines": 116
+    },
+    {
+      "path": "vendor/coil/src/declarative/a64-direct/a64.lower",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "de20bf3c2a45c9b36be604cc01118189a95405c6d117834351fe378b287ed602",
+      "bytes": 22,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/a64-direct/a64.select",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "78d51257d1cb5bef27e662414f314a382511402b3b780c3a7e5a80f8c37e469b",
+      "bytes": 19795,
+      "physical_lines": 232
+    },
+    {
+      "path": "vendor/coil/src/declarative/a64-direct/direct.unit",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "03917777c693ad687b7badfca9f0f63a14440090fcde6a193b740d19445c6eca",
+      "bytes": 410,
+      "physical_lines": 12
+    },
+    {
+      "path": "vendor/coil/src/declarative/a64-direct/frames.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "f51f38207b5d26f4c92f25516e633e156e288c464abdbed3b1618313f4d7ec50",
+      "bytes": 28,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/a64-direct/mach.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "1e15dae583f3e704b258255bff08f07393cb49532011c3f65d8dcd0558aa3c72",
+      "bytes": 25,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/a64-direct/plans.pipeline",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "cd5a77801d15997c78338cb812309015e97c3f96d3e1b9c1260ab94e094a7973",
+      "bytes": 30,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/a64-direct/regs.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "3f23b24a62860fee73caf085fba56b8f0a0f9d8896ee1381355f9b3f574fe725",
+      "bytes": 25,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/a64-direct/walk.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "ef1bec9cb8968c7cd0e8d052eda74adfa903e0cf28d85eaa51c73dc8df3a4103",
+      "bytes": 25,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/a64/a64.abi",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "a6f89b1d854a51cbeb94dbdb70e741fbe58b04321471128d26abcffe9ceb116d",
+      "bytes": 256,
+      "physical_lines": 13
+    },
+    {
+      "path": "vendor/coil/src/declarative/a64/a64.isa",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "ea017c474e080457574828000bf5189fb51eebf79a8a7dca64b770182c2ae30b",
+      "bytes": 16066,
+      "physical_lines": 228
+    },
+    {
+      "path": "vendor/coil/src/declarative/a64/a64.lower",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "d3d2df17564329cc4b48c7f63a71eddf1766ea2d75e1601552e7c14969ce7b4b",
+      "bytes": 42178,
+      "physical_lines": 523
+    },
+    {
+      "path": "vendor/coil/src/declarative/a64/a64.unit",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "dd2c06310281acff13e0f87029fcfb6ea7880691fc80df97733c5bc2e114760b",
+      "bytes": 811,
+      "physical_lines": 27
+    },
+    {
+      "path": "vendor/coil/src/declarative/a64/alloc.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "5890699a328deaa343297fbeef4ebdf868ec518a8c3aa22dfeda19ccb3730abe",
+      "bytes": 27,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/a64/atomics.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "05645793b651fae8e474e2cf75f4ff128f9b2ed9bd14ee44c71187d97b0db239",
+      "bytes": 29,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/a64/blocks.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "2e56ac7bdd65a2ba8fd6c152a4993693e13b36b9e3611cd367affb4f31cd0b0f",
+      "bytes": 28,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/a64/cfg.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "a0cc70d978d99b13da5c22797edfcf7fb632ffe25603459db4f8ec248e8a67b0",
+      "bytes": 25,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/a64/copies.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "53d3378982c6cfee53a30ff90a304fb5e1ab5f40301d7344f0d1b6cdd2d8139c",
+      "bytes": 28,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/a64/emit.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "810606d5361ad940e98b68debe44c0d58a85dad21431cc43c75c21039a08a35b",
+      "bytes": 26,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/a64/facts.flow",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "79f802b10975162354528aa927c88ed67aa1d83dbcd728ce54a79556fbc327df",
+      "bytes": 27,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/a64/forward.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "92122c3d93ac3163697eeb9aed791c65b2d0ab76dbf506728ddf6ba8c51d8c13",
+      "bytes": 29,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/a64/frames.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "f51f38207b5d26f4c92f25516e633e156e288c464abdbed3b1618313f4d7ec50",
+      "bytes": 28,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/a64/loops.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "3a63ee6c649cf9ae28e41e64c3c865dc180566eda95dfc923c84c4adf0bc71ae",
+      "bytes": 27,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/a64/mach.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "82c64092396c5c3ea5b7f70f37b0aca30538f3edfd4adefe5f0bd87e6472754b",
+      "bytes": 26,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/a64/macho.layout",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "0a9d0ec96789a29de99cc29aa10b2249c83a94bf8ebe7eb1aa33293a18e9e92d",
+      "bytes": 2930,
+      "physical_lines": 86
+    },
+    {
+      "path": "vendor/coil/src/declarative/a64/narrow.rewrite",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "f7ea293b894e86efd2a753c7c1f1b7b251c34a2e1a54186e0c9d3ed2c1a63019",
+      "bytes": 31,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/a64/plans.pipeline",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "c928a56b046385b2e6c86b34e97bef05ca3aa441fb216245375aa4f9086aee7f",
+      "bytes": 31,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/a64/promote.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "c35ac2f0df6fa457dfab566214da96b208d621b2aa06f71a4cdaeda50d0b748c",
+      "bytes": 29,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/a64/schedule.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "e363ff8a68e174a03704a385016e73f03b8077fb05be3485d344b91be0df409e",
+      "bytes": 30,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/a64/select.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "b4305933a48919cb942a3c1e86ea06a8bc82bcb0c91a4ab257a1909a978dcdbf",
+      "bytes": 28,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/a64/selects.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "bcc7bb0742348aa61b2927f3bb7a1ff5cc1ec92f35575b8198897af2202f7254",
+      "bytes": 29,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/a64/simplify.rewrite",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "f3b4de27371546e17b8b1fe1017636e0b2e385ecdf0303ae17ffcbfd9c38d895",
+      "bytes": 33,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/a64/split.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "d2db26f8bdbc565780d7f02013dbc9908cdd83ca0341932ce49e5438a8afdba2",
+      "bytes": 27,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/a64/switches.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "0651cb3a1400a800513777dcc3f60e201fefc06b7b52de72755a4003654a9267",
+      "bytes": 30,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/a64/tails.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "d043d534ba6f8c7ac776e55b5877b62c9af89212e3a8354023efae5af2a7b08c",
+      "bytes": 27,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/adapter/machine-a64.instance",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "616e32f6e99243c57dacfb6d1efbe32b6f582c979ab09e3303e25f710586c832",
+      "bytes": 188,
+      "physical_lines": 4
+    },
+    {
+      "path": "vendor/coil/src/declarative/adapter/machine-x64.instance",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "0dc7671ac7f50d686f6befc69209ee4968bae0d4af0f351e15b34bcf90dd6942",
+      "bytes": 187,
+      "physical_lines": 4
+    },
+    {
+      "path": "vendor/coil/src/declarative/adapter/machine.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "1c30f41a8f900c4e6f4255da243ba04e8426947084ca0afd68f6250814247425",
+      "bytes": 120192,
+      "physical_lines": 2250
+    },
+    {
+      "path": "vendor/coil/src/declarative/backend/alloc.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "2fbd2ed8f2fa077fbbc1c2376a5a952c40e7c31da8fad38f15383845c3b837be",
+      "bytes": 23532,
+      "physical_lines": 695
+    },
+    {
+      "path": "vendor/coil/src/declarative/backend/atomics.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "71042608c84f3c7c69575f798496406c131b5f6da41973d0777d00eb7caca401",
+      "bytes": 2284,
+      "physical_lines": 60
+    },
+    {
+      "path": "vendor/coil/src/declarative/backend/blocks.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "8531b26e8e8594049daedf0902f0f127bb13dce3080134fa921cbe5c584096cc",
+      "bytes": 9090,
+      "physical_lines": 232
+    },
+    {
+      "path": "vendor/coil/src/declarative/backend/cfg.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "8e3df1a13ac0122959068f60ccf09cc8fb9f0a0d053c5285432aa73ddfcfccef",
+      "bytes": 8040,
+      "physical_lines": 259
+    },
+    {
+      "path": "vendor/coil/src/declarative/backend/copies.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "fbca51e097f7d4b66dd54e73710834d988581b3c82501e9f84fb6cc74a8ac6f1",
+      "bytes": 4792,
+      "physical_lines": 137
+    },
+    {
+      "path": "vendor/coil/src/declarative/backend/emit.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "7d84d11b7aad045d0d54f53546ff389f6164bf96dad9f3491a13e5783c1ec7d3",
+      "bytes": 18834,
+      "physical_lines": 457
+    },
+    {
+      "path": "vendor/coil/src/declarative/backend/facts.flow",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "9d580fab6f92ebe720fdeca0ef284bda7caf68a21c8d16ab314a916041aefce5",
+      "bytes": 921,
+      "physical_lines": 22
+    },
+    {
+      "path": "vendor/coil/src/declarative/backend/forward.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "f8fe1c110f23205f617287ae7914aa4d2b17abf8b8c48ab45481e385a49f74bd",
+      "bytes": 5642,
+      "physical_lines": 179
+    },
+    {
+      "path": "vendor/coil/src/declarative/backend/frames.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "e5c25d4c1f45a657067fef14e5ea8448f28c185e6c92a2730d0283fd52725ce6",
+      "bytes": 5131,
+      "physical_lines": 123
+    },
+    {
+      "path": "vendor/coil/src/declarative/backend/loops.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "410bf339512a5336f349cc0332544f9b6aad11db6d71619ef97faf8b1b790361",
+      "bytes": 26924,
+      "physical_lines": 729
+    },
+    {
+      "path": "vendor/coil/src/declarative/backend/mach.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "13539276f70d807e11564c534689f72e6aa3c8f27d844f40964c73ac844603d5",
+      "bytes": 7206,
+      "physical_lines": 208
+    },
+    {
+      "path": "vendor/coil/src/declarative/backend/narrow.rewrite",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "9519938430557e89d46fad3d73d012f2ee159c392192a604c60f6527b3469acf",
+      "bytes": 1307,
+      "physical_lines": 21
+    },
+    {
+      "path": "vendor/coil/src/declarative/backend/nodes.ir",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "e0af1c5cc9954f70c6595ea1444be3405d1a97f32524c3654d0b71484c785719",
+      "bytes": 11486,
+      "physical_lines": 205
+    },
+    {
+      "path": "vendor/coil/src/declarative/backend/plans.pipeline",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "0c206f2d49834a7cff69a891f90ffe147103a42cd6bc46cd3ed0d4b5bac299e7",
+      "bytes": 817,
+      "physical_lines": 38
+    },
+    {
+      "path": "vendor/coil/src/declarative/backend/promote.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "a842b56fbb4fdb752fc9a4cefd53ce907b6b10317cf7137aa2f1ac5707c434fa",
+      "bytes": 5462,
+      "physical_lines": 167
+    },
+    {
+      "path": "vendor/coil/src/declarative/backend/schedule.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "2fa30fdf55aaf453970aecdb6373aecfe324bc932dbbb54f5cc81b5b7b93d23a",
+      "bytes": 6217,
+      "physical_lines": 191
+    },
+    {
+      "path": "vendor/coil/src/declarative/backend/select.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "d11600ebc41177f00aa67ad903394601198d3903c1da5a43db783aad17e55463",
+      "bytes": 22129,
+      "physical_lines": 580
+    },
+    {
+      "path": "vendor/coil/src/declarative/backend/selects.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "d487498eb002486ca4965afd309950cc62ff1f73056864f1c4513bd865bde2b4",
+      "bytes": 2000,
+      "physical_lines": 61
+    },
+    {
+      "path": "vendor/coil/src/declarative/backend/simplify.rewrite",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "af3d880764bcabb321a3cc1194207d24dfc7f4da77f488d55f687da595de060f",
+      "bytes": 4638,
+      "physical_lines": 87
+    },
+    {
+      "path": "vendor/coil/src/declarative/backend/split.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "4a588dd2801b75cc03b1ef7b71070b5b24955e754e8d32c254d017965d27c67a",
+      "bytes": 3947,
+      "physical_lines": 102
+    },
+    {
+      "path": "vendor/coil/src/declarative/backend/switches.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "ccc9e2ca12315fb397515c39f9a66b34e6537bf1a5f5237625b9347bd2c02745",
+      "bytes": 3462,
+      "physical_lines": 106
+    },
+    {
+      "path": "vendor/coil/src/declarative/backend/tails.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "3de93f14029b3ca17e75152c2f29c0c5869f68632c0bdcddbf38a769d796db34",
+      "bytes": 5261,
+      "physical_lines": 148
+    },
+    {
+      "path": "vendor/coil/src/declarative/cir/cir.ops",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "e960348c650f93837677c2c9e123387dfcd54f886a4795219386f6cb7dfd5704",
+      "bytes": 6448,
+      "physical_lines": 140
+    },
+    {
+      "path": "vendor/coil/src/declarative/cir/numbers.numbers",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "2db0137a28198c7d921fecfae0428d4e111c06ee86fea656bfe1a33abf59eda6",
+      "bytes": 170,
+      "physical_lines": 3
+    },
+    {
+      "path": "vendor/coil/src/declarative/direct/mach.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "ac6de57242f3d245956798de5759eb7c2e5ef19b8e7dc8c75035fee7d66c99fd",
+      "bytes": 10102,
+      "physical_lines": 283
+    },
+    {
+      "path": "vendor/coil/src/declarative/direct/plans.pipeline",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "2204a80e12fa94273e11103030dddb622fbf6a13ba992224383ea6fa9e83ea38",
+      "bytes": 202,
+      "physical_lines": 10
+    },
+    {
+      "path": "vendor/coil/src/declarative/direct/regs.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "92f244a8abb06f1073d6c053166c99b4208b63f6dea1b9cbee686a474a28dd7a",
+      "bytes": 13810,
+      "physical_lines": 365
+    },
+    {
+      "path": "vendor/coil/src/declarative/direct/walk.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "9eeb50910014f8a7576ea4d2826a1e8f04da3552dc56110840fbe6430d7dfc5a",
+      "bytes": 64692,
+      "physical_lines": 1872
+    },
+    {
+      "path": "vendor/coil/src/declarative/generate.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "fe09f27ca3b73d8729118bb9526565f548ae23171d6bcebb8b2a7b84a6208566",
+      "bytes": 3448,
+      "physical_lines": 81
+    },
+    {
+      "path": "vendor/coil/src/declarative/lang/abi.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "d645e8c27903fad30c0b07b2f809e22b9d05ae459ffbe15daf443ccfc3470b6c",
+      "bytes": 7610,
+      "physical_lines": 134
+    },
+    {
+      "path": "vendor/coil/src/declarative/lang/compact.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "f5088cd3174b55ba51fcbd21d597f365760f5c0723828f1630c3ecca29c6d7b1",
+      "bytes": 2824,
+      "physical_lines": 55
+    },
+    {
+      "path": "vendor/coil/src/declarative/lang/dominance.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "a3bfd4272189ddaa0dc2023a33663493654c8995dfd9898ea745aced3bf4c710",
+      "bytes": 3535,
+      "physical_lines": 69
+    },
+    {
+      "path": "vendor/coil/src/declarative/lang/epoch_map.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "a8f12c8e1c9bb2f99a57fa4f57d65fd327611d96cd62abf15c69a5947222efd9",
+      "bytes": 3228,
+      "physical_lines": 63
+    },
+    {
+      "path": "vendor/coil/src/declarative/lang/flow.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "82c47686790bc2c8b48da2b840e25693a3a5b26c7d4db6a65386e673879d6f6d",
+      "bytes": 23336,
+      "physical_lines": 378
+    },
+    {
+      "path": "vendor/coil/src/declarative/lang/follow.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "29d3011c581f5c3c8d50df2272e93bb357599108f46c3497b21041dd9c3483d7",
+      "bytes": 1886,
+      "physical_lines": 34
+    },
+    {
+      "path": "vendor/coil/src/declarative/lang/gather.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "55422412a0b8598397bde4c9a24fce8537adb6e462f1addc73b353675055f89e",
+      "bytes": 2721,
+      "physical_lines": 45
+    },
+    {
+      "path": "vendor/coil/src/declarative/lang/instance.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "683b5987d3b1efd422f56cabdc3ea6d7241392945fe7d4d72793553399e2935b",
+      "bytes": 3777,
+      "physical_lines": 76
+    },
+    {
+      "path": "vendor/coil/src/declarative/lang/intern.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "1fa01d7acf6808f9052ad2534fdba1045e8bbcbe7f72e4a1487445e1c9e7d5b4",
+      "bytes": 1559,
+      "physical_lines": 31
+    },
+    {
+      "path": "vendor/coil/src/declarative/lang/ir.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "e05d9a97120a534c70eb8b0e1f25b8ee08cf3b445a7c542b5c04334f6ddac0bc",
+      "bytes": 60102,
+      "physical_lines": 978
+    },
+    {
+      "path": "vendor/coil/src/declarative/lang/isa.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "497aefbfeca4e1e3276dd8d34eb132e931674a41692d571cfb7ee501f6cffaaf",
+      "bytes": 53181,
+      "physical_lines": 970
+    },
+    {
+      "path": "vendor/coil/src/declarative/lang/layout.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "385fe7213c05b14ededf8f689de0964514f81acc64d6e4c1d4926640595be441",
+      "bytes": 16788,
+      "physical_lines": 304
+    },
+    {
+      "path": "vendor/coil/src/declarative/lang/library.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "705d21d7b10e32fe3a822b3c00c4b1d67f5f16fb9f4a465f5ecf59008f155847",
+      "bytes": 74786,
+      "physical_lines": 1294
+    },
+    {
+      "path": "vendor/coil/src/declarative/lang/lower.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "a510000d9d45175920330d8e32d09568ded665c8c26bb00a4778dd0ddfc29db5",
+      "bytes": 34090,
+      "physical_lines": 606
+    },
+    {
+      "path": "vendor/coil/src/declarative/lang/mutex.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "d7d3eb8e291dc440f2d56b34146e91f5af9374e69f5c0394ad4100794ece329b",
+      "bytes": 1753,
+      "physical_lines": 33
+    },
+    {
+      "path": "vendor/coil/src/declarative/lang/ops.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "d1b48e3c18a4d77df680e04ac43ba2cf5905b2ec3481fa71029e264d0259f44c",
+      "bytes": 33563,
+      "physical_lines": 549
+    },
+    {
+      "path": "vendor/coil/src/declarative/lang/pass.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "33c5417f34ae4253595a8173718b9927fe5065610386798090d2552099e42578",
+      "bytes": 80339,
+      "physical_lines": 1500
+    },
+    {
+      "path": "vendor/coil/src/declarative/lang/pipeline.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "73620106007a40376114c37f0b57792b1e2248c350652ccfb657cf8c3af9f0e3",
+      "bytes": 6436,
+      "physical_lines": 119
+    },
+    {
+      "path": "vendor/coil/src/declarative/lang/plan.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "1659bc5dac462ac20edea0006f0ba55da69e73ff55aa670b59f12527b0af5d7c",
+      "bytes": 2178,
+      "physical_lines": 36
+    },
+    {
+      "path": "vendor/coil/src/declarative/lang/project.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "341d2394302f7d4fddc774cc8a7e239c6f62398ab0ebb0320cae6e427a29fb81",
+      "bytes": 5168,
+      "physical_lines": 115
+    },
+    {
+      "path": "vendor/coil/src/declarative/lang/prune.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "204f3cc02e557099707a8cb772f0767fab31bc9eba448ffa710108faa859c95c",
+      "bytes": 2148,
+      "physical_lines": 40
+    },
+    {
+      "path": "vendor/coil/src/declarative/lang/readers.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "51a3a6b820db966d16ac51e48bd3db40ef4131aaddbc27381e644268206ca4a9",
+      "bytes": 5863,
+      "physical_lines": 114
+    },
+    {
+      "path": "vendor/coil/src/declarative/lang/region.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "7b5570464d00f6309fb44c11da28f8b67d8d4c19b62176246828df7268edae06",
+      "bytes": 3458,
+      "physical_lines": 54
+    },
+    {
+      "path": "vendor/coil/src/declarative/lang/relation.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "75b2940874fe9e1b4b017917bd91838f00500f4da04fb906d056144ca6ac13a6",
+      "bytes": 6496,
+      "physical_lines": 104
+    },
+    {
+      "path": "vendor/coil/src/declarative/lang/rewrite.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "fcb5cd642e6bc48cdb7df90aecd8225c80d66c61b8b09eaf577572be33e36bfd",
+      "bytes": 64241,
+      "physical_lines": 927
+    },
+    {
+      "path": "vendor/coil/src/declarative/lang/schedule.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "365bc5079ce332e48085f7e4348da06f4081e149f0c7c88b3b5131266be75f57",
+      "bytes": 6903,
+      "physical_lines": 109
+    },
+    {
+      "path": "vendor/coil/src/declarative/lang/sealed_ssa.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "126f1e75b449a868ff8a85b63fadca934bb9b8b21488c8e880799ccd2674a56e",
+      "bytes": 2486,
+      "physical_lines": 56
+    },
+    {
+      "path": "vendor/coil/src/declarative/lang/select.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "abbdf93f6e188514426f6960a621d0f8d109967bb66197f883e16f15ec5499a6",
+      "bytes": 32492,
+      "physical_lines": 552
+    },
+    {
+      "path": "vendor/coil/src/declarative/lang/stable_index.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "8542efe7c6e263148d6da8f1ff3b875d9631b0ed00324b9cee190e1c16a194f4",
+      "bytes": 2464,
+      "physical_lines": 44
+    },
+    {
+      "path": "vendor/coil/src/declarative/lang/storage.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "1a98bfa2c0a1084761cf18f1ed4f384f65b8ce7949fcc3cdf75c3c2131e758f9",
+      "bytes": 10739,
+      "physical_lines": 224
+    },
+    {
+      "path": "vendor/coil/src/declarative/lang/template.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "78b1ed5582ff0f71539f85e986bfd09daacd0c564597516d093a45ebd5c85656",
+      "bytes": 1479,
+      "physical_lines": 28
+    },
+    {
+      "path": "vendor/coil/src/declarative/lang/text.coil",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "ed5dc4598880811af80351b8d97e9ab5b929bb70a63d08ecc10b87842f5d3d13",
+      "bytes": 12856,
+      "physical_lines": 320
+    },
+    {
+      "path": "vendor/coil/src/declarative/native/README.md",
+      "category": "retained-metadata",
+      "sha256": "bb93ae895d0ba9abd6bed72886fa59c003a53f05306e9d3d4a90bca2f5a02a1f",
+      "bytes": 8806,
+      "physical_lines": 136
+    },
+    {
+      "path": "vendor/coil/src/declarative/native/asm.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "ef99e9ce7f8714d73551b777a5e4fc8337129a9830f67d5c41a0af9774a0133b",
+      "bytes": 4907,
+      "physical_lines": 188
+    },
+    {
+      "path": "vendor/coil/src/declarative/native/buf.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "2c932a10a542b6e67179e2bca9b23065a2a406196e1428b420e0a199aeaf85b9",
+      "bytes": 463,
+      "physical_lines": 15
+    },
+    {
+      "path": "vendor/coil/src/declarative/native/cir-copies.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "468f685a4eb4bda1f73130064b5751fcc159ee0553f0c0e9a5b674c7bea5e9f7",
+      "bytes": 50755,
+      "physical_lines": 1168
+    },
+    {
+      "path": "vendor/coil/src/declarative/native/cir.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "4687506b7cb0f0bfb1b8f18e3a9e71c0802b5f6546ab34ee12d02c6671ca516c",
+      "bytes": 35037,
+      "physical_lines": 966
+    },
+    {
+      "path": "vendor/coil/src/declarative/tests/bench.coil",
+      "category": "retained-tests",
+      "sha256": "f08bb41b976a20cb31db9d72f98a19e19f4d5f949c2f42f2a8a75e9dac951420",
+      "bytes": 3282,
+      "physical_lines": 66
+    },
+    {
+      "path": "vendor/coil/src/declarative/tests/cir-fuzz.coil",
+      "category": "retained-tests",
+      "sha256": "cd82bc878bdfb4427cc631a56e960d0e209bc98e4e408ef197e5b74aea0f40b9",
+      "bytes": 20436,
+      "physical_lines": 397
+    },
+    {
+      "path": "vendor/coil/src/declarative/tests/cir-interp.coil",
+      "category": "retained-tests",
+      "sha256": "e413dac040b41bbae9039126388813c59323e111eb8ff81ba39072ca84c6c781",
+      "bytes": 2740,
+      "physical_lines": 68
+    },
+    {
+      "path": "vendor/coil/src/declarative/tests/direct.coil",
+      "category": "retained-tests",
+      "sha256": "d6ae915b1fe02c535b62505f97f41fe747849af09f299d042d2c1fa195b85512",
+      "bytes": 15847,
+      "physical_lines": 316
+    },
+    {
+      "path": "vendor/coil/src/declarative/tests/fuzz.coil",
+      "category": "retained-tests",
+      "sha256": "834a9fa439dcc0faf9d23e959ba17cdb775643df8faf17109401f9314633ff9e",
+      "bytes": 11384,
+      "physical_lines": 202
+    },
+    {
+      "path": "vendor/coil/src/declarative/tests/gen.coil",
+      "category": "retained-tests",
+      "sha256": "d90481076dc894423c411d37157557ce1f074eefb6ee385c490ec5c0845e1bbd",
+      "bytes": 53169,
+      "physical_lines": 974
+    },
+    {
+      "path": "vendor/coil/src/declarative/tests/link-main.c",
+      "category": "retained-tests",
+      "sha256": "4070a8a326932b8794d82a5a2dbed1591bc673e58ffe9e6c638cb6817bcc3e44",
+      "bytes": 747,
+      "physical_lines": 24
+    },
+    {
+      "path": "vendor/coil/src/declarative/tests/link.coil",
+      "category": "retained-tests",
+      "sha256": "50cbfdedd21544a48f5958461340adceb18023ea887095529db66635a6901b68",
+      "bytes": 7814,
+      "physical_lines": 135
+    },
+    {
+      "path": "vendor/coil/src/declarative/tests/passing.coil",
+      "category": "retained-tests",
+      "sha256": "f64551fd11cabad9ffe07e0063c636337218a17742389bb8526953d2f36f15ba",
+      "bytes": 20482,
+      "physical_lines": 348
+    },
+    {
+      "path": "vendor/coil/src/declarative/tests/results.coil",
+      "category": "retained-tests",
+      "sha256": "65827904f86b2b520b1427cb17257b0e20171c765c99b635be4daf6cf3fb5f90",
+      "bytes": 5326,
+      "physical_lines": 112
+    },
+    {
+      "path": "vendor/coil/src/declarative/tests/rules.coil",
+      "category": "retained-tests",
+      "sha256": "cbdd2121a4c397f4a1b0f1947212ca244acf267c0d52f3c632f695ef42718089",
+      "bytes": 1099,
+      "physical_lines": 17
+    },
+    {
+      "path": "vendor/coil/src/declarative/tests/toy.coil",
+      "category": "retained-tests",
+      "sha256": "a121376e6cde2429aebccc8d66008ad8a514248ae2f02d0e044f3ad5d5a4f663",
+      "bytes": 9869,
+      "physical_lines": 156
+    },
+    {
+      "path": "vendor/coil/src/declarative/tests/variadic.coil",
+      "category": "retained-tests",
+      "sha256": "1b994d685e47af808d549c129c25ce5e239e26fbfd1cf8c70334d3ac603ed98d",
+      "bytes": 2748,
+      "physical_lines": 54
+    },
+    {
+      "path": "vendor/coil/src/declarative/toy/calc.ir",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "e50ab53fce072045a04a88cd293933441f51fe69ec86f27f12958dd69776f4e9",
+      "bytes": 1110,
+      "physical_lines": 23
+    },
+    {
+      "path": "vendor/coil/src/declarative/toy/calc.unit",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "66f95b84a32adad4715819794b8a72db5965737c3e1ba97b0fae36c3e2583ccc",
+      "bytes": 164,
+      "physical_lines": 7
+    },
+    {
+      "path": "vendor/coil/src/declarative/toy/chunks.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "394b933550fc527c334893c3653666678bb4ccf5b113c3f2aabfe7f4aade6433",
+      "bytes": 979,
+      "physical_lines": 26
+    },
+    {
+      "path": "vendor/coil/src/declarative/toy/known.flow",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "0a5fd0c2d331c1edf6627dd80b95d6f63b055cc92440c9be7f5075f3de8d5619",
+      "bytes": 278,
+      "physical_lines": 9
+    },
+    {
+      "path": "vendor/coil/src/declarative/toy/measure.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "fac018a5256158ac995fffcb3888c68d424053b31de85c25cb085a3fe6681349",
+      "bytes": 444,
+      "physical_lines": 18
+    },
+    {
+      "path": "vendor/coil/src/declarative/toy/sharpen.rewrite",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "81782676767786ce79ae114022b5866813c5cdf4179ab71ae1e52174c8fccc15",
+      "bytes": 199,
+      "physical_lines": 7
+    },
+    {
+      "path": "vendor/coil/src/declarative/toy/steps.pipeline",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "1a3272feb1eb6bef81ac58bb433f240bf0ee0e314b479eafed6aed5d78c2e4e4",
+      "bytes": 190,
+      "physical_lines": 8
+    },
+    {
+      "path": "vendor/coil/src/declarative/toy/storage.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "2167cc70908eb0753d1ef1e2a16681e1ac895c56e4183977c152af950722e53f",
+      "bytes": 38096,
+      "physical_lines": 844
+    },
+    {
+      "path": "vendor/coil/src/declarative/toy/tidy.rewrite",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "cdb42c51ad5e9babf89177cbb1ae9580e14c2198b75f05321e93369df26d9247",
+      "bytes": 848,
+      "physical_lines": 18
+    },
+    {
+      "path": "vendor/coil/src/declarative/x64-direct/direct.unit",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "0bb650195545313efdd5d24eab6d57f08f94cc6be164f98f58b6006416b3d374",
+      "bytes": 409,
+      "physical_lines": 12
+    },
+    {
+      "path": "vendor/coil/src/declarative/x64-direct/frames.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "f51f38207b5d26f4c92f25516e633e156e288c464abdbed3b1618313f4d7ec50",
+      "bytes": 28,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/x64-direct/mach.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "1e15dae583f3e704b258255bff08f07393cb49532011c3f65d8dcd0558aa3c72",
+      "bytes": 25,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/x64-direct/plans.pipeline",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "cd5a77801d15997c78338cb812309015e97c3f96d3e1b9c1260ab94e094a7973",
+      "bytes": 30,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/x64-direct/regs.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "3f23b24a62860fee73caf085fba56b8f0a0f9d8896ee1381355f9b3f574fe725",
+      "bytes": 25,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/x64-direct/walk.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "ef1bec9cb8968c7cd0e8d052eda74adfa903e0cf28d85eaa51c73dc8df3a4103",
+      "bytes": 25,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/x64-direct/x64.lower",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "ff7e74b43361cdf9209232b26895ae524631280e4f5821fccaa7148ca9d89338",
+      "bytes": 22,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/x64-direct/x64.select",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "1f55cfd8d506244cc022c45a32cd72ad475e75276f5ad63d35cc723e76ee1258",
+      "bytes": 29535,
+      "physical_lines": 268
+    },
+    {
+      "path": "vendor/coil/src/declarative/x64/alloc.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "5890699a328deaa343297fbeef4ebdf868ec518a8c3aa22dfeda19ccb3730abe",
+      "bytes": 27,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/x64/atomics.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "05645793b651fae8e474e2cf75f4ff128f9b2ed9bd14ee44c71187d97b0db239",
+      "bytes": 29,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/x64/blocks.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "2e56ac7bdd65a2ba8fd6c152a4993693e13b36b9e3611cd367affb4f31cd0b0f",
+      "bytes": 28,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/x64/cfg.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "a0cc70d978d99b13da5c22797edfcf7fb632ffe25603459db4f8ec248e8a67b0",
+      "bytes": 25,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/x64/copies.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "53d3378982c6cfee53a30ff90a304fb5e1ab5f40301d7344f0d1b6cdd2d8139c",
+      "bytes": 28,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/x64/elf.layout",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "96898582b953848e82ef1d15d0ecbf83c6ba1c7f192ae4dada5c9452791dc7d9",
+      "bytes": 3026,
+      "physical_lines": 88
+    },
+    {
+      "path": "vendor/coil/src/declarative/x64/emit.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "810606d5361ad940e98b68debe44c0d58a85dad21431cc43c75c21039a08a35b",
+      "bytes": 26,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/x64/facts.flow",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "79f802b10975162354528aa927c88ed67aa1d83dbcd728ce54a79556fbc327df",
+      "bytes": 27,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/x64/forward.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "92122c3d93ac3163697eeb9aed791c65b2d0ab76dbf506728ddf6ba8c51d8c13",
+      "bytes": 29,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/x64/frames.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "f51f38207b5d26f4c92f25516e633e156e288c464abdbed3b1618313f4d7ec50",
+      "bytes": 28,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/x64/loops.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "3a63ee6c649cf9ae28e41e64c3c865dc180566eda95dfc923c84c4adf0bc71ae",
+      "bytes": 27,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/x64/mach.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "82c64092396c5c3ea5b7f70f37b0aca30538f3edfd4adefe5f0bd87e6472754b",
+      "bytes": 26,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/x64/narrow.rewrite",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "f7ea293b894e86efd2a753c7c1f1b7b251c34a2e1a54186e0c9d3ed2c1a63019",
+      "bytes": 31,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/x64/plans.pipeline",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "c928a56b046385b2e6c86b34e97bef05ca3aa441fb216245375aa4f9086aee7f",
+      "bytes": 31,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/x64/promote.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "c35ac2f0df6fa457dfab566214da96b208d621b2aa06f71a4cdaeda50d0b748c",
+      "bytes": 29,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/x64/schedule.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "e363ff8a68e174a03704a385016e73f03b8077fb05be3485d344b91be0df409e",
+      "bytes": 30,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/x64/select.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "b4305933a48919cb942a3c1e86ea06a8bc82bcb0c91a4ab257a1909a978dcdbf",
+      "bytes": 28,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/x64/selects.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "bcc7bb0742348aa61b2927f3bb7a1ff5cc1ec92f35575b8198897af2202f7254",
+      "bytes": 29,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/x64/simplify.rewrite",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "f3b4de27371546e17b8b1fe1017636e0b2e385ecdf0303ae17ffcbfd9c38d895",
+      "bytes": 33,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/x64/split.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "d2db26f8bdbc565780d7f02013dbc9908cdd83ca0341932ce49e5438a8afdba2",
+      "bytes": 27,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/x64/switches.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "0651cb3a1400a800513777dcc3f60e201fefc06b7b52de72755a4003654a9267",
+      "bytes": 30,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/x64/tails.pass",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "d043d534ba6f8c7ac776e55b5877b62c9af89212e3a8354023efae5af2a7b08c",
+      "bytes": 27,
+      "physical_lines": 1
+    },
+    {
+      "path": "vendor/coil/src/declarative/x64/x64.abi",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "900743738e8e01f5995699ad9566ad12c5717af210ae7e7b284861409ff90115",
+      "bytes": 229,
+      "physical_lines": 11
+    },
+    {
+      "path": "vendor/coil/src/declarative/x64/x64.isa",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "f4243a2d90b47e6f1fa5c82a70b21232a7777e57eea40980ee468c672558c2bd",
+      "bytes": 17647,
+      "physical_lines": 231
+    },
+    {
+      "path": "vendor/coil/src/declarative/x64/x64.lower",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "6f22fa9879757ae112979af0e81f1a76c9bf20567ab64d86b2476879257ff46d",
+      "bytes": 39171,
+      "physical_lines": 479
+    },
+    {
+      "path": "vendor/coil/src/declarative/x64/x64.unit",
+      "category": "retained-authored-machinery-and-specifications",
+      "sha256": "8868c576cf00f41e804291a3d6cee336356883e5331961fc2add1ca2466a33ee",
+      "bytes": 810,
+      "physical_lines": 27
+    }
+  ]
+}
