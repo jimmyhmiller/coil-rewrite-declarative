@@ -124,14 +124,14 @@
       "output": "entry not found: absent"
     }
   ],
-  "binary_sha256": "3e9af9bac34f8974de60ca54617cec515844dfd0d6748c4e68dc85342921000c",
+  "binary_sha256": "8ea4ed39a90c2e7350ed198ee15e944811e263b2b458c23235797b94e8ef40d6",
   "inputs": {
-    "compiler/frontend/core.schema": "1cffae37a31b494088014b792431f90a720823b6fe52dac40f5caa7119905b16",
-    "seed/program.coil": "62c626d29aece635e0a1ca24f0937062a2cbea8bb39d8f745dac85918d13113c",
+    "compiler/frontend/core.schema": "ab33452bcd820b5cf5cc3c047f14f95fc4eabc4c3911c403e5b7da027a2fc480",
+    "seed/program.coil": "20b4d1e9087c8ce46efe261b03d94064a6795231236d6019bebc59a443a1e597",
     "seed/lower.coil": "ee2e2d1f9b7707ac1c14439e0cde5dc8351fb3fa34a7bace5c8ca26bff3bb16a",
     "tests/compiler/integer-functions.coil": "75caa44194277a9b9f39fb6fe49ffde0088cf0c7c37961fa3e0bd926b4666d34",
     "seed/command.coil": "c733b167c8c188ef819e378b97ef9b60608e59696686022e031459ee66b6031c",
-    "seed/generated/core_compiler.coil": "a74badec02159dff80bdb503a8c5e929723f0a8b09899c04a37325488aeeb065",
+    "seed/generated/core_compiler.coil": "8ae8d938fd8d9984084b63530fec4cf176ad475b5f099a744a3fcff3fe16d624",
     "tools/check-compiler.py": "c5cd232b98ef4f10b03fe0a7f4968673ef672de378dbdfb5e29a3a05a3ae07a4"
   }
 }

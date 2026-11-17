@@ -40,7 +40,9 @@
   (Choose (if condition yes no))
   (Variable (name)) (Let (let value body)) (Call (call callee argument)) (AddressOf (identity function)))
 
-(node Function (name Text :key) (parameter Text) (body Expr))
+(node Parameter (name Text))
+(syntax Parameter (Parameter (list (symbol name) "i64")))
+(node Function (name Text :key) (parameter Parameter) (body Expr))
 (syntax Expr
   (Integer (int value))
   (Boolean (bool value))
@@ -60,7 +62,7 @@
   (AddressOf (list "fnptr-of" (ref function)))
   (Call (list (ref callee) (ref argument))))
 (syntax Function
-  (Function (list "defn" (symbol name) (vector (list (symbol parameter) "i64")) (list "->" "i64") (ref body))))
+  (Function (list "defn" (symbol name) (vector (ref parameter)) (list "->" "i64") (ref body))))
 
-(program Expr Function name parameter body Int Int)
+(program Expr Function name (parameter name) body Int Int)
 (source-program Function (command))
