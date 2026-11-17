@@ -22,3 +22,7 @@
 (ShiftLeft "<<" binary integer same (ir/shl! (mut g) type left right))
 (ShiftRight ">>" binary integer same
   (if (ir/type-signed? type) (ir/sar! (mut g) type left right) (ir/shr! (mut g) type left right)))
+(Divide "/" fold integer same
+  (if (ir/type-signed? type) (ir/sdiv! (mut g) type left right) (ir/udiv! (mut g) type left right)))
+(Remainder "%" binary integer same
+  (if (ir/type-signed? type) (ir/srem! (mut g) type left right) (ir/urem! (mut g) type left right)))

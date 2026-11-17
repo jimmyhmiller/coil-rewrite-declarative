@@ -206,3 +206,8 @@ run_both 128 '(defn main [] (-> i64) (cast i64 (shift 1 7))) (defn shift [(x u8)
 run_both 7 '(defn main [] (-> i64) (if (= (shift -128 4) (: -8 i8)) 7 0)) (defn shift [(x i8) (n i8)] (-> i8) (>> x n))'
 run_both 15 '(defn main [] (-> i64) (cast i64 (shift 240 4))) (defn shift [(x u8) (n u8)] (-> u8) (>> x n))'
 compare 1 '(defn f [(x u16) (n u8)] (-> u16) (<< x n))'
+run_both 10 '(defn main [] (-> i64) (/ 100 5 2))'
+run_both 13 '(defn main [] (-> i64) (f -17 5)) (defn f [(x i8) (y i8)] (-> i64) (if (and (= (/ x y) (: -3 i8)) (= (% x y) (: -2 i8))) 13 0))'
+run_both 127 '(defn main [] (-> i64) (f 251 2)) (defn f [(x u8) (y u8)] (-> i64) (+ (cast i64 (/ x y)) (* 2 (cast i64 (% x y)))))'
+compare 1 '(defn main [] (-> i64) (% 100 7 3))'
+compare 1 '(defn f [(x i64) (y u64)] (-> i64) (/ x y))'
