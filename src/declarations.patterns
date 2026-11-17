@@ -60,3 +60,14 @@
 (extract constant-declaration ConstantDeclaration Constant NoConstant
   (list (spellings "const" "def") (capture name symbol) (capture initializer _)))
 (recognize static-definition? (list "def" ...))
+(recognize layout-name? (spellings "sizeof" "alignof"))
+(extract layout-query LayoutQuery LayoutOf NoLayoutQuery
+  (list (capture query (matches layout-name?)) (capture type _)))
+(extract address-layout AddressLayout AddressOf NoAddressLayout
+  (list (capture kind (spellings "ptr" "mut" "ref" "slice")) (capture element _)))
+(extract array-layout ArrayLayout ArrayOf NoArrayLayout
+  (list "array" (capture element _) (capture count integer))
+  (list "array" (capture element _) (capture count symbol)))
+(extract function-pointer-layout FunctionPointerLayout FunctionPointer NoFunctionPointer
+  (list "fnptr" (list (spellings "coil.cc.C" "coil.cc.Fast" "coil.cc.Cold" "coil.cc.Tail" "coil.cc.SwiftTail"))
+        (capture parameters (vector ...)) (capture result _)))

@@ -109,6 +109,13 @@ for compiler in coil ./rewrite; do
     cc static-reader.c static.o -o static-reader
     ./static-reader
 done
+run_both 42 '(const n 2) (const bytes (sizeof (array (slice i16) n))) (def total bytes) (defn main [] (-> i64) (+ total (alignof (array (ptr i32) 0)) (sizeof u16)))'
+run_both 8 '(defn main [] (-> i64) (sizeof (fnptr (coil.cc.C) [(slice i32)] never)))'
+compare 1 '(defn f [] (-> i64) (alignof (fnptr (coil.cc.C) [void] void)))'
+compare 1 '(const size (sizeof i64)) (defn f [] (-> u8) size)'
+compare 1 '(defn f [] (-> i64) (alignof (ptr missing)))'
+compare 1 '(const size (sizeof u16)) (defn f [] (-> i64) (sizeof (array u8 size)))'
+compare 1 '(defn f [] (-> i64) (sizeof (array i32 -1)))'
 run_both 72 '(defn main [] (-> i64) (third 9 45 72)) (defn third [(x i64) (y i64) (z i64)] (-> i64) z)'
 run_both 19 '(defn main [] (-> i64) (discard false -7) 19) (defn discard [(x bool) (y i8)] (-> i8) y)'
 

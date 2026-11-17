@@ -1,3 +1,4 @@
+(use "coil.alloc")
 (use "rewrite.modules")
 (use "rewrite.host")
 (use "coil.project")
@@ -11,9 +12,10 @@
 (domain Expectation (Infer) (Discard) (Expect [(type (slice u8))]))
 
 (context LoopScope [(cleanup-depth i64) (unlabelled bool) (id i64) (label (slice u8)) (expected Expectation) (result (Option (slice u8)))])
-(context ConstantValue [(reads-storage bool) (literal (ptr coil.reader.Sexp)) (type (slice u8))])
+(context ConstantValue [(layout-dependent bool) (contextual bool) (reads-storage bool) (literal (ptr coil.reader.Sexp)) (type (slice u8))])
 (context Checked
-  [(statics (coil.hashmap.HashMap i64 (ptr coil.reader.Sexp)))
+  [(allocator (dyn coil.alloc.Allocator))
+   (statics (coil.hashmap.HashMap i64 (ptr coil.reader.Sexp)))
    (constants (coil.hashmap.HashMap i64 ConstantValue))
    (evaluating (coil.hashmap.HashMap i64 bool))
    (callees (coil.hashmap.HashMap i64 (ptr coil.reader.Sexp)))
@@ -67,22 +69,81 @@
                    (float-type? (scalar-type type)) (coil.reader.sexp-sym-is type "bool")))
            type "unsupported type"))
 
+(context Layout [(size i64) (alignment i64)])
+
+(value scalar-bytes [(type (slice u8))] i64
+  (cond (or (= type "bool") (= type "i8") (= type "u8")) 1
+        (or (= type "i16") (= type "u16")) 2
+        (or (= type "i32") (= type "u32") (= type "f32")) 4
+        (or (= type "i64") (= type "u64") (= type "f64")) 8
+        (or (= type "i128") (= type "u128")) 16
+        :else 0))
+
+(derive array-length [(lookup rewrite.modules.Lookup) (checked (mut Checked)) (count (ptr coil.reader.Sexp))] i64
+  (when (int-literal? count) (conclude (coil.reader.sexp-int count)))
+  (obtain value (evaluate-constant lookup (mut checked) count)
+    (require (and (int-literal? (.literal value)) (not (.reads-storage value)) (not (.layout-dependent value)))
+             count "array length must name a layout-independent integer constant")
+    (conclude (coil.reader.sexp-int (.literal value)))))
+
+(derive type-layout [(lookup rewrite.modules.Lookup) (checked (mut Checked)) (type (ptr coil.reader.Sexp))] Layout
+  (when (coil.reader.sexp-sym? type)
+    (with bytes (scalar-bytes (scalar-type type))
+      (require (> bytes 0) type "type has no known layout")
+      (conclude (Layout :size bytes :alignment bytes))))
+  (cases (address-layout type)
+    ((AddressOf [kind element])
+      (prove (type-layout lookup (mut checked) element))
+      (with word (scalar-bytes (rewrite.host.unsigned-word-type))
+        (conclude (Layout :alignment word :size (if (coil.reader.sexp-sym-is kind "slice") (* word 2) word)))))
+    (_))
+  (cases (function-pointer-layout type)
+    ((FunctionPointer [parameters result])
+      (each-child param parameters 0 i (prove (type-layout lookup (mut checked) param)))
+      (when (not (or (coil.reader.sexp-sym-is result "void") (coil.reader.sexp-sym-is result "never")))
+        (prove (type-layout lookup (mut checked) result)))
+      (with word (scalar-bytes (rewrite.host.unsigned-word-type))
+        (conclude (Layout :size word :alignment word))))
+    (_))
+  (cases (array-layout type)
+    ((ArrayOf [element count])
+      (obtain n (array-length lookup (mut checked) count)
+        (require (>= n 0) count "array length cannot be negative")
+        (obtain item (type-layout lookup (mut checked) element)
+          (require (or (= (.size item) 0) (<= n (/ 9223372036854775807 (.size item)))) count "array size overflows")
+          (conclude (Layout :size (* n (.size item)) :alignment (.alignment item))))))
+    (_ (reject type "type has no known layout"))))
+
+(derive layout-value [(lookup rewrite.modules.Lookup) (checked (mut Checked)) (query (ptr coil.reader.Sexp))
+                      (type (ptr coil.reader.Sexp)) (expr (ptr coil.reader.Sexp))] ConstantValue
+  (obtain layout (type-layout lookup (mut checked) type)
+    (with n (if (coil.reader.sexp-sym-is query "sizeof") (.size layout) (.alignment layout))
+      (conclude (ConstantValue :type "i64" :layout-dependent true :contextual false :reads-storage false
+                 :literal (box! (.allocator checked) coil.reader.Sexp (coil.reader.mk-sexp-src (coil.reader.KInt n) expr)))))))
+
 (derive constant-type [(value ConstantValue) (expected Expectation) (site (ptr coil.reader.Sexp))] (slice u8)
   (with actual (.type value)
     (with wanted (match expected (Expect [t] t) (_ actual))
       (when (= wanted actual) (conclude actual))
-      (require (not (.reads-storage value)) site "static value differs from expected type")
+      (require (.contextual value) site "value differs from expected type")
       (when (and (= actual "i64") (int-literal? (.literal value)))
         (require (integer-result? wanted (coil.reader.sexp-int (.literal value))) site "constant does not fit expected type")
         (conclude wanted))
       (when (and (= actual "f64") (float-type? wanted)) (conclude wanted))
       (reject site "constant differs from expected type"))))
 
+(value literal-constant [(expr (ptr coil.reader.Sexp)) (type (slice u8))] ConstantValue
+  (ConstantValue :literal expr :type type :layout-dependent false :contextual true :reads-storage false))
+
 (derive evaluate-constant [(lookup rewrite.modules.Lookup) (checked (mut Checked))
                            (expr (ptr coil.reader.Sexp))] ConstantValue
-  (when (int-literal? expr) (conclude (ConstantValue :reads-storage false :literal expr :type "i64")))
-  (when (float-literal? expr) (conclude (ConstantValue :reads-storage false :literal expr :type "f64")))
-  (when (or (true-literal? expr) (false-literal? expr)) (conclude (ConstantValue :reads-storage false :literal expr :type "bool")))
+  (cases (layout-query expr)
+    ((LayoutOf [query type])
+      (obtain value (layout-value lookup (mut checked) query type expr) (conclude value)))
+    (_))
+  (when (int-literal? expr) (conclude (literal-constant expr "i64")))
+  (when (float-literal? expr) (conclude (literal-constant expr "f64")))
+  (when (or (true-literal? expr) (false-literal? expr)) (conclude (literal-constant expr "bool")))
   (when (identifier? expr)
     (obtain resolution (rewrite.modules.find-declaration lookup expr)
       (cases resolution
@@ -94,7 +155,8 @@
       (prove (check-type type))
       (obtain value (evaluate-constant lookup (mut checked) inner)
         (obtain t (constant-type value (Expect (scalar-type type)) inner)
-          (conclude (ConstantValue :reads-storage (.reads-storage value) :literal (.literal value) :type t)))))
+          (conclude (ConstantValue :layout-dependent (.layout-dependent value) :contextual (.contextual value)
+                                  :reads-storage (.reads-storage value) :literal (.literal value) :type t)))))
     (_))
   (cases (conditional expr)
     ((Branches [condition yes no])
@@ -108,7 +170,10 @@
               (prove (constant-type right (Expect joined) no))
               (with taken (if (int-literal? (.literal test)) (!= (coil.reader.sexp-int (.literal test)) 0)
                               (true-literal? (.literal test)))
-                (conclude (ConstantValue :reads-storage (or (.reads-storage test) (.reads-storage left) (.reads-storage right)) :type joined :literal (if taken (.literal left) (.literal right))))))))))
+                (conclude (ConstantValue :layout-dependent (or (.layout-dependent test) (.layout-dependent left) (.layout-dependent right))
+                                        :contextual (and (.contextual left) (.contextual right))
+                                        :reads-storage (or (.reads-storage test) (.reads-storage left) (.reads-storage right))
+                                        :type joined :literal (if taken (.literal left) (.literal right))))))))))
     (_))
   (reject expr "unsupported constant initializer"))
 
@@ -124,7 +189,7 @@
       (obtain value (evaluate-constant (rewrite.modules.lookup-for unit form) (mut checked) init)
         (when (static-definition? form)
           (require (not (.reads-storage value)) init "static initializer cannot read another static definition")
-          (with stored (ConstantValue :literal (.literal value) :type (.type value) :reads-storage true)
+          (with stored (ConstantValue :layout-dependent (.layout-dependent value) :contextual false :literal (.literal value) :type (.type value) :reads-storage true)
             (record (.constants checked) (.node-id form) stored)
             (conclude stored)))
         (record (.constants checked) (.node-id form) value)
@@ -136,6 +201,12 @@
    (checked (mut Checked))
    (locals (coil.amap.AMap (slice u8) i64)) (expr (ptr coil.reader.Sexp))
    (expected Expectation)] (slice u8)
+  (cases (layout-query expr)
+    ((LayoutOf [query type])
+      (obtain value (layout-value signatures (mut checked) query type expr)
+        (record (.constants checked) (.node-id expr) value)
+        (conclude (.type value))))
+    (_))
   (when (float-literal? expr)
     (with type (match expected (Expect [t] t) (_ "f64"))
       (require (float-type? type) expr "floating literal requires a floating-point type")
@@ -449,7 +520,7 @@
   (each-form form forms
     (cases (ordinary-function form)
       ((Function [_ name parameters result])
-        (require (not (explicit-call-name? name)) name "cannot define a function named for the built-in call form")
+        (require (not (or (explicit-call-name? name) (layout-name? name))) name "cannot define a function named for a built-in form")
         (when (not (coil.reader.sexp-sym-is result "void")) (prove (check-type result)))
         (distinct names allocator
           (each-child parameter parameters 0 position
@@ -470,7 +541,7 @@
 (derive check-functions
   [(allocator (dyn coil.alloc.Allocator))
    (unit (ptr rewrite.modules.SourceUnit))] Checked
-  (with (mut checked) (Checked :statics (coil.hashmap.HashMap::new-scalar [i64 (ptr coil.reader.Sexp)] allocator)
+  (with (mut checked) (Checked :allocator allocator :statics (coil.hashmap.HashMap::new-scalar [i64 (ptr coil.reader.Sexp)] allocator)
                                :constants (coil.hashmap.HashMap::new-scalar [i64 ConstantValue] allocator)
                                :evaluating (coil.hashmap.HashMap::new-scalar [i64 bool] allocator)
                                :callees (coil.hashmap.HashMap::new-scalar [i64 (ptr coil.reader.Sexp)] allocator) :active-cleanups (coil.arraylist.ArrayList::new [(ptr coil.reader.Sexp)] allocator)
