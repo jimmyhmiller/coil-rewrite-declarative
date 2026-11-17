@@ -1,0 +1,32 @@
+;;; First observed locations of array-extent names, including later aliases.
+(module rewrite.extentsites)
+(import "rewrite.source" :use [Origin])
+(import "coil.alloc" :use [Allocator])
+(import "coil.hashmap" :use [HashMap])
+(import "coil.str" :use [keyops])
+(import "coil.result" :use *)
+
+(defstruct Table [(entries (HashMap (slice u8) Origin))])
+
+(defn create [(a (dyn Allocator))] (-> Table)
+  (Table :entries (HashMap::new [(slice u8) Origin] a (keyops))))
+
+(defn release! [(table (mut Table))] (-> void)
+  (free! (mut (.entries table))))
+
+(defn lookup [(table (ptr Table)) (name (slice u8))] (-> (Option Origin))
+  (get (.entries table) name))
+
+;;; The reference rejects only negative lo here; it does not validate the file or
+;;; the end offset. The first accepted spelling wins, even if later sites differ.
+(defn record! [(table (mut Table)) (name (slice u8)) (origin Origin)] (-> bool)
+  (if (or (< (.lo origin) 0) (contains? (.entries table) name))
+      false
+      (do (set! (mut (.entries table)) name origin) true)))
+
+;;; Missing sources do nothing, and an existing alias destination is retained.
+(defn alias! [(table (mut Table)) (name (slice u8)) (qualified (slice u8))]
+  (-> bool)
+  (match (lookup table name)
+    (None [] false)
+    (Some [origin] (record! (mut table) qualified origin))))

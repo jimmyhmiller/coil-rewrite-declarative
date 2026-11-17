@@ -8,9 +8,9 @@
       "physical_lines": 470
     },
     "authored-seed-and-runtime": {
-      "files": 59,
-      "bytes": 659489,
-      "physical_lines": 12004
+      "files": 60,
+      "bytes": 661909,
+      "physical_lines": 12042
     },
     "generated-language-toolchain": {
       "files": 17,
@@ -38,9 +38,9 @@
       "physical_lines": 2869
     },
     "rewrite-build-and-validation-tools": {
-      "files": 47,
-      "bytes": 297053,
-      "physical_lines": 4551
+      "files": 49,
+      "bytes": 308466,
+      "physical_lines": 4708
     },
     "rewrite-tests-and-fixtures": {
       "files": 73,
@@ -178,9 +178,9 @@
     {
       "path": "seed/README.md",
       "category": "authored-seed-and-runtime",
-      "sha256": "d33f1b78d36b5743706e9851352c7d991c599f5334080ed5654caeff52554289",
-      "bytes": 147264,
-      "physical_lines": 814
+      "sha256": "cc696bdf8e517234cca939d5d4eb6eb04eeef2d48c43476067b35b3a0bbbd178",
+      "bytes": 148377,
+      "physical_lines": 820
     },
     {
       "path": "seed/admission.coil",
@@ -265,6 +265,13 @@
       "sha256": "677953a98f75ce17eba81be80da3133d56da5387413e15679ba218c10e462039",
       "bytes": 4509,
       "physical_lines": 110
+    },
+    {
+      "path": "seed/extent_sites.coil",
+      "category": "authored-seed-and-runtime",
+      "sha256": "089ece241bf9f509f3127cc6d10221496c1975ef7113fccb6de9c6d198ff1cb3",
+      "bytes": 1307,
+      "physical_lines": 32
     },
     {
       "path": "seed/function_names.coil",
@@ -1289,6 +1296,13 @@
       "physical_lines": 48
     },
     {
+      "path": "tools/capture-type-sites-reference.py",
+      "category": "rewrite-build-and-validation-tools",
+      "sha256": "2b518b86f7179e4fc6aca55e5e771838c2cbc68fe4fca6813149b9760adc4789",
+      "bytes": 7246,
+      "physical_lines": 98
+    },
+    {
       "path": "tools/capture-use-reference.py",
       "category": "rewrite-build-and-validation-tools",
       "sha256": "93a611919d601788cccf27aa394e2887cc69c5f50ed355783a3b9661f4426c50",
@@ -1350,6 +1364,13 @@
       "sha256": "90fd204f27a5934862649f4d2e343cdb21973a5af18e0f8f0b8337439d79c547",
       "bytes": 5372,
       "physical_lines": 105
+    },
+    {
+      "path": "tools/check-extent-sites.py",
+      "category": "rewrite-build-and-validation-tools",
+      "sha256": "7f1b75d68ffaa175f931615ab8d728eb7b6f0161856e7fd8cbd4545dce072afd",
+      "bytes": 4085,
+      "physical_lines": 57
     },
     {
       "path": "tools/check-first-or.py",
@@ -1431,9 +1452,9 @@
     {
       "path": "tools/check-seed.py",
       "category": "rewrite-build-and-validation-tools",
-      "sha256": "1a23d416d6210418114576957c7455edac3e76d23a9ecdd02075d5a7cfb4594a",
-      "bytes": 31305,
-      "physical_lines": 460
+      "sha256": "85f987d5b8f87ad9a9a3c0bd473ee115f5f3a659f580e741f3e1a07f366310fe",
+      "bytes": 31387,
+      "physical_lines": 462
     },
     {
       "path": "tools/check-selection.py",

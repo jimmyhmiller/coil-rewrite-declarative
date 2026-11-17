@@ -1,0 +1,19 @@
+{
+  "scope": "Owned explicit-lifetime extent-site table against exact record/alias/lookup helpers. Does not establish parser publication timing, exact identifier capture or full SourceFacts behavior.",
+  "scenarios": 6,
+  "actions": 27,
+  "observations": 71,
+  "growth_rows": 2000,
+  "configurations": [
+    "default",
+    "debug-checks",
+    "release"
+  ],
+  "reference_sha256": "beb03ddf91ae09672d8813d1232ab8bb5fdb124a843da282b3b8da57198f4221",
+  "driver_sha256": "bafecfcd714fb0ef1a8375b61d4013c4719a445113cbaa1fe40ab90a86a1bd7b",
+  "inputs": {
+    "seed/extent_sites.coil": "089ece241bf9f509f3127cc6d10221496c1975ef7113fccb6de9c6d198ff1cb3",
+    "seed/source.coil": "2dbc0dbd555bbce2eada0905768648245908c8a7cc9c5cdd6eeeccf8d262ab54",
+    "tools/check-extent-sites.py": "7f1b75d68ffaa175f931615ab8d728eb7b6f0161856e7fd8cbd4545dce072afd"
+  }
+}

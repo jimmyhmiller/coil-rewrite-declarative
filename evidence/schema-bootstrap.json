@@ -105,6 +105,7 @@
     "seed/emit.coil": "5a3d9a6e35ffe9975c77eb398b9a6e145db15a91b451bc5df5b6ea123a9df9c2",
     "seed/equality.coil": "6e9545f47e1f6f2e8a8a0dabaafccfd6df2fbe7ea2d404371063717d7d7c7555",
     "seed/equality_runtime.coil": "677953a98f75ce17eba81be80da3133d56da5387413e15679ba218c10e462039",
+    "seed/extent_sites.coil": "089ece241bf9f509f3127cc6d10221496c1975ef7113fccb6de9c6d198ff1cb3",
     "seed/function_names.coil": "0f0ddee6b2ab11af5bbd5759d1ebd56eb7df1fc1852b36521b4f521c2f6ae905",
     "seed/generated/admission_protocol.coil": "dc21e0d721c2dea9e86e384aacdb8c24bc2df70e27209acfae0a36ac1af53a75",
     "seed/generated/before_protocol.coil": "d4c501ee6b518eeea2ffd0f2a4a97a616e9b1975e419a4456ffdf3be9acc84d5",

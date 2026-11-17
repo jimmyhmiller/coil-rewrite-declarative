@@ -1,0 +1,758 @@
+{
+  "scope": "Exact parse-type wrapper with explicit inner-result fixture and source-site call spy; this isolates call order and diagnostic span stamping, not full parsing or SourceFacts publication/filtering. Exact extent-site helpers use their actual map and allocator, with fixture resets between independent scenarios.",
+  "compiler_version": "coil 0.1.0 (commit dcbbfee64333, 2026-11-17)",
+  "compiler_sha256": "a0e3f4c481945e8c29607cf022283ece170299f795c79b9487af75a931a55869",
+  "reference_revision": "dcbbfee643335a2854d7b5aa0bd066f9d1a0112d",
+  "source_sha256": "daa9424368ca143d6497b3afe9e462b192c23d1a360dcbf77ed03fb6e9f75d4a",
+  "helper_sha256": {
+    "ExtentSite": "617b368fa38acfaa6b85421287f206e4661d76bf01df58bb3d5427b10d014df4",
+    "ExtentSites": "440a76a2e8c62b56423a555c86ee056ae10dc4f651ade2198be67df2d60578a2",
+    "extent-sites": "bd60ccbfb3569be622a18da3785e162e98ed3e9e01e042eafbede8e4ba3d5067",
+    "extent-site-record!": "083f454b7b482d9175d56b055912d0b44f96a465549647a7f80c20ba2725a406",
+    "extent-site-alias!": "a68c7ea27cfbccc0b8454611a4c9c6cbde4cc6538280d5e611d863d7a19a1374",
+    "extent-site": "1eb0dc27eeb4ae9b0815128489f6c05bc2b791852617a9c2a767a34ca9595cf4",
+    "parse-type": "89d4e855378a28301f3264a1116e3dcc38869438741130189625f1b53a1473d5",
+    "sx-source": "0f4330e143e43a8bc481b014e708b90c9208d7564545b95f031fd1c1b57d78d5",
+    "sx-ctxt": "84578a8e0e16b0354873b5d5cd4b37c0cd3e7333487494dae52b5a51b37ebe5f",
+    "sx-len": "a0993d09d665266b815a5f7f31ca1d894de1fa0c5f8cd5a0a582b39376297d01",
+    "sx-at": "6aa3e2dd7383547a85e597fade661c0c214869dd3e515dbafc5d7aa5e9941b7c",
+    "dwspan": "a37345e9b4f3829cfa56862eb3a22909c1ea46a5b90f5fcacc525ffcf72f67bd"
+  },
+  "capture_script_sha256": "2b518b86f7179e4fc6aca55e5e771838c2cbc68fe4fca6813149b9760adc4789",
+  "driver_sha256": "e7a9c8b00b33bbc1b73c57a474944a06410aa74e1166f6cdf56d0422da79af59",
+  "configurations": [
+    "default",
+    "debug-checks",
+    "release"
+  ],
+  "wrapper_cases": [
+    {
+      "form": "T",
+      "mode": 0,
+      "observed": [
+        "site|type|11|0|1|11|0|1|T",
+        "ok"
+      ]
+    },
+    {
+      "form": "T",
+      "mode": 1,
+      "observed": [
+        "site|type|11|0|1|11|0|1|T",
+        "ok"
+      ]
+    },
+    {
+      "form": "T",
+      "mode": 2,
+      "observed": [
+        "ok"
+      ]
+    },
+    {
+      "form": "T",
+      "mode": 3,
+      "observed": [
+        "error|11|0|1|77"
+      ]
+    },
+    {
+      "form": "T",
+      "mode": 4,
+      "observed": [
+        "error|11|2|3|9"
+      ]
+    },
+    {
+      "form": "i64",
+      "mode": 0,
+      "observed": [
+        "site|type|11|0|3|11|0|3|i64",
+        "ok"
+      ]
+    },
+    {
+      "form": "i64",
+      "mode": 1,
+      "observed": [
+        "site|type|11|0|3|11|0|3|i64",
+        "ok"
+      ]
+    },
+    {
+      "form": "i64",
+      "mode": 2,
+      "observed": [
+        "ok"
+      ]
+    },
+    {
+      "form": "i64",
+      "mode": 3,
+      "observed": [
+        "error|11|0|3|77"
+      ]
+    },
+    {
+      "form": "i64",
+      "mode": 4,
+      "observed": [
+        "error|11|2|3|9"
+      ]
+    },
+    {
+      "form": "T...",
+      "mode": 0,
+      "observed": [
+        "site|type|11|0|4|11|0|4|T...",
+        "ok"
+      ]
+    },
+    {
+      "form": "T...",
+      "mode": 1,
+      "observed": [
+        "site|type|11|0|4|11|0|4|T...",
+        "ok"
+      ]
+    },
+    {
+      "form": "T...",
+      "mode": 2,
+      "observed": [
+        "ok"
+      ]
+    },
+    {
+      "form": "T...",
+      "mode": 3,
+      "observed": [
+        "error|11|0|4|77"
+      ]
+    },
+    {
+      "form": "T...",
+      "mode": 4,
+      "observed": [
+        "error|11|2|3|9"
+      ]
+    },
+    {
+      "form": "(struct T)",
+      "mode": 0,
+      "observed": [
+        "site|type|11|1|7|11|1|7|struct",
+        "ok"
+      ]
+    },
+    {
+      "form": "(struct T)",
+      "mode": 1,
+      "observed": [
+        "site|type|11|1|7|11|1|7|struct",
+        "ok"
+      ]
+    },
+    {
+      "form": "(struct T)",
+      "mode": 2,
+      "observed": [
+        "ok"
+      ]
+    },
+    {
+      "form": "(struct T)",
+      "mode": 3,
+      "observed": [
+        "error|11|0|10|77"
+      ]
+    },
+    {
+      "form": "(struct T)",
+      "mode": 4,
+      "observed": [
+        "error|11|2|3|9"
+      ]
+    },
+    {
+      "form": "(dyn T)",
+      "mode": 0,
+      "observed": [
+        "site|type|11|1|4|11|1|4|dyn",
+        "site|type|11|5|6|11|5|6|T",
+        "ok"
+      ]
+    },
+    {
+      "form": "(dyn T)",
+      "mode": 1,
+      "observed": [
+        "site|type|11|1|4|11|1|4|dyn",
+        "site|type|11|5|6|11|5|6|T",
+        "ok"
+      ]
+    },
+    {
+      "form": "(dyn T)",
+      "mode": 2,
+      "observed": [
+        "site|type|11|5|6|11|5|6|T",
+        "ok"
+      ]
+    },
+    {
+      "form": "(dyn T)",
+      "mode": 3,
+      "observed": [
+        "error|11|0|7|77"
+      ]
+    },
+    {
+      "form": "(dyn T)",
+      "mode": 4,
+      "observed": [
+        "error|11|2|3|9"
+      ]
+    },
+    {
+      "form": "(dyn 4)",
+      "mode": 0,
+      "observed": [
+        "site|type|11|1|4|11|1|4|dyn",
+        "site|type|11|5|6|11|5|6|",
+        "ok"
+      ]
+    },
+    {
+      "form": "(dyn 4)",
+      "mode": 1,
+      "observed": [
+        "site|type|11|1|4|11|1|4|dyn",
+        "site|type|11|5|6|11|5|6|",
+        "ok"
+      ]
+    },
+    {
+      "form": "(dyn 4)",
+      "mode": 2,
+      "observed": [
+        "site|type|11|5|6|11|5|6|",
+        "ok"
+      ]
+    },
+    {
+      "form": "(dyn 4)",
+      "mode": 3,
+      "observed": [
+        "error|11|0|7|77"
+      ]
+    },
+    {
+      "form": "(dyn 4)",
+      "mode": 4,
+      "observed": [
+        "error|11|2|3|9"
+      ]
+    },
+    {
+      "form": "(dyn)",
+      "mode": 0,
+      "observed": [
+        "site|type|11|1|4|11|1|4|dyn",
+        "ok"
+      ]
+    },
+    {
+      "form": "(dyn)",
+      "mode": 1,
+      "observed": [
+        "site|type|11|1|4|11|1|4|dyn",
+        "ok"
+      ]
+    },
+    {
+      "form": "(dyn)",
+      "mode": 2,
+      "observed": [
+        "ok"
+      ]
+    },
+    {
+      "form": "(dyn)",
+      "mode": 3,
+      "observed": [
+        "error|11|0|5|77"
+      ]
+    },
+    {
+      "form": "(dyn)",
+      "mode": 4,
+      "observed": [
+        "error|11|2|3|9"
+      ]
+    },
+    {
+      "form": "(Box T)",
+      "mode": 0,
+      "observed": [
+        "site|type|11|1|4|11|1|4|Box",
+        "ok"
+      ]
+    },
+    {
+      "form": "(Box T)",
+      "mode": 1,
+      "observed": [
+        "site|type|11|1|4|11|1|4|Box",
+        "ok"
+      ]
+    },
+    {
+      "form": "(Box T)",
+      "mode": 2,
+      "observed": [
+        "ok"
+      ]
+    },
+    {
+      "form": "(Box T)",
+      "mode": 3,
+      "observed": [
+        "error|11|0|7|77"
+      ]
+    },
+    {
+      "form": "(Box T)",
+      "mode": 4,
+      "observed": [
+        "error|11|2|3|9"
+      ]
+    },
+    {
+      "form": "[]",
+      "mode": 0,
+      "observed": [
+        "site|type|11|0|2|11|0|2|",
+        "ok"
+      ]
+    },
+    {
+      "form": "[]",
+      "mode": 1,
+      "observed": [
+        "site|type|11|0|2|11|0|2|",
+        "ok"
+      ]
+    },
+    {
+      "form": "[]",
+      "mode": 2,
+      "observed": [
+        "ok"
+      ]
+    },
+    {
+      "form": "[]",
+      "mode": 3,
+      "observed": [
+        "error|11|0|2|77"
+      ]
+    },
+    {
+      "form": "[]",
+      "mode": 4,
+      "observed": [
+        "error|11|2|3|9"
+      ]
+    },
+    {
+      "form": "()",
+      "mode": 0,
+      "observed": [
+        "site|type|11|0|2|11|0|2|",
+        "ok"
+      ]
+    },
+    {
+      "form": "()",
+      "mode": 1,
+      "observed": [
+        "site|type|11|0|2|11|0|2|",
+        "ok"
+      ]
+    },
+    {
+      "form": "()",
+      "mode": 2,
+      "observed": [
+        "ok"
+      ]
+    },
+    {
+      "form": "()",
+      "mode": 3,
+      "observed": [
+        "error|11|0|2|77"
+      ]
+    },
+    {
+      "form": "()",
+      "mode": 4,
+      "observed": [
+        "error|11|2|3|9"
+      ]
+    }
+  ],
+  "extent_cases": [
+    {
+      "actions": [
+        [
+          "alias",
+          "N",
+          "app.N"
+        ],
+        [
+          "record",
+          "N",
+          1,
+          -1,
+          5
+        ],
+        [
+          "record",
+          "N",
+          2,
+          4,
+          6
+        ],
+        [
+          "record",
+          "N",
+          3,
+          8,
+          9
+        ],
+        [
+          "alias",
+          "N",
+          "app.N"
+        ],
+        [
+          "record",
+          "app.N",
+          9,
+          2,
+          3
+        ]
+      ],
+      "queries": [
+        "N",
+        "app.N"
+      ],
+      "observed": [
+        [
+          "missing|N",
+          "missing|app.N"
+        ],
+        [
+          "missing|N",
+          "missing|app.N"
+        ],
+        [
+          "extent|N|2|4|6",
+          "missing|app.N"
+        ],
+        [
+          "extent|N|2|4|6",
+          "missing|app.N"
+        ],
+        [
+          "extent|N|2|4|6",
+          "extent|app.N|2|4|6"
+        ],
+        [
+          "extent|N|2|4|6",
+          "extent|app.N|2|4|6"
+        ]
+      ]
+    },
+    {
+      "actions": [
+        [
+          "record",
+          "N",
+          1,
+          0,
+          1
+        ],
+        [
+          "record",
+          "M",
+          2,
+          3,
+          4
+        ],
+        [
+          "alias",
+          "N",
+          "M"
+        ],
+        [
+          "alias",
+          "M",
+          "Q"
+        ],
+        [
+          "alias",
+          "Q",
+          "N"
+        ]
+      ],
+      "queries": [
+        "N",
+        "M",
+        "Q"
+      ],
+      "observed": [
+        [
+          "extent|N|1|0|1",
+          "missing|M",
+          "missing|Q"
+        ],
+        [
+          "extent|N|1|0|1",
+          "extent|M|2|3|4",
+          "missing|Q"
+        ],
+        [
+          "extent|N|1|0|1",
+          "extent|M|2|3|4",
+          "missing|Q"
+        ],
+        [
+          "extent|N|1|0|1",
+          "extent|M|2|3|4",
+          "extent|Q|2|3|4"
+        ],
+        [
+          "extent|N|1|0|1",
+          "extent|M|2|3|4",
+          "extent|Q|2|3|4"
+        ]
+      ]
+    },
+    {
+      "actions": [
+        [
+          "record",
+          "N",
+          -1,
+          0,
+          -2
+        ],
+        [
+          "alias",
+          "N",
+          ""
+        ],
+        [
+          "record",
+          "",
+          8,
+          8,
+          9
+        ],
+        [
+          "alias",
+          "",
+          "copy"
+        ]
+      ],
+      "queries": [
+        "N",
+        "",
+        "copy"
+      ],
+      "observed": [
+        [
+          "extent|N|-1|0|-2",
+          "missing|",
+          "missing|copy"
+        ],
+        [
+          "extent|N|-1|0|-2",
+          "extent||-1|0|-2",
+          "missing|copy"
+        ],
+        [
+          "extent|N|-1|0|-2",
+          "extent||-1|0|-2",
+          "missing|copy"
+        ],
+        [
+          "extent|N|-1|0|-2",
+          "extent||-1|0|-2",
+          "extent|copy|-1|0|-2"
+        ]
+      ]
+    },
+    {
+      "actions": [
+        [
+          "record",
+          "",
+          1,
+          0,
+          0
+        ],
+        [
+          "alias",
+          "",
+          ""
+        ],
+        [
+          "alias",
+          "",
+          "N"
+        ],
+        [
+          "alias",
+          "N",
+          "Q"
+        ]
+      ],
+      "queries": [
+        "",
+        "N",
+        "Q"
+      ],
+      "observed": [
+        [
+          "extent||1|0|0",
+          "missing|N",
+          "missing|Q"
+        ],
+        [
+          "extent||1|0|0",
+          "missing|N",
+          "missing|Q"
+        ],
+        [
+          "extent||1|0|0",
+          "extent|N|1|0|0",
+          "missing|Q"
+        ],
+        [
+          "extent||1|0|0",
+          "extent|N|1|0|0",
+          "extent|Q|1|0|0"
+        ]
+      ]
+    },
+    {
+      "actions": [
+        [
+          "record",
+          "a/b",
+          1,
+          2,
+          3
+        ],
+        [
+          "alias",
+          "a/b",
+          "a.b"
+        ],
+        [
+          "record",
+          "a.b",
+          4,
+          5,
+          6
+        ],
+        [
+          "alias",
+          "missing",
+          "a.b"
+        ]
+      ],
+      "queries": [
+        "a/b",
+        "a.b",
+        "missing"
+      ],
+      "observed": [
+        [
+          "extent|a/b|1|2|3",
+          "missing|a.b",
+          "missing|missing"
+        ],
+        [
+          "extent|a/b|1|2|3",
+          "extent|a.b|1|2|3",
+          "missing|missing"
+        ],
+        [
+          "extent|a/b|1|2|3",
+          "extent|a.b|1|2|3",
+          "missing|missing"
+        ],
+        [
+          "extent|a/b|1|2|3",
+          "extent|a.b|1|2|3",
+          "missing|missing"
+        ]
+      ]
+    },
+    {
+      "actions": [
+        [
+          "record",
+          "N",
+          1,
+          -2,
+          0
+        ],
+        [
+          "alias",
+          "N",
+          "M"
+        ],
+        [
+          "record",
+          "N",
+          2,
+          0,
+          0
+        ],
+        [
+          "alias",
+          "N",
+          "M"
+        ]
+      ],
+      "queries": [
+        "N",
+        "M"
+      ],
+      "observed": [
+        [
+          "missing|N",
+          "missing|M"
+        ],
+        [
+          "missing|N",
+          "missing|M"
+        ],
+        [
+          "extent|N|2|0|0",
+          "missing|M"
+        ],
+        [
+          "extent|N|2|0|0",
+          "extent|M|2|0|0"
+        ]
+      ]
+    }
+  ]
+}
