@@ -36,7 +36,7 @@
             (match (forms/surface-3 (mut input) (elem roots 0))
               (Ok [v] v)
               (_ (panic "written type")))
-          (mut state) (forms/transform-state-new a (mut input) target)
+          (mut state) (forms/transform-state-new a (mut input) target 64)
           before (next-node-id)
           result
             (match (forms/transform-3-9 (mut state) root)

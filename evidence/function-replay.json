@@ -19,7 +19,7 @@
     "seed/sequence.coil": "0cedbddbb2d87ff758d26012b6d5bed8953469f6cab544bed8909795f8c459bc",
     "seed/equality_runtime.coil": "677953a98f75ce17eba81be80da3133d56da5387413e15679ba218c10e462039",
     "seed/function_names.coil": "0f0ddee6b2ab11af5bbd5759d1ebd56eb7df1fc1852b36521b4f521c2f6ae905",
-    "seed/generated/code_forms.coil": "098428fecf823ff9f8b930257b81c6674bf167683aaba266814cdcfe9289c1d4",
+    "seed/generated/code_forms.coil": "ee0e0377bb16f3622589057895312c77651d91056655dc9945ad54dc4de19e1d",
     "tools/check-functions.py": "d585ddb194b81ec62ac132923cee855a1facfb50b9bb1a8b58778b406d657263",
     "languages/code.schema": "fa5c550e29d697de8e88d1c4a1c0d3585cf9b2bfd65f3e0f614e71b20f6dff1f"
   }

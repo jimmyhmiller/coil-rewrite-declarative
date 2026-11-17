@@ -40,7 +40,7 @@
     (match (forms/store-source! (mut input) 1 "type-names.coil" text)
       (Ok [_])
       (_ (panic "source registration")))
-    (let [(mut state) (forms/transform-state-new a (mut input) (mut target))
+    (let [(mut state) (forms/transform-state-new a (mut input) (mut target) 64)
           before (next-node-id)]
       (for [i 0 2]
         (match (forms/transform-6-11 (mut state) constant)

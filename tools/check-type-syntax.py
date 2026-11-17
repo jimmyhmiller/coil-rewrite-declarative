@@ -26,7 +26,7 @@ accepted (match (surface-3 (mut store) (elem input 0)) (Ok [_] true) (Err [_] fa
 (defer (close! (mut scratch))) (defer (store-free! (mut store)))
 (println "case|{i}|{{}}" accepted))\n'''
 driver+='''(unless (= (DebugAllocator::deinit! debug) 0) (panic "type syntax leak"))) 0)'''
-inputs=[ROOT/f'seed/{n}.coil' for n in ['types','scope','resolution','source','sequence','equality_runtime','lexical']]+[ROOT/'seed/generated/type_syntax.coil']
+inputs=[ROOT/f'seed/{n}.coil' for n in ['types','scope','resolution','source','sequence','equality_runtime','lexical','text_runtime']]+[ROOT/'seed/generated/type_syntax.coil']
 with tempfile.TemporaryDirectory(prefix='rewrite-type-syntax-') as directory:
     work=Path(directory);(work/'Coil.toml').write_text('[package]\nname="fixture"\nentry="main.coil"\nsource-roots=["."]\n')
     for p in inputs:shutil.copyfile(p,work/p.name)
@@ -40,6 +40,6 @@ with tempfile.TemporaryDirectory(prefix='rewrite-type-syntax-') as directory:
             raise RuntimeError([(cases[i]['type'],a,b) for i,(a,b) in enumerate(zip(actual,expected)) if a!=b]+[('counts',len(actual),len(expected))])
 digest=lambda value:hashlib.sha256(value).hexdigest()
 host=Path(shutil.which('coil')).resolve(strict=True)
-evidence=dict(scope='Written type grammar acceptance only against real parser capture. Canonical types, hygienic lexical identity, source-site publication and exact diagnostic equivalence remain unimplemented.',cases=len(cases),configurations=['default','debug-checks','release'],allocator_leaks=0,host_version=subprocess.check_output([str(host),'--version'],text=True).strip(),host_sha256=digest(host.read_bytes()),reference_sha256=digest(reference.read_bytes()),driver_sha256=digest(driver.encode()),inputs={str(p.relative_to(ROOT)):digest(p.read_bytes()) for p in inputs+[Path(__file__),ROOT/'languages/type_syntax.schema']})
+evidence=dict(scope='Written type grammar acceptance only against real parser capture. Classified graph comparison has separate evidence; this result does not establish source-site effects or exact diagnostic equivalence.',cases=len(cases),configurations=['default','debug-checks','release'],allocator_leaks=0,host_version=subprocess.check_output([str(host),'--version'],text=True).strip(),host_sha256=digest(host.read_bytes()),reference_sha256=digest(reference.read_bytes()),driver_sha256=digest(driver.encode()),inputs={str(p.relative_to(ROOT)):digest(p.read_bytes()) for p in inputs+[Path(__file__),ROOT/'languages/type_syntax.schema']})
 (ROOT/'evidence/type-syntax-replay.json').write_text(json.dumps(evidence,indent=2)+'\n')
 print(f'Written type syntax: {len(cases)} acceptance results match real parser capture in three configurations; no allocator leaks')
