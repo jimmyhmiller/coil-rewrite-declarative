@@ -1,0 +1,113 @@
+;;; Owned syntax values generated from languages/code.schema. Scope/context numbers
+;;; are opaque identities of the originating session, not globally portable IDs.
+(module rewrite.code)
+(import "rewrite.codeforms" :as forms)
+(import "rewrite.source" :as source)
+(import "coil.alloc" :use [Allocator malloc-allocator])
+(import "coil.scratch" :use [ScratchArena])
+(import "coil.arraylist" :use *)
+(import "coil.reader" :use *)
+(import "coil.result" :use *)
+
+(defstruct Syntax [(store forms/Store) (contexts (ArrayList forms/N1Row))])
+
+(defsum SyntaxError
+  (ReadError [(diagnostic Diag)])
+  (DocumentError [(error source/SourceError)]))
+
+(defn create [(a (dyn Allocator))] (-> Syntax)
+  (Syntax :store (forms/store-new a) :contexts (ArrayList::new [forms/N1Row] a)))
+
+(defn release! [(syntax (mut Syntax))] (-> void)
+  (free! (mut (.contexts syntax)))
+  (forms/store-free! (mut (.store syntax))))
+
+;;; The generated shape parser selects values and owns Text. This traversal
+;;; preserves reader metadata against the actual generated child identities.
+(defn contexts! [(syntax (mut Syntax)) (id forms/N0Id) (form (ptr Sexp))]
+  (-> (Result bool source/SourceError))
+  (block :done
+    (match (get (.documents (.source-data (.store syntax))) (.source form))
+      (None [] (break :done (Err (source/SourceMissing (.source form)))))
+      (Some [doc]
+            (unless (and (>= (.lo form) 0)
+                         (>= (.hi form) (.lo form))
+                         (<= (.hi form) (len (.text doc))))
+              (break
+                :done
+                  (Err (source/SourceSpan (.source form) (.lo form) (.hi form)))))))
+    (let [module
+            (forms/store-text! (mut (.store syntax)) (hmod-name (.hmod form)))]
+      (set! (mut (.contexts syntax))
+            (.index id)
+            (forms/N1Row
+              :f0 (.hyg form)
+              :f1 module
+              :f2 (.ctxt form))))
+    (when (or (sexp-list? form) (sexp-vec? form))
+      (let [ids
+              (match (get (.rows0 (.store syntax)) (.index id))
+                (forms/N0V6 [ids] ids)
+                (forms/N0V7 [ids] ids)
+                (_ (panic "generated syntax container")))]
+        (for [i 0 (sexp-count form)]
+          (let [child
+                  (match (forms/sequence-item-0 (field syntax store) ids i)
+                    (Some [id] id)
+                    (None [] (panic "generated syntax child")))]
+            (match (contexts! (mut syntax) child (sexp-nth form i))
+              (Ok [_])
+              (Err [e] (break :done (Err e))))))))
+    (Ok true)))
+
+(defn own-diagnostic! [(syntax (mut Syntax)) (d Diag)] (-> Diag)
+  (Diag
+    :source (.source d)
+    :lo (.lo d)
+    :hi (.hi d)
+    :ctxt (.ctxt d)
+    :msg (forms/store-text! (mut (.store syntax)) (.msg d))))
+
+;;; Register all referenced immutable documents before importing a reader form.
+;;; Failure publishes no root, but may leave unreferenced rows in the owned store.
+(defn import-form! [(syntax (mut Syntax)) (form (ptr Sexp))]
+  (-> (Result forms/N0Id SyntaxError))
+  (let [parsed (forms/surface-0 (mut (.store syntax)) form)]
+    (while (< (len (.contexts syntax)) (len (.rows0 (.store syntax))))
+      (push! (mut (.contexts syntax))
+             (forms/N1Row
+               :f0 0
+               :f1 ""
+               :f2 0)))
+    (match parsed
+      (Err [d] (Err (ReadError (own-diagnostic! (mut syntax) d))))
+      (Ok [id]
+          (match (contexts! (mut syntax) id form)
+            (Err [e] (Err (DocumentError e)))
+            (Ok [_] (Ok id)))))))
+
+;;; Parsing lives in temporary storage; the returned root sequence and all its
+;;; values, metadata and documents belong to syntax, including on repeated reads.
+(defn read! [(syntax (mut Syntax))
+             (source-id i64)
+             (name (slice u8))
+             (text (slice u8))]
+  (-> (Result forms/N0Seq SyntaxError))
+  (block :done
+    (match (forms/store-source! (mut (.store syntax)) source-id name text)
+      (Err [e] (break :done (Err (DocumentError e))))
+      (Ok [_]))
+    (let [(mut scratch) (zeroed ScratchArena)
+          initialized (init (mut scratch) (malloc-allocator))
+          a (allocator (mut scratch))
+          (mut roots) (ArrayList::new [forms/N0Id] a)]
+      (defer (close! (mut scratch)))
+      (match (read-all a text source-id)
+        (Err [d]
+             (break :done (Err (ReadError (own-diagnostic! (mut syntax) d)))))
+        (Ok [forms]
+            (for [i 0 (len (load forms))]
+              (match (import-form! (mut syntax) (elem forms i))
+                (Err [e] (break :done (Err e)))
+                (Ok [id] (push! (mut roots) id))))))
+      (Ok (forms/sequence-0 (mut (.store syntax)) (mut roots))))))

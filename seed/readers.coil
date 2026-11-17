@@ -199,4 +199,6 @@
                        " store)) (origin-of form)) (break :parsed (Ok id)))) ")))
         (push-str! (mut b)
                    "(Err (input-error (sexp-nth form 0) \"unknown constructor\"))))\n")))
+    (push-str! (mut b)
+               "(defn syntax-float-bits [(form (ptr Sexp))] (-> i64) (match (.kind form) (KFloat [bits] bits) (_ (panic \"invalid float capture\"))))\n(defn syntax-cstring? [(form (ptr Sexp))] (-> bool) (match (.kind form) (KCStr [_] true) (_ false)))\n(defn syntax-cstring [(form (ptr Sexp))] (-> (slice u8)) (match (.kind form) (KCStr [text] text) (_ (panic \"invalid cstring capture\"))))\n")
     (str (load b))))

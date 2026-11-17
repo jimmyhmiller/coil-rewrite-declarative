@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate the schema parser, using the checked-in parser to bootstrap the seed."""
+"""Regenerate schema and owned-syntax parsers using the checked-in schema bootstrap."""
 import argparse
 import hashlib
 import json
@@ -11,18 +11,20 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = ROOT / 'languages/schema.schema'
 OUTPUT = ROOT / 'seed/generated/schema_forms.coil'
-HEADER = b';;; Generated from languages/schema.schema by tools/gen-schema.py. Do not edit.\n'
+GRAMMARS = [(SPEC, OUTPUT, 'rewrite.schemaforms'),
+            (ROOT/'languages/code.schema', ROOT/'seed/generated/code_forms.coil', 'rewrite.codeforms')]
 
 
 def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def generate(compiler):
-    result = subprocess.run([str(compiler)], input=SPEC.read_bytes(), capture_output=True, check=True)
-    if not result.stdout.startswith(b'(module rewrite.schemaforms)\n'):
+def generate(compiler, spec, module):
+    result = subprocess.run([str(compiler)], input=spec.read_bytes(), capture_output=True, check=True)
+    if not result.stdout.startswith(f'(module {module})\n'.encode()):
         raise RuntimeError('schema grammar did not emit its declared module')
-    return HEADER + result.stdout
+    header = f';;; Generated from {spec.relative_to(ROOT)} by tools/gen-schema.py. Do not edit.\n'.encode()
+    return header + result.stdout
 
 
 def main():
@@ -36,32 +38,38 @@ def main():
     (ROOT / 'build').mkdir(exist_ok=True)
     compiler = ROOT / 'build/schema-seed'
     subprocess.run(['coil', 'build', 'seed/main.coil', '-o', str(compiler)], cwd=ROOT, check=True)
-    generated = generate(compiler)
-    if args.check:
-        if OUTPUT.read_bytes() != generated:
-            raise RuntimeError('schema parser is stale; run python3 tools/gen-schema.py')
-    else:
-        OUTPUT.write_bytes(generated)
+    generated = {}
+    for spec, output, module in GRAMMARS:
+        generated[output] = generate(compiler, spec, module)
+        if args.check:
+            if not output.is_file() or output.read_bytes() != generated[output]:
+                raise RuntimeError(f'{output.relative_to(ROOT)} is stale; run python3 tools/gen-schema.py')
+        else:
+            output.write_bytes(generated[output])
     if args.bootstrap_check:
         with tempfile.TemporaryDirectory(prefix='rewrite-schema-bootstrap-') as directory:
             stage = Path(directory)
             shutil.copytree(ROOT / 'seed', stage / 'seed')
-            (stage / 'seed/generated/schema_forms.coil').write_bytes(generated)
+            for output, data in generated.items():
+                (stage/output.relative_to(ROOT)).write_bytes(data)
             (stage / 'Coil.toml').write_text(
                 '[package]\nname = "rewrite"\nentry = "seed/main.coil"\nsource-roots = ["seed"]\n')
             second = stage / 'schema-seed'
             subprocess.run(['coil', 'build', 'seed/main.coil', '-o', str(second)], cwd=stage, check=True)
-            regenerated = generate(second)
-            if regenerated != generated:
-                raise RuntimeError('regenerated schema parser did not reach a fixed point')
+            for spec, output, module in GRAMMARS:
+                if generate(second, spec, module) != generated[output]:
+                    raise RuntimeError(f'{output.relative_to(ROOT)} did not reach a fixed point')
         host = Path(shutil.which('coil')).resolve()
         version = subprocess.check_output(['coil', '--version'], text=True).strip()
         evidence = {
-            'scope': 'Schema grammar/parser regeneration only; host Coil builds both stages.',
+            'scope': 'Schema and syntax-value grammar regeneration only; host Coil builds both stages.',
             'host_version': version,
             'host_executable_sha256': digest(host.read_bytes()),
             'specification_sha256': digest(SPEC.read_bytes()),
-            'generated_sha256': digest(generated),
+            'generated_sha256': digest(generated[OUTPUT]),
+            'language_artifacts': {str(spec.relative_to(ROOT)): dict(
+                specification_sha256=digest(spec.read_bytes()), output=str(output.relative_to(ROOT)),
+                generated_sha256=digest(generated[output])) for spec, output, module in GRAMMARS},
             'isolated_rebuild_regeneration_equal': True,
             'seed_inputs': {str(path.relative_to(ROOT)): digest(path.read_bytes())
                             for path in sorted((ROOT / 'seed').rglob('*.coil'))},
@@ -69,7 +77,7 @@ def main():
                            'Installed host stdlib/tool dependencies are not pinned by this check.',
         }
         (ROOT / 'evidence/schema-bootstrap.json').write_text(json.dumps(evidence, indent=2) + '\n')
-    print('Schema parser: current' + ('; isolated regeneration fixed point passed' if args.bootstrap_check else ''))
+    print('Schema and syntax-value parsers: current' + ('; isolated regeneration fixed point passed' if args.bootstrap_check else ''))
 
 
 if __name__ == '__main__':

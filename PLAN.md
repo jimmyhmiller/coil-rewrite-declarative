@@ -120,3 +120,6 @@ The reference expansion protocols are now traced in `contracts/expansion-protoco
 
 
 An explicit host-function boundary is now implemented as a prerequisite for that staged slice. The program DSL declares unary Int-to-Int host signatures; typed C callbacks are linked per image after checked name resolution. Native tests cover direct/indirect calls and simultaneously live images with different bindings. The remaining next step is an owned Code representation and explicit invocation context, followed by cumulative phase declarations and language resumption. Do not treat scalar callbacks as an implementation of the Code or semantic-query APIs.
+
+
+Owned reader syntax is now described by `languages/code.schema`, including exact float bits, C strings and nominal container sequences. Its generated parser plus a counted Coil metadata adapter retain source documents, origins and opaque hygiene/context identities after reader scratch storage is released. Both schema and syntax-value grammars pass isolated regeneration. Next, define native handle ownership and explicit invocation context before exposing Code operations to host-linked phase entries; ordinary reader syntax is not yet the full Code API or the staged protocol.

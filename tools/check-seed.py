@@ -13,6 +13,7 @@ for flags in [[], ['--debug-checks'], ['--release']]:
     subprocess.run(['coil', 'run', 'tests/schema-scale.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/phases.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/types.coil', *flags], cwd=ROOT, check=True)
+    subprocess.run(['coil', 'run', 'tests/code.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/sequences.coil', *flags], cwd=ROOT, check=True)
 source = (ROOT / 'tests/schemas/expressions.schema').read_bytes()
 generated = subprocess.check_output([str(ROOT / 'build/schema-seed')], input=source)
@@ -385,3 +386,9 @@ with tempfile.TemporaryDirectory(prefix='rewrite-alpha-') as directory:
     for flags in [[], ['--debug-checks'], ['--release']]:
         subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)
 print('Identity-directed alpha copying passed')
+
+for invalid in [b'(node X (value Text)) (syntax X (X (float-bits value)))',
+                b'(node X (value Int)) (syntax X (X (cstring value)))']:
+    result = subprocess.run([str(ROOT/'build/schema-seed')], input=invalid, capture_output=True)
+    assert result.returncode != 0 and not result.stdout and b'capture type disagrees' in result.stderr, result
+print('Raw float-bit and C-string syntax capture type checks passed')

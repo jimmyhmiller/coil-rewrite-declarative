@@ -86,3 +86,6 @@ python3 tools/capture-expansion-reference.py --reference ../coil --compiler coil
 ```
 
 Raw outputs are retained under `build/expansion-reference/`; the committed JSON stores excerpts and hashes. Elapsed times are observations of one run, not a benchmark or a rewrite performance comparison. The installed compiler and checked-out reference inputs are identified separately; matching revision labels alone do not prove a hermetic bootstrap.
+
+
+An owned reader-syntax representation now exists in `languages/code.schema` / `rewrite.code`. It preserves raw scalar kinds and floating-point bits, container structure, source origins and opaque hygiene/context metadata independently of the temporary reader arena. It does not yet provide the full Code operations, scoped identity registry, native handle transport or invocation context needed by the staged slice above. Those boundaries must be implemented explicitly before phase entries can exchange syntax values.

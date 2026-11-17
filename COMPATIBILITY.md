@@ -115,3 +115,9 @@ This is a standalone shape-preserving operation, not general map hygiene. Freshn
 Program declarations can name unary Int-to-Int host functions. Their signatures participate in normal global checking, direct calls and explicit function pointers. Names cannot collide with program definitions. Runtime bindings use typed unary C callbacks; the checked loader rejects missing, duplicate, unknown, null and already-defined imports before executable mapping. Tests cover native calls and independent bindings in two simultaneously live images, plus invalid source declarations and callback types, in three configurations.
 
 This adds a runtime call boundary for later compile-time operations, not the staged protocol itself. Code values/ownership, context-carrying callbacks, cumulative stage declarations and guest-language resumption are still unimplemented. Symbol validation does not verify arbitrary machine-code images. General FFI and additional ABIs remain incomplete.
+
+## Owned reader-syntax checkpoint
+
+The schema/syntax languages now generate an owned reader-syntax representation for integer/float-bit/symbol/keyword/string/C-string/list/vector values. A Coil adapter retains per-node origins, hygiene scope numbers, definition-module text and diagnostic-context numbers. Temporary reader storage is released before returning root sequences; diagnostic messages and registered documents remain owned. Tests cover exact negative-zero/NaN bits, container distinctions, metadata teardown, failed reads/imports and growth in three configurations.
+
+The generated syntax-value parser also participates in isolated regeneration checks. This is not full Code compatibility: opaque metadata is preserved without implementing scope semantics; runtime views/joins, native handles, builders, invocation contexts and staged execution remain outstanding. Failure can retain unreferenced rows; identities remain store/session-local.

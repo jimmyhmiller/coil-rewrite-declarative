@@ -1,0 +1,166 @@
+(module rewrite.testcode)
+(import "rewrite.code" :as code)
+(import "rewrite.codeforms" :as forms)
+(import "coil.alloc" :use *)
+(import "coil.scratch" :use [ScratchArena])
+(import "coil.reader" :use *)
+(import "coil.arraylist" :use *)
+(import "coil.result" :use *)
+(import "coil.str" :use [StrBuf])
+(import "coil.primitive" :as primitive)
+
+(defn child [(syntax (ptr code/Syntax)) (items forms/N0Seq) (i i64)]
+  (-> forms/N0Id)
+  (match (forms/sequence-item-0 (field syntax store) items i)
+    (Some [id] id)
+    (None [] (panic "fixture child"))))
+
+(defn main [] (-> i64)
+  (let [a (malloc-allocator)
+        (mut syntax) (code/create a)
+        (mut ok) true
+        roots
+          (match (code/read! (mut syntax)
+                             1
+                             "input.coil"
+                             "(alpha :flag \"hi\" c\"raw\" 42 -0.0 [true 9])")
+            (Ok [ids] ids)
+            (Err [_] (panic "read syntax")))
+        root (child (mut syntax) roots 0)
+        items
+          (match (get (.rows0 (.store syntax)) (.index root))
+            (forms/N0V6 [items] items)
+            (_ (panic "list root")))]
+    (unless (= (match (forms/sequence-size-0 (field (mut syntax) store) items)
+                 (Some [n] n)
+                 (None [] 0))
+               7)
+      (set! ok false))
+    (match (get (.rows0 (.store syntax)) (.index (child (mut syntax) items 0)))
+      (forms/N0V2 [text] (unless (= text "alpha") (set! ok false)))
+      (_ (set! ok false)))
+    (match (get (.rows0 (.store syntax)) (.index (child (mut syntax) items 1)))
+      (forms/N0V3 [text] (unless (= text "flag") (set! ok false)))
+      (_ (set! ok false)))
+    (match (get (.rows0 (.store syntax)) (.index (child (mut syntax) items 2)))
+      (forms/N0V4 [text] (unless (= text "hi") (set! ok false)))
+      (_ (set! ok false)))
+    (match (get (.rows0 (.store syntax)) (.index (child (mut syntax) items 3)))
+      (forms/N0V5 [text] (unless (= text "raw") (set! ok false)))
+      (_ (set! ok false)))
+    (match (get (.rows0 (.store syntax)) (.index (child (mut syntax) items 4)))
+      (forms/N0V0 [value] (unless (= value 42) (set! ok false)))
+      (_ (set! ok false)))
+    (match (get (.rows0 (.store syntax)) (.index (child (mut syntax) items 5)))
+      (forms/N0V1 [bits]
+                  (unless (= bits (- (- 0 9223372036854775807) 1))
+                    (set! ok false)))
+      (_ (set! ok false)))
+    (match (get (.rows0 (.store syntax)) (.index (child (mut syntax) items 6)))
+      (forms/N0V7 [ids]
+                  (match (get (.rows0 (.store syntax))
+                              (.index (child (mut syntax) ids 0)))
+                    (forms/N0V2 [text] (unless (= text "true") (set! ok false)))
+                    (_ (set! ok false))))
+      (_ (set! ok false)))
+    ; Imported metadata must not retain the reader form or its module-name storage.
+    (let [(mut scratch) (zeroed ScratchArena)
+          initialized (init (mut scratch) a)
+          sa (allocator (mut scratch))
+          (mut module-name) (StrBuf::new sa)
+          parsed
+            (match (read-all sa "3" 2)
+              (Ok [forms] forms)
+              (Err [_] (panic "metadata input")))
+          form (elem parsed 0)]
+      (push-str! (mut module-name) "owner.module")
+      (let [(mut module) (HygModule :name (str (load module-name)))]
+        (set! (.hmod form) (primitive/cast (ptr HygModule) (mut module)))
+        (set! (.hyg form) 51)
+        (set! (.ctxt form) 27)
+        (set! (.kind form) (KFloat 9221120237041090626))
+        (match (forms/store-source! (mut (.store syntax)) 2 "metadata.coil" "3")
+          (Ok [_])
+          (Err [_] (set! ok false)))
+        (let [id
+                (match (code/import-form! (mut syntax) form)
+                  (Ok [id] id)
+                  (Err [_] (panic "metadata copy")))]
+          (for [i 0 (len (.name module))] (set! (.name module) i 88))
+          (close! (mut scratch))
+          (let [context (get (.contexts syntax) (.index id))]
+            (unless (and (= (.f0 context) 51)
+                         (= (.f1 context) "owner.module")
+                         (= (.f2 context) 27))
+              (set! ok false)))
+          (match (get (.rows0 (.store syntax)) (.index id))
+            (forms/N0V1 [bits]
+                        (unless (= bits 9221120237041090626) (set! ok false)))
+            (_ (set! ok false))))))
+    (let [empty
+            (match (code/read! (mut syntax) 5 "empty.coil" "() []")
+              (Ok [ids] ids)
+              (Err [_] (panic "empty containers")))]
+      (for [i 0 2]
+        (let [row
+                (get (.rows0 (.store syntax))
+                     (.index (child (mut syntax) empty i)))
+              ids
+                (match row
+                  (forms/N0V6 [ids] (unless (= i 0) (set! ok false)) ids)
+                  (forms/N0V7 [ids] (unless (= i 1) (set! ok false)) ids)
+                  (_ (panic "empty shape")))]
+          (unless (= (match (forms/sequence-size-0 (field (mut syntax) store)
+                                                   ids)
+                       (Some [n] n)
+                       (None [] (- 0 1)))
+                     0)
+            (set! ok false)))))
+    (let [(mut scratch) (zeroed ScratchArena)
+          initialized (init (mut scratch) a)
+          parsed
+            (match (read-all (allocator (mut scratch)) "name" 99)
+              (Ok [forms] forms)
+              (Err [_] (panic "unknown document")))]
+      (match (code/import-form! (mut syntax) (elem parsed 0))
+        (Err [e] (match e (code/DocumentError [_]) (_ (set! ok false))))
+        (Ok [_] (set! ok false)))
+      (close! (mut scratch)))
+    (match (code/read! (mut syntax) 1 "changed.coil" "0")
+      (Err [e] (match e (code/DocumentError [_]) (_ (set! ok false))))
+      (Ok [_] (set! ok false)))
+    (match (code/read! (mut syntax) 3 "bad.coil" "(")
+      (Err [e]
+           (match e
+             (code/ReadError [d]
+                             (unless (and (= (.source d) 3)
+                                          (> (len (.msg d)) 0))
+                               (set! ok false)))
+             (_ (set! ok false))))
+      (Ok [_] (set! ok false)))
+    (let [(mut text) (StrBuf::new a)]
+      (for [i 0 2000] (push-str! (mut text) "symbol "))
+      (match (code/read! (mut syntax) 4 "wide.coil" (str (load text)))
+        (Err [_] (set! ok false))
+        (Ok [ids]
+            (unless (= (match (forms/sequence-size-0 (field (mut syntax) store)
+                                                     ids)
+                         (Some [n] n)
+                         (None [] 0))
+                       2000)
+              (set! ok false))
+            (for [i 0 2000]
+              (match (get (.rows0 (.store syntax))
+                          (.index (child (mut syntax) ids i)))
+                (forms/N0V2 [text] (unless (= text "symbol") (set! ok false)))
+                (_ (set! ok false))))))
+      (free! (mut text)))
+    (unless (= (len (.contexts syntax)) (len (.rows0 (.store syntax))))
+      (set! ok false))
+    (match (get (.rows0 (.store syntax)) (.index (child (mut syntax) items 0)))
+      (forms/N0V2 [text] (unless (= text "alpha") (set! ok false)))
+      (_ (set! ok false)))
+    (code/release! (mut syntax))
+    (println "owned syntax: scalar kinds/bits, containers, metadata, reader lifetime and growth: {}"
+             ok)
+    (if ok 0 1)))

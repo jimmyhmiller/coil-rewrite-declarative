@@ -14,7 +14,12 @@
 
 (defn predicate! [(b (mut StrBuf)) (mode (slice u8)) (path (slice u8))]
   (-> void)
-  (cond (= mode "bool")
+  (cond (= mode "cstring")
+          (do
+            (push-str! (mut b) "(syntax-cstring? ")
+            (push-str! (mut b) path)
+            (push-str! (mut b) ")"))
+        (= mode "bool")
           (do
             (push-str! (mut b) "(or (sexp-sym-is ")
             (push-str! (mut b) path)
@@ -25,7 +30,8 @@
           (do
             (push-str! (mut b) "(sexp-")
             (push-str! (mut b)
-                       (cond (= mode "symbol") "sym"
+                       (cond (= mode "float-bits") "float"
+                             (= mode "symbol") "sym"
                              (= mode "keyword") "kw"
                              (= mode "text") "str"
                              (= mode "vector") "vec"
@@ -113,7 +119,9 @@
           (do
             (unless (and (= (sexp-count pattern) 2)
                          (sexp-sym? (sexp-nth pattern 1))
-                         (or (= mode "int")
+                         (or (= mode "float-bits")
+                             (= mode "cstring")
+                             (= mode "int")
                              (= mode "bool")
                              (= mode "text")
                              (= mode "symbol")
@@ -132,9 +140,11 @@
               (let [ty (.type-name (elem (field v fields) field))
                     many? (.many? (elem (field v fields) field))]
                 (unless (and (= many? (= mode "rest"))
-                             (cond (= mode "int") (= ty "Int")
+                             (cond (or (= mode "int") (= mode "float-bits"))
+                                     (= ty "Int")
                                    (= mode "bool") (= ty "Bool")
-                                   (or (= mode "symbol")
+                                   (or (= mode "cstring")
+                                       (= mode "symbol")
                                        (= mode "keyword")
                                        (= mode "text"))
                                      (= ty "Text")
@@ -168,7 +178,9 @@
                 (sexp-sym? (sexp-nth pattern 0))))
       (Err (problem pattern "syntax root must consume a scalar or container"))
       (let [mode (sexp-sym (sexp-nth pattern 0))]
-        (if (not (or (= mode "int")
+        (if (not (or (= mode "float-bits")
+                     (= mode "cstring")
+                     (= mode "int")
                      (= mode "bool")
                      (= mode "text")
                      (= mode "symbol")
@@ -329,12 +341,16 @@
                           (number! (mut b) target)
                           (push-str! (mut b) " (mut store) (mut children))) ")))
                       (do
-                        (when (or (= mode "text")
+                        (when (or (= mode "cstring")
+                                  (= mode "text")
                                   (= mode "symbol")
                                   (= mode "keyword"))
                           (push-str! (mut b) "(store-text! (mut store) "))
                         (push-str! (mut b)
-                                   (cond (= mode "int") "(sexp-int "
+                                   (cond (= mode "float-bits")
+                                           "(syntax-float-bits "
+                                         (= mode "cstring") "(syntax-cstring "
+                                         (= mode "int") "(sexp-int "
                                          (= mode "text") "(sexp-str "
                                          (= mode "symbol") "(sexp-sym "
                                          (= mode "keyword") "(sexp-kw "
@@ -342,7 +358,8 @@
                         (push-str! (mut b) path)
                         (when (= mode "bool") (push-str! (mut b) " \"true\""))
                         (push-str! (mut b)
-                                   (if (or (= mode "text")
+                                   (if (or (= mode "cstring")
+                                           (= mode "text")
                                            (= mode "symbol")
                                            (= mode "keyword"))
                                        ")) "
