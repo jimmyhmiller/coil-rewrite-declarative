@@ -44,7 +44,20 @@
       (let [op (sexp-nth expression 0)
             constant? (sexp-sym-is op "const")
             boolean? (sexp-sym-is op "bool")
-            add? (sexp-sym-is op "add")
+            binary-op
+              (cond (sexp-sym-is op "add") "cop/OP-ADD"
+                    (sexp-sym-is op "sub") "cop/OP-SUB"
+                    (sexp-sym-is op "mul") "cop/OP-MUL"
+                    :else "")
+            predicate
+              (cond (sexp-sym-is op "eq") "cir/P-EQ"
+                    (sexp-sym-is op "ne") "cir/P-NE"
+                    (sexp-sym-is op "slt") "cir/P-SLT"
+                    (sexp-sym-is op "sle") "cir/P-SLE"
+                    (sexp-sym-is op "sgt") "cir/P-SGT"
+                    (sexp-sym-is op "sge") "cir/P-SGE"
+                    :else "")
+            binary? (or (!= binary-op "") (!= predicate ""))
             call? (sexp-sym-is op "call")
             branch? (sexp-sym-is op "if")
             lookup? (sexp-sym-is op "name")
@@ -54,7 +67,7 @@
               (cond lookup? 0
                     bind? (- (sexp-count expression) 1)
                     (or constant? boolean? identity?) 1
-                    (or add? call?) 2
+                    (or binary? call?) 2
                     branch? 3
                     :else 0)
             (mut fields) (ArrayList::new [i64] (malloc-allocator))]
@@ -164,14 +177,18 @@
                   (child! (mut b) ni (get fields 1))
                   (push-str! (mut b)
                              " (mut args) (ArrayList::new [u32] (malloc-allocator)) (mut flags) (ArrayList::new [u32] (malloc-allocator)) (mut results) (ArrayList::new [u8] (malloc-allocator))] (defer (free! (mut args))) (defer (free! (mut flags))) (defer (free! (mut results))) (push! (mut args) argument) (push! (mut flags) 0) (push! (mut results) (cast u8 cop/T-I64)) (let [value (cir/val function callee) direct (and (= (cast i64 (.op value)) cop/OP-SYM) (= (.imm2 value) 0))] (cir/call! function (if direct (cast u32 (.imm value)) (cir/none)) (if direct (cir/none) callee) (mut args) (mut flags) (mut results) false)))"))
-              add?
+              binary?
                 (do
                   (push-str! (mut b) "(let [left ")
                   (child! (mut b) ni (get fields 0))
                   (push-str! (mut b) " right ")
                   (child! (mut b) ni (get fields 1))
+                  (push-str! (mut b) "] (cir/op2! function ")
                   (push-str! (mut b)
-                             "] (cir/op2! function cop/OP-ADD cop/T-I64 left right 0 0))"))
+                             (if (= predicate "") binary-op "cop/OP-ICMP"))
+                  (push-str! (mut b) " cop/T-I64 left right ")
+                  (push-str! (mut b) (if (= predicate "") "0" predicate))
+                  (push-str! (mut b) " 0))"))
               :else
                 (do
                   (push-str! (mut b) "(let [condition ")

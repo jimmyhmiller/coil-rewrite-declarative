@@ -156,7 +156,7 @@ print('Source -> generated checking/lowering -> CIR -> native execution passed')
 print('Function designators rejected as values; explicit function pointers agree with installed Coil')
 
 source = (ROOT/'tests/schemas/lowering.schema').read_bytes()
-for invalid in [source + b'(lower Expr)', source.replace(b'(const value)', b'(const missing)'), source.replace(b'(add left right)', b'(unknown left right)'), source.replace(b'(Boolean (bool value))', b'')]:
+for invalid in [source + b'(lower Expr)', source.replace(b'(const value)', b'(const missing)'), source.replace(b'(add left right)', b'(unknown left right)'), source.replace(b'(add left right)', b'(sub left)'), source.replace(b'(add left right)', b'(slt left right left)'), source.replace(b'(Boolean (bool value))', b'')]:
     result = subprocess.run([str(ROOT/'build/schema-seed')], input=invalid, capture_output=True)
     assert result.returncode != 0 and not result.stdout, result
 print('Invalid lowering definitions rejected before output')

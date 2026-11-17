@@ -11,9 +11,9 @@
       "generated_sha256": "2e63caf29e9406949593e6681ac231e9d7dde0e197a6499eea6f4915366146ab"
     },
     "compiler/frontend/core.schema": {
-      "specification_sha256": "89c9135f0cd68a253b36948758a90196c6c5f6f0befb4c25a360cf6e2f045fae",
+      "specification_sha256": "2c2258dfbadb1a4bf0906fc9e9a4393bc6b3d57e9818ab634fe5522c6ed10229",
       "output": "seed/generated/core_compiler.coil",
-      "generated_sha256": "ee3605ae39a07f91168840fe1317318843047f756363bac0da53f819114004bd"
+      "generated_sha256": "cab380c3dba5b5f9a3693c77651ee57990ead0fe9c89f83f05a5b1426a5b8961"
     },
     "languages/classification.schema": {
       "specification_sha256": "3118a1eafdda5ab5bff70f89fbc694316016f656b10508bf50c6423c6ee23b78",
@@ -117,7 +117,7 @@
     "seed/generated/before_protocol.coil": "ae4f23ce2bb00771e8b6712d494f248a500d6b7a5aedd7f100948a3a5cfdf0c4",
     "seed/generated/classification_forms.coil": "5dab2bf3aed38c1e5b67f594bf3da2900fcef7926c32283b1b7b6147f00742b5",
     "seed/generated/code_forms.coil": "74f122bd31f0a804f50bb6ef35dfaed6a03e1cd3bf8c2a05dde440c3e50d4467",
-    "seed/generated/core_compiler.coil": "ee3605ae39a07f91168840fe1317318843047f756363bac0da53f819114004bd",
+    "seed/generated/core_compiler.coil": "cab380c3dba5b5f9a3693c77651ee57990ead0fe9c89f83f05a5b1426a5b8961",
     "seed/generated/derive_forms.coil": "5d01f6af8d594c9ece850fa5321c2cf000dd7fa0a8dadad83226cb1d3a732575",
     "seed/generated/derive_protocol.coil": "d2290917d4abf5695bfc67ebc795449752bbe946360712c881aebac29ee81bee",
     "seed/generated/export_search.coil": "1a7093c8771496fb45e8181165868472917aad74a578bd3bbabc9a00a4cc213d",
@@ -136,7 +136,7 @@
     "seed/invocation.coil": "8b7b4742f9b1cc740672b0b3d37deb257f634a656483eb23991d881b9428aeca",
     "seed/judgment.coil": "5c89d13c8af1532e8cfbb5d5808cdbf0d58de0989d354bac8762c2cbde2aa504",
     "seed/lexical.coil": "0c5f048886da8ba0147b8530c86375f94ec9814a6ea9736b4563ceea57e3d2a6",
-    "seed/lower.coil": "2421bc11672e988aef991f081125c869b563d1b762239229fa8bf39bd10e59cb",
+    "seed/lower.coil": "7842d859c3d3f9de957bc1f1cb8ae586c928d018608ca51502335db88607cab4",
     "seed/macro_head.coil": "a404b7fd3938b3042357238ec5dfbe04f7a6d5229d354aec4921d1d89641f4c1",
     "seed/main.coil": "88de7bcfe297f674fc9d20f5e2084ef47bc6cb790c7a863d28a29d993955ab20",
     "seed/namespace.coil": "01dbd2ef2fa2a9a0fc5ae3faa7f44198f3c4f17840ea8f2e43de7c732f62b601",

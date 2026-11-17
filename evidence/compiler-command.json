@@ -5,15 +5,110 @@
     "debug-checks",
     "release"
   ],
+  "reference_results": [
+    84,
+    479001600,
+    1,
+    55,
+    1,
+    0,
+    14,
+    14,
+    41,
+    50,
+    50
+  ],
   "cli_cases": [
     {
-      "source": "(defn entry [(x i64)] (-> i64)\n  (let [y (increment x)]\n    (if true (+ y y) 0)))\n\n(defn increment [(x i64)] (-> i64)\n  (+ x 1))\n",
+      "source_file": "tests/compiler/integer-functions.coil",
+      "source": null,
       "entry": "entry",
       "argument": "41",
       "status": 0,
       "output": "84"
     },
     {
+      "source_file": "tests/compiler/integer-functions.coil",
+      "source": null,
+      "entry": "factorial",
+      "argument": "12",
+      "status": 0,
+      "output": "479001600"
+    },
+    {
+      "source_file": "tests/compiler/integer-functions.coil",
+      "source": null,
+      "entry": "factorial",
+      "argument": "0",
+      "status": 0,
+      "output": "1"
+    },
+    {
+      "source_file": "tests/compiler/integer-functions.coil",
+      "source": null,
+      "entry": "fibonacci",
+      "argument": "10",
+      "status": 0,
+      "output": "55"
+    },
+    {
+      "source_file": "tests/compiler/integer-functions.coil",
+      "source": null,
+      "entry": "even",
+      "argument": "24",
+      "status": 0,
+      "output": "1"
+    },
+    {
+      "source_file": "tests/compiler/integer-functions.coil",
+      "source": null,
+      "entry": "even",
+      "argument": "23",
+      "status": 0,
+      "output": "0"
+    },
+    {
+      "source_file": "tests/compiler/integer-functions.coil",
+      "source": null,
+      "entry": "comparisons",
+      "argument": "-9223372036854775808",
+      "status": 0,
+      "output": "14"
+    },
+    {
+      "source_file": "tests/compiler/integer-functions.coil",
+      "source": null,
+      "entry": "comparisons",
+      "argument": "-1",
+      "status": 0,
+      "output": "14"
+    },
+    {
+      "source_file": "tests/compiler/integer-functions.coil",
+      "source": null,
+      "entry": "comparisons",
+      "argument": "0",
+      "status": 0,
+      "output": "41"
+    },
+    {
+      "source_file": "tests/compiler/integer-functions.coil",
+      "source": null,
+      "entry": "comparisons",
+      "argument": "1",
+      "status": 0,
+      "output": "50"
+    },
+    {
+      "source_file": "tests/compiler/integer-functions.coil",
+      "source": null,
+      "entry": "comparisons",
+      "argument": "9223372036854775807",
+      "status": 0,
+      "output": "50"
+    },
+    {
+      "source_file": null,
       "source": "(defn bad [(x i64)] (-> i64) (+ x true))",
       "entry": "bad",
       "argument": "1",
@@ -21,6 +116,7 @@
       "output": "type checking failed in bad"
     },
     {
+      "source_file": null,
       "source": "(defn present [(x i64)] (-> i64) x)",
       "entry": "absent",
       "argument": "0",
@@ -28,12 +124,14 @@
       "output": "entry not found: absent"
     }
   ],
-  "binary_sha256": "c0a84de8db29c5c956faac312afb9d9c6ca039a5e726b6a8956a66c1285a3c12",
+  "binary_sha256": "a2ddeb7f0990bc7956ac77583ae778c1136cdc28755df6c32cdc7511d3baddee",
   "inputs": {
-    "compiler/frontend/core.schema": "89c9135f0cd68a253b36948758a90196c6c5f6f0befb4c25a360cf6e2f045fae",
+    "compiler/frontend/core.schema": "2c2258dfbadb1a4bf0906fc9e9a4393bc6b3d57e9818ab634fe5522c6ed10229",
     "seed/program.coil": "62c626d29aece635e0a1ca24f0937062a2cbea8bb39d8f745dac85918d13113c",
+    "seed/lower.coil": "7842d859c3d3f9de957bc1f1cb8ae586c928d018608ca51502335db88607cab4",
+    "tests/compiler/integer-functions.coil": "75caa44194277a9b9f39fb6fe49ffde0088cf0c7c37961fa3e0bd926b4666d34",
     "seed/command.coil": "c733b167c8c188ef819e378b97ef9b60608e59696686022e031459ee66b6031c",
-    "seed/generated/core_compiler.coil": "ee3605ae39a07f91168840fe1317318843047f756363bac0da53f819114004bd",
-    "tools/check-compiler.py": "ca5c54b69af6578fc0e79e73a098fe76992d91c6e96f8c01195ef1cabab28cd2"
+    "seed/generated/core_compiler.coil": "cab380c3dba5b5f9a3693c77651ee57990ead0fe9c89f83f05a5b1426a5b8961",
+    "tools/check-compiler.py": "c5cd232b98ef4f10b03fe0a7f4968673ef672de378dbdfb5e29a3a05a3ae07a4"
   }
 }

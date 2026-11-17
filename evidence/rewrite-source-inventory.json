@@ -4,18 +4,18 @@
   "totals": {
     "authored-language-specifications": {
       "files": 20,
-      "bytes": 24154,
-      "physical_lines": 543
+      "bytes": 25490,
+      "physical_lines": 579
     },
     "authored-seed-and-runtime": {
       "files": 61,
-      "bytes": 679471,
-      "physical_lines": 12367
+      "bytes": 681089,
+      "physical_lines": 12387
     },
     "generated-language-toolchain": {
       "files": 18,
-      "bytes": 591791,
-      "physical_lines": 1294
+      "bytes": 621420,
+      "physical_lines": 1310
     },
     "retained-authored-machinery-and-specifications": {
       "files": 161,
@@ -39,13 +39,13 @@
     },
     "rewrite-build-and-validation-tools": {
       "files": 51,
-      "bytes": 316924,
-      "physical_lines": 4819
+      "bytes": 318537,
+      "physical_lines": 4836
     },
     "rewrite-tests-and-fixtures": {
       "files": 75,
-      "bytes": 359133,
-      "physical_lines": 7539
+      "bytes": 359620,
+      "physical_lines": 7556
     }
   },
   "files": [
@@ -59,8 +59,8 @@
     {
       "path": "compiler/README.md",
       "category": "authored-language-specifications",
-      "sha256": "6d97de2f82057615cb9d0331ba353de0d0b09841f008cbd4ca97e844dcacfc5c",
-      "bytes": 2263,
+      "sha256": "832c509ad14204088c10d28cd6d03dcb2e076ba601c86e1a1991c95bc781cd5a",
+      "bytes": 2358,
       "physical_lines": 26
     },
     {
@@ -115,9 +115,9 @@
     {
       "path": "compiler/frontend/core.schema",
       "category": "authored-language-specifications",
-      "sha256": "89c9135f0cd68a253b36948758a90196c6c5f6f0befb4c25a360cf6e2f045fae",
-      "bytes": 1615,
-      "physical_lines": 30
+      "sha256": "2c2258dfbadb1a4bf0906fc9e9a4393bc6b3d57e9818ab634fe5522c6ed10229",
+      "bytes": 2856,
+      "physical_lines": 66
     },
     {
       "path": "compiler/frontend/types.schema",
@@ -199,9 +199,9 @@
     {
       "path": "seed/README.md",
       "category": "authored-seed-and-runtime",
-      "sha256": "9397e058150a49e836caf0d61334dce6570366d581718553059e02866bab63ad",
-      "bytes": 148465,
-      "physical_lines": 820
+      "sha256": "1ade40f42aadf99e06359491c683f79f3a69d10913fa4f69897058a3bd0b7e68",
+      "bytes": 149229,
+      "physical_lines": 823
     },
     {
       "path": "seed/admission.coil",
@@ -339,9 +339,9 @@
     {
       "path": "seed/generated/core_compiler.coil",
       "category": "generated-language-toolchain",
-      "sha256": "ee3605ae39a07f91168840fe1317318843047f756363bac0da53f819114004bd",
-      "bytes": 55642,
-      "physical_lines": 152
+      "sha256": "cab380c3dba5b5f9a3693c77651ee57990ead0fe9c89f83f05a5b1426a5b8961",
+      "bytes": 85271,
+      "physical_lines": 168
     },
     {
       "path": "seed/generated/derive_forms.coil",
@@ -472,9 +472,9 @@
     {
       "path": "seed/lower.coil",
       "category": "authored-seed-and-runtime",
-      "sha256": "2421bc11672e988aef991f081125c869b563d1b762239229fa8bf39bd10e59cb",
-      "bytes": 11901,
-      "physical_lines": 249
+      "sha256": "7842d859c3d3f9de957bc1f1cb8ae586c928d018608ca51502335db88607cab4",
+      "bytes": 12755,
+      "physical_lines": 266
     },
     {
       "path": "seed/macro_head.coil",
@@ -801,9 +801,9 @@
     {
       "path": "tests/compiler/integer-functions.coil",
       "category": "rewrite-tests-and-fixtures",
-      "sha256": "5e6d02057a86254e7620beff2cf603dde11dfd6f25fa8c20048a0d20f62a8444",
-      "bytes": 129,
-      "physical_lines": 6
+      "sha256": "75caa44194277a9b9f39fb6fe49ffde0088cf0c7c37961fa3e0bd926b4666d34",
+      "bytes": 616,
+      "physical_lines": 23
     },
     {
       "path": "tests/derive-registry.coil",
@@ -1389,9 +1389,9 @@
     {
       "path": "tools/check-compiler.py",
       "category": "rewrite-build-and-validation-tools",
-      "sha256": "ca5c54b69af6578fc0e79e73a098fe76992d91c6e96f8c01195ef1cabab28cd2",
-      "bytes": 4561,
-      "physical_lines": 59
+      "sha256": "c5cd232b98ef4f10b03fe0a7f4968673ef672de378dbdfb5e29a3a05a3ae07a4",
+      "bytes": 6059,
+      "physical_lines": 76
     },
     {
       "path": "tools/check-context-policy.py",
@@ -1466,8 +1466,8 @@
     {
       "path": "tools/check-lowering.py",
       "category": "rewrite-build-and-validation-tools",
-      "sha256": "c9320aa78a6a6f5fa52e94939bd705e764bcba2de615b8860047e1651083f971",
-      "bytes": 14589,
+      "sha256": "4d15f2f6a67d875b7041f98b02a1823658a35c646ebdbe4f743ec86a1b45b497",
+      "bytes": 14704,
       "physical_lines": 179
     },
     {
