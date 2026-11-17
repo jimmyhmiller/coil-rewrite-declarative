@@ -1,7 +1,7 @@
 {
   "scope": "Schema, syntax-value and protocol language regeneration only; host Coil builds both stages.",
-  "host_version": "coil 0.1.0 (commit 810017165e50, 2026-11-17)",
-  "host_executable_sha256": "f1485fd8f69496a11ca445dea1ac4a60005ee1401cf61636f1d1afab9c8483d5",
+  "host_version": "coil 0.1.0 (commit dcbbfee64333, 2026-11-17)",
+  "host_executable_sha256": "a0e3f4c481945e8c29607cf022283ece170299f795c79b9487af75a931a55869",
   "specification_sha256": "ab8d60607eb3dd6f368b1a1857bbddcd59862747fcdc5d14415ee991ee2abce5",
   "generated_sha256": "40813e20d8b78374281adace11b7178478113ba7315d066d29272238794f3333",
   "language_artifacts": {
@@ -11,9 +11,9 @@
       "generated_sha256": "40813e20d8b78374281adace11b7178478113ba7315d066d29272238794f3333"
     },
     "languages/code.schema": {
-      "specification_sha256": "9ca54b866c450da6d82ab53289a2b887e404f0510686188d2a10b159f0438cfb",
+      "specification_sha256": "d5238c7ba694b3d9e2f8efc38a78f9ee445423f0b4e0552b865ce9c4ab39333c",
       "output": "seed/generated/code_forms.coil",
-      "generated_sha256": "cf41ce02504e0c4473fa2a5eadcc256434d6445ae5ec364da3883f5449b749d0"
+      "generated_sha256": "19b42d76d01610ddef1580aa4a52ed694f70792af65625c2ae1a7497ad3b4a7e"
     },
     "languages/protocol.schema": {
       "specification_sha256": "caa7c02e0c62ecbdac779b53b561be3636d912e875718323facd6035f5cae608",
@@ -35,12 +35,13 @@
   "seed_inputs": {
     "seed/alpha.coil": "d347508e4a43a6386354cc45ff671b3bf79e1490ba8cc226a271add33d4e692f",
     "seed/binding.coil": "fbf0c4c2c7cc44569e950741419458a49d616c6380e9314b76afcefdbf5f8d98",
-    "seed/code.coil": "3d3d7bcc76d7dcbda80b6f099460a0c9f76515adac4625bce40f5f82d5acf4ea",
+    "seed/code.coil": "24b3d915084ef7175cf991f8199b3ad6a72b61604da64231382bd897621b6a1d",
+    "seed/context_policy.coil": "a61a1c9d52c4329e5a7402b905e60c498098daedd384aff21d0daaa7a181d6c7",
     "seed/emit.coil": "5a3d9a6e35ffe9975c77eb398b9a6e145db15a91b451bc5df5b6ea123a9df9c2",
     "seed/equality.coil": "3455fa50ec1af94acbc4b0b47462581407b4238f1374dacbf9e545af3caf47d6",
     "seed/equality_runtime.coil": "677953a98f75ce17eba81be80da3133d56da5387413e15679ba218c10e462039",
     "seed/generated/before_protocol.coil": "d4c501ee6b518eeea2ffd0f2a4a97a616e9b1975e419a4456ffdf3be9acc84d5",
-    "seed/generated/code_forms.coil": "cf41ce02504e0c4473fa2a5eadcc256434d6445ae5ec364da3883f5449b749d0",
+    "seed/generated/code_forms.coil": "19b42d76d01610ddef1580aa4a52ed694f70792af65625c2ae1a7497ad3b4a7e",
     "seed/generated/protocol_forms.coil": "e4b4822c5c1369a734057ac4ac1a595e9ff7f4642af5d59803ae7e3eb2f3448d",
     "seed/generated/schema_forms.coil": "40813e20d8b78374281adace11b7178478113ba7315d066d29272238794f3333",
     "seed/generated/stage_protocol.coil": "ca788092370b54bd3eb92a85bf82138945fbc0f0a23a429c488871e7ccdc431a",
@@ -48,7 +49,7 @@
     "seed/invocation.coil": "8b7b4742f9b1cc740672b0b3d37deb257f634a656483eb23991d881b9428aeca",
     "seed/judgment.coil": "5c89d13c8af1532e8cfbb5d5808cdbf0d58de0989d354bac8762c2cbde2aa504",
     "seed/lower.coil": "2421bc11672e988aef991f081125c869b563d1b762239229fa8bf39bd10e59cb",
-    "seed/main.coil": "9ea0c2948942a1b55fc0e7e644ffe196ef32a06f330dc381cc5aeb0e736390b6",
+    "seed/main.coil": "47c56a356daea68977e007a7be467bd1fea96f34ebaa97860c9e5aabbb4c1b04",
     "seed/phase.coil": "ee9681c4c18d5d0974415dfdee37c23b203d735d87a012962e58e1c5cec3ea1e",
     "seed/program.coil": "b8ad6fb872c4de33aac6cb06f818cebeb70046bd795252b9af88e11b6bb0a3f9",
     "seed/protocol.coil": "490edca14bef4d64a968a51e6c4ca924bacdf9431ed41c42aef9852acd9921af",
@@ -56,13 +57,13 @@
     "seed/resolution.coil": "b080dca9f1a7b3848105faf4e2369a3272911fe8ab22a0e23f75e23d112521c6",
     "seed/resolve.coil": "2928e535b334a1728fea51807ad73e0b5ed16f90ce4b75acd9bd2d8cf45df78e",
     "seed/rounds.coil": "3bf2099362ab986c0355d86a789c892108c5e9f64eb578a74d1527f6774bc299",
-    "seed/schema.coil": "f902b13b0cadf6d4471ddc4cecfa1d8af60abe581fe1353ca47ba8c746cfd27e",
+    "seed/schema.coil": "dfe4d7686514cd9666b24a49c4c4d146fc3f404883326eeb8cffb15f284adffc",
     "seed/scope.coil": "c7be3143d3e955ecd8c05ea3c7ffb4b8b6d9981a223fc5de55507aa89f35e71f",
-    "seed/sequence.coil": "62a02062dbe50874abd53b98cfcec77418d42b30e777470a153fcb87a94cbfb6",
+    "seed/sequence.coil": "bdcac1aac27c0ed59c3020705e0583ff28f8b553c115f8e9d4211d7d59976120",
     "seed/source.coil": "090c81a0015f5a4941deb45e3dc8ff582b33cd4da97296cde4e3454979dad640",
     "seed/syntax.coil": "422c2940a54ef663803c62c44ebc27f251e4410597434200ba09c065cda69247",
     "seed/syntax_reader.coil": "b2af3f0a50af2b1cbd95e84757d747253f3bcc8bf204b1181cf4b3143159635d",
-    "seed/transform.coil": "b5a5af2618e79ae38494c9f6d80428bb29cdbd81248cd42d27311acc9276bc77",
+    "seed/transform.coil": "8675e3994ca56a2802a2243f7ba83bd17d1e224352e221f1a1f8c68bd78989bd",
     "seed/types.coil": "e398f5cb019e3eea3339700ba5b3685b119421eb30ac5a2045c8835d5d9a6ce9"
   },
   "limitations": "Not full compiler self-hosting or a machine-code bootstrap comparison. Installed host stdlib/tool dependencies are not pinned by this check."

@@ -157,16 +157,18 @@
 
 (defstruct MapFrame [(index i64) (position i64) (start i64)])
 
-;;; Map each shared segment once, preserving compact joins and avoiding host-stack depth.
-;;; The caller owns a memo initialized to -1 for every immutable input segment.
-(defn map! [S T C E] [(a (dyn Allocator))
-                      (input (ptr (Table S)))
-                      (target (mut (Table T)))
-                      (memo (mut (ArrayList i64)))
-                      (index i64)
-                      (context (ptr C))
-                      (element (fnptr (cc/C) [(ptr C) S] (Result i64 E)))
-                      (failure (fnptr (cc/C) [SequenceError] E))]
+;;; Map shared segments once when sharing? is true, or visit every occurrence
+;;; otherwise. Both modes use an explicit stack and detect active-segment cycles.
+;;; The caller owns a fresh memo initialized to -1 for each immutable input segment.
+(defn map-mode! [S T C E] [(a (dyn Allocator))
+                           (input (ptr (Table S)))
+                           (target (mut (Table T)))
+                           (memo (mut (ArrayList i64)))
+                           (index i64)
+                           (sharing? bool)
+                           (context (ptr C))
+                           (element (fnptr (cc/C) [(ptr C) S] (Result i64 E)))
+                           (failure (fnptr (cc/C) [SequenceError] E))]
   (-> (Result i64 E))
   (block :done
     (unless (= (len (load memo)) (len (.segments input)))
@@ -174,7 +176,7 @@
     (unless (valid? input index)
       (break :done (Err (failure (InvalidSequence index)))))
     (let [cached (get (load memo) index)]
-      (when (>= cached 0) (break :done (Ok cached)))
+      (when (and sharing? (>= cached 0)) (break :done (Ok cached)))
       (when (= cached (- 0 2))
         (break :done (Err (failure (SequenceCycle index))))))
     (let [(mut frames) (ArrayList::new [MapFrame] a)
@@ -203,7 +205,7 @@
                         (Ok [out] out)
                         (Err [e] (break :done (Err (failure e)))))]
                 (while (> (len parts) (.start frame)) (pop! (mut parts)))
-                (set! (mut memo) (.index frame) out)
+                (set! (mut memo) (.index frame) (if sharing? out (- 0 1)))
                 (pop! (mut frames))
                 (when (= (len frames) 0) (break :done (Ok out)))
                 (push! (mut parts) out))
@@ -223,7 +225,7 @@
                       (let [cached (get (load memo) child)]
                         (when (= cached (- 0 2))
                           (break :done (Err (failure (SequenceCycle child)))))
-                        (if (>= cached 0)
+                        (if (and sharing? (>= cached 0))
                             (push! (mut parts) cached)
                             (do
                               (set! (mut memo) child (- 0 2))
@@ -238,3 +240,16 @@
                       (Err [e] (break :done (Err e)))
                       (Ok [id] (push! (mut parts) id))))))))
       (panic "sequence map finished without a result"))))
+
+;;; Compact context-free mapping is the default; occurrence-sensitive consumers
+;;; use map-mode! with false and a fresh memo for the duration of that traversal.
+(defn map! [S T C E] [(a (dyn Allocator))
+                      (input (ptr (Table S)))
+                      (target (mut (Table T)))
+                      (memo (mut (ArrayList i64)))
+                      (index i64)
+                      (context (ptr C))
+                      (element (fnptr (cc/C) [(ptr C) S] (Result i64 E)))
+                      (failure (fnptr (cc/C) [SequenceError] E))]
+  (-> (Result i64 E))
+  (map-mode! a input (mut target) (mut memo) index true context element failure))

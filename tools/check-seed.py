@@ -18,6 +18,7 @@ for flags in [[], ['--debug-checks'], ['--release']]:
     subprocess.run(['coil', 'run', 'tests/equality.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/rounds.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/promotion.coil', *flags], cwd=ROOT, check=True)
+    subprocess.run(['coil', 'run', 'tests/stage-datum.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/invocation.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/sequences.coil', *flags], cwd=ROOT, check=True)
 source = (ROOT / 'tests/schemas/expressions.schema').read_bytes()
@@ -403,3 +404,5 @@ subprocess.run(['python3', 'tools/check-protocol.py', '--compiler', 'build/schem
 subprocess.run(['python3', 'tools/check-expansion-policy.py'], cwd=ROOT, check=True)
 
 subprocess.run(['python3', 'tools/check-equality.py'], cwd=ROOT, check=True)
+
+subprocess.run(['python3', 'tools/check-context-policy.py'], cwd=ROOT, check=True)

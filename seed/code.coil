@@ -126,15 +126,27 @@
   (PromotionContextMissing [(row i64)]))
 
 ;;; Promote a reachable syntax graph into independent storage. Generated rules
-;;; copy structure, texts, origins and documents; the row map transports opaque
-;;; metadata without resolving, renaming or inventing lexical identities.
+;;; copy structure, texts, origins and documents; generated provenance transports
+;;; metadata to each emitted row. A policy may edit owned metadata; returned Text
+;;; must borrow that owned value or have a lifetime at least as long as target.
 ;;; Failed promotion publishes no root but may retain unreachable target rows.
-(defn promote! [(target (mut Syntax)) (input (ptr Syntax)) (root forms/N0Id)]
+(defn promote-with! [C] [(target (mut Syntax))
+                         (input (ptr Syntax))
+                         (root forms/N0Id)
+                         (sharing? bool)
+                         (user (ptr C))
+                         (policy (fnptr (eqcc/C)
+                                        [(ptr C)
+                                         (ptr forms/N0Row)
+                                         (ptr forms/N1Row)]
+                                        forms/N1Row))]
   (-> (Result forms/N0Id PromotionError))
-  (let [(mut state)
+  (let [trace-start (len (.traces (.store target)))
+        (mut state)
           (forms/transform-state-new (.allocator (.source-data (.store target)))
                                      (field input store)
                                      (field target store))]
+    (set! (.sharing? state) sharing?)
     (defer (forms/transform-state-free! (mut state)))
     (let [result (forms/transform-0-0 (mut state) root)]
       (while (< (len (.contexts target)) (len (.rows0 (.store target))))
@@ -152,14 +164,17 @@
                   (match result
                     (Ok [id] id)
                     (Err [e] (break :done (Err (PromotionShape e)))))]
-            (for [row 0 (len (.memo0 state))]
-              (let [destination (get (.memo0 state) row)]
-                (when (>= destination 0)
+            (for [t trace-start (len (.traces (.store target)))]
+              (let [trace (get (.traces (.store target)) t)
+                    row (.source-node trace)
+                    destination (.target-node trace)]
+                (when (and (= (.source-schema trace) 0)
+                           (= (.target-schema trace) 0))
                   (unless (< row (len (.contexts input)))
                     (break :done (Err (PromotionContextMissing row))))
-                  (let [context (get (.contexts input) row)]
-                    (set! (mut (.contexts target))
-                          destination
+                  (let [context (get (.contexts input) row)
+                        (mut kind) (get (.rows0 (.store input)) row)
+                        (mut owned)
                           (forms/N1Row
                             :f0 (.f0 context)
                             :f1
@@ -168,8 +183,51 @@
                             :f2 (.f2 context)
                             :f3 (.f3 context)
                             :f4 (.f4 context)
-                            :f5 (.f5 context)))))))
+                            :f5 (.f5 context))]
+                    (set! (mut (.contexts target))
+                          destination
+                          (policy user (mut kind) (mut owned)))))))
             (Ok out))))))
+
+(defn preserve-context :cc (eqcc/C) [(user (ptr i64))
+                                     (kind (ptr forms/N0Row))
+                                     (context (ptr forms/N1Row))]
+  (-> forms/N1Row)
+  (load context))
+
+(defn stage-context :cc (eqcc/C) [(user (ptr i64))
+                                  (kind (ptr forms/N0Row))
+                                  (context (ptr forms/N1Row))]
+  (-> forms/N1Row)
+  (forms/context-stage-datum (load kind)
+                             (load context)
+                             (if (forms/context-stage-datum-fresh? (load kind))
+                                 (next-node-id)
+                                 0)))
+
+(defn promote! [(target (mut Syntax)) (input (ptr Syntax)) (root forms/N0Id)]
+  (-> (Result forms/N0Id PromotionError))
+  (let [(mut user) 0]
+    (promote-with! (mut target)
+                   input
+                   root
+                   true
+                   (mut user)
+                   (eqprimitive/fnptr-of preserve-context))))
+
+;;; Separate compilation datum policy is declared in code.schema. The bootstrap
+;;; reader's identity supply remains shared with imported reader syntax.
+(defn stage-datum! [(target (mut Syntax))
+                    (input (ptr Syntax))
+                    (root forms/N0Id)]
+  (-> (Result forms/N0Id PromotionError))
+  (let [(mut user) 0]
+    (promote-with! (mut target)
+                   input
+                   root
+                   false
+                   (mut user)
+                   (eqprimitive/fnptr-of stage-context))))
 
 ;;; Fixpoint equality ignores locations and hygiene, comparing float bit patterns.
 (defn equal? [(a (dyn Allocator))

@@ -34,3 +34,8 @@
 ; Ordered whole-form roots share one comparison memo across all roots.
 (node FormSequence (forms (many Syntax)))
 (equality FormSequence)
+
+(context-policy stage-datum Syntax Context
+  (Symbol (scope 0) (module "") (origin 5) (identity fresh))
+  (List (identity fresh))
+  (Vector (identity fresh)))
