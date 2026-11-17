@@ -36,6 +36,8 @@
   (let [(mut b) (StrBuf::new a)]
     (push-str! (mut b)
                "(module rewrite.generated)\n(import \"coil.arraylist\" :use *)\n")
+    (push-str! (mut b)
+               "(defsum Judgment (Typed [(type i64)]) (Mismatch [(node i64) (field i64) (expected i64) (actual i64) (rule-lo i64) (rule-hi i64)]) (InvalidReference [(node i64)]) (CyclicInput [(node i64)]))\n")
     (for [i 0 (len (.nodes s))]
       (let [n (elem (field s nodes) i)]
         (push-str! (mut b) "(defstruct N")

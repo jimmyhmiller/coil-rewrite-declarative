@@ -60,11 +60,15 @@ with tempfile.TemporaryDirectory(prefix='rewrite-judgment-') as directory:
     typing = (ROOT / 'tests/schemas/typing.schema').read_bytes()
     output = subprocess.check_output([str(ROOT / 'build/schema-seed')], input=typing)
     (work / 'generated.coil').write_bytes(output)
-    (work / 'main.coil').write_text((ROOT / 'tests/judgment.coil.in').read_text())
+    premise = b'(right Int)'
+    offset = typing.index(premise)
+    (work / 'main.coil').write_text((ROOT / 'tests/judgment.coil.in').read_text()
+        .replace('RULE_LO', str(offset)).replace('RULE_HI', str(offset + len(premise))))
     for flags in [[], ['--debug-checks'], ['--release']]:
         subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)
     for invalid, diagnostic in [
         (typing.replace(b'(Boolean Bool)', b''), b'exactly one rule'),
+        (typing + b'(judgment Expr)', b'duplicate judgment'),
         (typing.replace(b'(left Int)', b'(missing Int)'), b'unknown premise field'),
         (typing.replace(b'(Integer Int)', b'(Integer Int (value Int))'), b'premise field'),
         (typing.replace(b'(Integer Int)', b'(Integer Mystery)'), b'judgment result'),

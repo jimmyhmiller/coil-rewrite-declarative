@@ -111,38 +111,40 @@
 
 ;;; Storage and source text must outlive the returned schema, including diagnostics.
 ;;; Pass an arena: unsuccessful parsing also belongs to that allocation lifetime.
-(defn parse [(a (dyn Allocator)) (text (slice u8)) (source i64)]
+(defn parse-forms [(a (dyn Allocator)) (forms (ptr (ArrayList Sexp)))]
   (-> (Result Schema Diag))
   (block
     :result
-      (match (read-all a text source)
-        (Err [d] (Err d))
-        (Ok [forms]
-            (let [(mut nodes) (ArrayList::new [Node] a)]
-              (for [i 0 (len (load forms))]
-                (unless (and (sexp-list? (elem forms i))
-                             (> (sexp-count (elem forms i)) 0)
-                             (sexp-sym-is (sexp-nth (elem forms i) 0)
-                                          "judgment"))
-                  (match (parse-node a (elem forms i))
-                    (Err [d] (break :result (Err d)))
-                    (Ok [n]
-                        (do
-                          (when (known? (mut nodes) (.name n))
-                            (break
-                              :result
-                                (Err (problem (elem forms i) "duplicate node"))))
-                          (push! (mut nodes) n))))))
-              (for [i 0 (len nodes)]
-                (let [n (elem (mut nodes) i)]
-                  (for [v 0 (len (.variants n))]
-                    (let [variant (elem (field n variants) v)]
-                      (for [j 0 (len (.fields variant))]
-                        (let [f (elem (field variant fields) j)]
-                          (unless (or (scalar? (.type-name f))
-                                      (known? (mut nodes) (.type-name f)))
-                            (break
-                              :result
-                                (Err (problem (sexp-nth (field f origin) 1)
-                                              "unknown field type"))))))))))
-              (Ok (Schema :nodes nodes)))))))
+      (let [(mut nodes) (ArrayList::new [Node] a)]
+        (for [i 0 (len (load forms))]
+          (unless (and (sexp-list? (elem forms i))
+                       (> (sexp-count (elem forms i)) 0)
+                       (sexp-sym-is (sexp-nth (elem forms i) 0)
+                                    "judgment"))
+            (match (parse-node a (elem forms i))
+              (Err [d] (break :result (Err d)))
+              (Ok [n]
+                  (do
+                    (when (known? (mut nodes) (.name n))
+                      (break
+                        :result (Err (problem (elem forms i) "duplicate node"))))
+                    (push! (mut nodes) n))))))
+        (for [i 0 (len nodes)]
+          (let [n (elem (mut nodes) i)]
+            (for [v 0 (len (.variants n))]
+              (let [variant (elem (field n variants) v)]
+                (for [j 0 (len (.fields variant))]
+                  (let [f (elem (field variant fields) j)]
+                    (unless (or (scalar? (.type-name f))
+                                (known? (mut nodes) (.type-name f)))
+                      (break
+                        :result
+                          (Err (problem (sexp-nth (field f origin) 1)
+                                        "unknown field type"))))))))))
+        (Ok (Schema :nodes nodes)))))
+
+(defn parse [(a (dyn Allocator)) (text (slice u8)) (source i64)]
+  (-> (Result Schema Diag))
+  (match (read-all a text source)
+    (Err [d] (Err d))
+    (Ok [forms] (parse-forms a forms))))

@@ -31,7 +31,7 @@
       (number! (mut b) vi)
       (push-str! (mut b) " [")
       (for [i 0 (len (.fields v))] (push-str! (mut b) " f") (number! (mut b) i))
-      (push-str! (mut b) "] (if (and true ")
+      (push-str! (mut b) "] (block :rule ")
       (for [p 2 (sexp-count rule)]
         (let [premise (sexp-nth rule p)]
           (unless (and (sexp-list? premise) (= (sexp-count premise) 2))
@@ -54,18 +54,29 @@
                       :done
                         (Err (problem field-name
                                       "premise field must reference the judged sum"))))
-                  (push-str! (mut b) "(= (judge-worker-")
+                  (push-str! (mut b) "(let [answer (judge-worker-")
                   (number! (mut b) ni)
                   (push-str! (mut b) " rows f")
                   (number! (mut b) f)
-                  (push-str! (mut b) " (- fuel 1)) ")
+                  (push-str! (mut b)
+                             " (- fuel 1))] (match answer (Typed [actual] (unless (= actual ")
                   (number! (mut b) (tag (sexp-sym expected)))
-                  (push-str! (mut b) ") "))))
+                  (push-str! (mut b) ") (break :rule (Mismatch (.index f")
+                  (number! (mut b) f)
+                  (push-str! (mut b) ") ")
+                  (number! (mut b) f)
+                  (push-str! (mut b) " ")
+                  (number! (mut b) (tag (sexp-sym expected)))
+                  (push-str! (mut b) " actual ")
+                  (number! (mut b) (.lo premise))
+                  (push-str! (mut b) " ")
+                  (number! (mut b) (.hi premise))
+                  (push-str! (mut b) ")))) (_ (break :rule answer)))) "))))
             (unless found
               (break :done (Err (problem field-name "unknown premise field")))))))
-      (push-str! (mut b) ") ")
+      (push-str! (mut b) "(Typed ")
       (number! (mut b) (tag (sexp-sym result)))
-      (push-str! (mut b) " 0))\n")
+      (push-str! (mut b) ")))\n")
       (Ok 0))))
 
 (defn compile-one [(a (dyn Allocator)) (s (ptr Schema)) (form (ptr Sexp))]
@@ -91,9 +102,10 @@
         (push-str! (mut b) "Row))) (id N")
         (number! (mut b) ni)
         (push-str! (mut b)
-                   "Id) (fuel i64)] (-> i64) (if (<= fuel 0) 0 (match (lookup-")
+                   "Id) (fuel i64)] (-> Judgment) (match (lookup-")
         (number! (mut b) ni)
-        (push-str! (mut b) " rows id) (None [] 0) (Some [row] (match row ")
+        (push-str! (mut b)
+                   " rows id) (None [] (InvalidReference (.index id))) (Some [row] (if (<= fuel 0) (CyclicInput (.index id)) (match row ")
         (for [v 0 (len (.variants n))]
           (let [(mut matches) 0]
             (for [r 2 (sexp-count form)]
@@ -118,7 +130,7 @@
         (number! (mut b) ni)
         (push-str! (mut b) "Row))) (id N")
         (number! (mut b) ni)
-        (push-str! (mut b) "Id)] (-> i64) (judge-worker-")
+        (push-str! (mut b) "Id)] (-> Judgment) (judge-worker-")
         (number! (mut b) ni)
         (push-str! (mut b) " rows id (len (load rows))))\n")
         (Ok (str (load b)))))))
