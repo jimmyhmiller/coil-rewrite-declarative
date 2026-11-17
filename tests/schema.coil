@@ -1,0 +1,36 @@
+(module rewrite.tests.schema)
+(import "rewrite.schema" :as schema)
+(import "coil.alloc" :use *)
+(import "coil.result" :use *)
+(import "coil.arraylist" :use *)
+
+(defn main [] (-> i64)
+  (let [arena (arena-new 1048576)
+        a (arena-view arena)
+        (mut failures) 0]
+    (match (schema/parse a
+                         "(node Add (left Expr) (right Expr)) (node Expr (value Int))"
+                         7)
+      (Ok [s] (unless (= (len (.nodes s)) 2) (set! failures (+ failures 1))))
+      (Err [_] (set! failures (+ failures 1))))
+    (for text ["(node X (a Missing))"
+               "(node X) (node X)"
+               "(node X (a Int) (a Bool))"
+               "(node Int)"
+               "(wrong X)"
+               "(node X (a))"
+               "(node X"]
+      (match (schema/parse a text 7)
+        (Ok [_]
+            (do
+              (println "accepted invalid schema: {}" text)
+              (set! failures (+ failures 1))))
+        (Err [d] (unless (= (.source d) 7) (set! failures (+ failures 1))))))
+    (match (schema/parse a "(node X (a Missing))" 9)
+      (Ok [_] (set! failures (+ failures 1)))
+      (Err [d]
+           (unless (and (= (.lo d) 11) (= (.hi d) 18))
+             (set! failures (+ failures 1)))))
+    (arena-release! arena)
+    (println "schema failures: {}" failures)
+    failures))

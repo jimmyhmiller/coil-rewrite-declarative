@@ -1,0 +1,4 @@
+[package]
+name = "rewrite"
+entry = "tests/schema.coil"
+source-roots = ["seed", "tests"]

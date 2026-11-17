@@ -1,0 +1,103 @@
+;;; Bootstrap schema language. All references are resolved before consumers run.
+(module rewrite.schema)
+(import "coil.alloc" :use *)
+(import "coil.arraylist" :use *)
+(import "coil.reader" :use *)
+(import "coil.result" :use *)
+
+(defstruct Field [(name (slice u8)) (type-name (slice u8)) (origin Sexp)])
+
+(defstruct Node [(name (slice u8)) (fields (ArrayList Field)) (origin Sexp)])
+
+(defstruct Schema [(nodes (ArrayList Node))])
+
+(defn problem [(at (ptr Sexp)) (message (slice u8))] (-> Diag)
+  (Diag
+    :lo (.lo at)
+    :hi (.hi at)
+    :source (.source at)
+    :ctxt 0
+    :msg message))
+
+(defn scalar? [(name (slice u8))] (-> bool)
+  (or (= name "Int") (or (= name "Bool") (= name "Text"))))
+
+(defn known? [(nodes (ptr (ArrayList Node))) (name (slice u8))] (-> bool)
+  (block :found
+    (for [i 0 (len (load nodes))]
+      (when (= (.name (elem nodes i)) name) (break :found true)))
+    false))
+
+(defn parse-field [(form (ptr Sexp))] (-> (Result Field Diag))
+  (if (not (and (sexp-list? form) (= (sexp-count form) 2)))
+      (Err (problem form "expected (field-name Type)"))
+      (let [name (sexp-nth form 0)
+            ty (sexp-nth form 1)]
+        (if (not (and (sexp-sym? name) (sexp-sym? ty)))
+            (Err (problem form "field name and type must be symbols"))
+            (Ok (Field
+                  :name (sexp-sym name)
+                  :type-name (sexp-sym ty)
+                  :origin (load form)))))))
+
+(defn parse-node [(a (dyn Allocator)) (form (ptr Sexp))] (-> (Result Node Diag))
+  (block :result
+    (unless (and (sexp-list? form) (>= (sexp-count form) 2))
+      (break :result (Err (problem form "expected (node Name fields...)"))))
+    (unless (sexp-sym-is (sexp-nth form 0) "node")
+      (break
+        :result (Err (problem (sexp-nth form 0) "expected node declaration"))))
+    (let [name (sexp-nth form 1)
+          (mut fields) (ArrayList::new [Field] a)]
+      (unless (sexp-sym? name)
+        (break :result (Err (problem name "node name must be a symbol"))))
+      (when (scalar? (sexp-sym name))
+        (break
+          :result (Err (problem name "node name is reserved for a scalar type"))))
+      (for [i 2 (sexp-count form)]
+        (match (parse-field (sexp-nth form i))
+          (Err [d] (break :result (Err d)))
+          (Ok [f]
+              (do
+                (for [j 0 (len fields)]
+                  (when (= (.name (elem (mut fields) j)) (.name f))
+                    (break
+                      :result
+                        (Err (problem (sexp-nth form i) "duplicate field")))))
+                (push! (mut fields) f)))))
+      (Ok (Node
+            :name (sexp-sym name)
+            :fields fields
+            :origin (load form))))))
+
+;;; Storage and source text must outlive the returned schema, including diagnostics.
+;;; Pass an arena: unsuccessful parsing also belongs to that allocation lifetime.
+(defn parse [(a (dyn Allocator)) (text (slice u8)) (source i64)]
+  (-> (Result Schema Diag))
+  (block
+    :result
+      (match (read-all a text source)
+        (Err [d] (Err d))
+        (Ok [forms]
+            (let [(mut nodes) (ArrayList::new [Node] a)]
+              (for [i 0 (len (load forms))]
+                (match (parse-node a (elem forms i))
+                  (Err [d] (break :result (Err d)))
+                  (Ok [n]
+                      (do
+                        (when (known? (mut nodes) (.name n))
+                          (break
+                            :result
+                              (Err (problem (elem forms i) "duplicate node"))))
+                        (push! (mut nodes) n)))))
+              (for [i 0 (len nodes)]
+                (let [n (elem (mut nodes) i)]
+                  (for [j 0 (len (.fields n))]
+                    (let [f (elem (field n fields) j)]
+                      (unless (or (scalar? (.type-name f))
+                                  (known? (mut nodes) (.type-name f)))
+                        (break
+                          :result
+                            (Err (problem (sexp-nth (field f origin) 1)
+                                          "unknown field type"))))))))
+              (Ok (Schema :nodes nodes)))))))
