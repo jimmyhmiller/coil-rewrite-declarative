@@ -1,7 +1,7 @@
 {
   "scope": "Schema and syntax-value grammar regeneration only; host Coil builds both stages.",
-  "host_version": "coil 0.1.0 (commit 3eb10b3aeea7, 2026-11-16)",
-  "host_executable_sha256": "eec6380a600c9b2c692d0f7764eb0fc2c35f5ec5a2e28a10e803f3114f8571bd",
+  "host_version": "coil 0.1.0 (commit 810017165e50, 2026-11-17)",
+  "host_executable_sha256": "f1485fd8f69496a11ca445dea1ac4a60005ee1401cf61636f1d1afab9c8483d5",
   "specification_sha256": "ab8d60607eb3dd6f368b1a1857bbddcd59862747fcdc5d14415ee991ee2abce5",
   "generated_sha256": "40813e20d8b78374281adace11b7178478113ba7315d066d29272238794f3333",
   "language_artifacts": {
@@ -25,6 +25,7 @@
     "seed/generated/code_forms.coil": "49ba56eec974d7afee002995f313146095dce1dbf0d7ade62a59b4cc9cb40b0a",
     "seed/generated/schema_forms.coil": "40813e20d8b78374281adace11b7178478113ba7315d066d29272238794f3333",
     "seed/index.coil": "071ce0d6f87d28036b19158a770c5324bdef1d46278e4326fcb5730e31337a31",
+    "seed/invocation.coil": "9b236916bf20786e9db4d2b3fd15b9f84d8da962f8e195e331ab8a77d2c19e23",
     "seed/judgment.coil": "5c89d13c8af1532e8cfbb5d5808cdbf0d58de0989d354bac8762c2cbde2aa504",
     "seed/lower.coil": "2421bc11672e988aef991f081125c869b563d1b762239229fa8bf39bd10e59cb",
     "seed/main.coil": "996b6dcdc20b7840ecf05fa6cae7e78b19f3abc72dd45a115cfe7b56c0db07b2",

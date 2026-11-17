@@ -14,6 +14,7 @@ for flags in [[], ['--debug-checks'], ['--release']]:
     subprocess.run(['coil', 'run', 'tests/phases.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/types.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/code.coil', *flags], cwd=ROOT, check=True)
+    subprocess.run(['coil', 'run', 'tests/invocation.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/sequences.coil', *flags], cwd=ROOT, check=True)
 source = (ROOT / 'tests/schemas/expressions.schema').read_bytes()
 generated = subprocess.check_output([str(ROOT / 'build/schema-seed')], input=source)

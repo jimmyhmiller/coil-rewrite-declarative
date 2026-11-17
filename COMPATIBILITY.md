@@ -127,3 +127,11 @@ The generated syntax-value parser also participates in isolated regeneration che
 Native host callbacks may now carry a typed borrowed context. The loader validates linkage first and emits CIR wrappers that adapt a program's unary call to a C callback taking context plus argument. A `ContextImage` tracks both executable mappings for ordered release. Two live images can carry distinct mutable contexts, including nested calls from one callback into the other image, without a global current-context variable.
 
 The native suite checks callback types, reordered imports, missing/null callbacks, independent contexts and nested re-entry in three configurations on this Mac. Code-handle validation, invocation-owned syntax, arbitrary multi-argument signatures, semantic capabilities and cumulative staging remain incomplete. Allocator storage, callback code and context lifetimes remain caller-managed.
+
+## Invocation handle checkpoint
+
+Native syntax operations now validate positive opaque handles in an explicit invocation-owned store. Foreign and closed handles are rejected; canonical handles survive store growth and identities are never recycled within one loaded runtime instance. Entry calls distinguish syntax results from scalar results, reject null entry pointers and same-context re-entry, and propagate the first callback failure without treating sentinel zero as a valid handle. Closing an active invocation and reading new source while it executes are rejected.
+
+The checked API currently offers first/last container selection and integer projection. This does not establish the complete Code API, hygiene operations, syntax promotion, semantic-query capabilities, cumulative phase declarations or language resumption. Context storage and executable-entry lifetimes remain caller-managed. Validation is local to this Mac; no cross-target or full compiler performance claim follows.
+
+Validation: `python3 tools/check-seed.py` and `python3 tools/check-lowering.py` passed, including debug/debug-checks/release invocation fixtures. The handle-growth fixture was also rerun in all three configurations after extending it to 2,000 reads. The isolated grammar bootstrap records the current installed host compiler in `evidence/schema-bootstrap.json`.

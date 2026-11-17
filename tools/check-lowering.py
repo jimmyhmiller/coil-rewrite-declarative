@@ -19,6 +19,9 @@ with tempfile.TemporaryDirectory(prefix='rewrite-lowering-') as directory:
     shutil.copyfile(ROOT/'seed/source.coil', work/'source.coil')
     shutil.copyfile(ROOT/'seed/sequence.coil', work/'sequence.coil')
     shutil.copyfile(ROOT/'runtime/native.coil', work/'native.coil')
+    for name in ['code', 'invocation']:
+        shutil.copyfile(ROOT/f'seed/{name}.coil', work/f'{name}.coil')
+    shutil.copyfile(ROOT/'seed/generated/code_forms.coil', work/'code_forms.coil')
     (work/'generated.coil').write_bytes(subprocess.check_output([str(ROOT/'build/schema-seed')], input=(ROOT/'tests/schemas/lowering.schema').read_bytes()))
     rng = random.Random(90210)
     def expression(depth, env):
@@ -73,6 +76,11 @@ with tempfile.TemporaryDirectory(prefix='rewrite-lowering-') as directory:
                     host_schema.replace(b'(host double Int Int)', b'(host "double" Int Int)')]:
         rejected = subprocess.run([str(ROOT/'build/schema-seed')], input=invalid, capture_output=True)
         assert rejected.returncode != 0 and not rejected.stdout and b'host' in rejected.stderr, rejected
+    invocation_schema = (ROOT/'tests/schemas/lowering.schema').read_bytes() + b'\n(node Function (name Text :key) (parameter Text) (body Expr))\n(program Expr Function name parameter body Int Int (host first Int Int) (host last Int Int) (host integer Int Int) (host reenter Int Int))\n'
+    (work/'generated.coil').write_bytes(subprocess.check_output([str(ROOT/'build/schema-seed')], input=invocation_schema))
+    (work/'main.coil').write_text((ROOT/'tests/invocation-native.coil.in').read_text())
+    for flags in [[], ['--debug-checks'], ['--release']]:
+        subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)
     program_schema = (ROOT/'tests/schemas/lowering.schema').read_bytes() + b'\n(node Function (name Text :key) (parameter Text) (body Expr))\n(program Expr Function name parameter body Int Int)\n'
     program_schema += (ROOT/'tests/schemas/surface.syntax').read_bytes()
     (work/'generated.coil').write_bytes(subprocess.check_output([str(ROOT/'build/schema-seed')], input=program_schema))
