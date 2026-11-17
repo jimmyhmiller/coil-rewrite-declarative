@@ -37,9 +37,9 @@
     (push-str! (mut b)
                "(module rewrite.generated)\n(import \"rewrite.types\" :as types)\n(import \"coil.result\" :use *)\n(import \"coil.arraylist\" :use *)\n")
     (push-str! (mut b)
-               "(defsum Judgment (Typed [(type i64)]) (Mismatch [(node i64) (field i64) (expected i64) (actual i64) (rule-lo i64) (rule-hi i64)]) (InvalidReference [(node i64)]) (CyclicInput [(node i64)]) (UnboundName [(node i64) (name (slice u8))]) (TypeConstruction [(error types/TypeError)]) (ExpectedFunction [(node i64) (actual i64)]))\n")
+               "(defsum Judgment (Typed [(type i64)]) (Classified [(type i64) (category (slice u8))]) (CategoryMismatch [(node i64) (actual (slice u8)) (rule-lo i64) (rule-hi i64)]) (Mismatch [(node i64) (field i64) (expected i64) (actual i64) (rule-lo i64) (rule-hi i64)]) (InvalidReference [(node i64)]) (CyclicInput [(node i64)]) (UnboundName [(node i64) (name (slice u8))]) (TypeConstruction [(error types/TypeError)]) (ExpectedFunction [(node i64) (actual i64)]))\n")
     (push-str! (mut b)
-               "(import \"rewrite.scope\" :use [Scope scope-bind scope-global scope-lookup])\n(defn context-lookup [(context (ptr (Scope i64))) (name (slice u8)) (node i64)] (-> Judgment) (match (scope-lookup context name) (Some [ty] (Typed ty)) (None [] (UnboundName node name))))\n")
+               "(import \"rewrite.scope\" :use [Scope scope-bind scope-global scope-lookup])\n(defstruct TypeBinding [(type i64) (category (slice u8))])\n(defn classify [(ty i64) (category (slice u8))] (-> Judgment) (if (= category \"value\") (Typed ty) (Classified ty category)))\n(defn context-lookup [(context (ptr (Scope TypeBinding))) (name (slice u8)) (node i64)] (-> Judgment) (match (scope-lookup context name) (Some [binding] (classify (.type binding) (.category binding))) (None [] (UnboundName node name))))\n")
     (push-str! (mut b)
                "(defsum ValueBinding (LocalValue [(value u32)]) (GlobalSymbol [(symbol u32)]))\n(defn value-lookup [(context (ptr (Scope ValueBinding))) (name (slice u8))] (-> ValueBinding) (match (scope-lookup context name) (Some [value] value) (None [] (panic \"unbound name in checked lowering\"))))\n")
     (for [i 0 (len (.nodes s))]

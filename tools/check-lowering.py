@@ -56,21 +56,21 @@ with tempfile.TemporaryDirectory(prefix='rewrite-lowering-') as directory:
     (work/'generated.coil').write_bytes(subprocess.check_output([str(ROOT/'build/schema-seed')], input=program_schema))
     client = (ROOT/'tests/program.coil.in').read_text().replace('(defn main []', '(defn hand-tests []')
     surface_program = (ROOT/'tests/surface-program.coil.in').read_text()
-    function_value_gap = (ROOT/'tests/surface-function-value-gap.coil.in').read_text()
-    (work/'reference-gap.coil').write_text('(module fixture.referencegap)\n' + function_value_gap)
-    rejected = subprocess.run(['coil', 'check', 'reference-gap.coil'], cwd=work, capture_output=True)
+    invalid_function_value = (ROOT/'tests/surface-function-value-invalid.coil.in').read_text()
+    (work/'reference-invalid.coil').write_text('(module fixture.referenceinvalid)\n' + invalid_function_value)
+    rejected = subprocess.run(['coil', 'check', 'reference-invalid.coil'], cwd=work, capture_output=True)
     assert rejected.returncode != 0 and b'is a function, not a value' in rejected.stdout + rejected.stderr, rejected
-    (work/'reference.coil').write_text('(module fixture.reference)\n' + surface_program + '\n(defn main [] (-> i64) (if (= (entry 41) 42) 0 1))\n')
+    (work/'reference.coil').write_text('(module fixture.reference)\n(import \"coil.primitive\" :use [fnptr-of])\n' + surface_program + '\n(defn main [] (-> i64) (if (= (entry 41) 42) 0 1))\n')
     # The first function calls the last declaration, across unused global names.
     many = '(Function "main" "x" (Call (Variable "f127") (Variable "x"))) '
     many += ' '.join(f'(Function "f{i}" "x" (Add (Variable "x") (Integer 1)))' for i in range(128))
-    client += '\n(defn main [] (-> i64) (if (and (= (hand-tests) 0) (check ' + json.dumps(many) + ' 42) (check-with ' + json.dumps(surface_program) + ' 42 true) (check-with ' + json.dumps(function_value_gap) + ' 42 true)) 0 1))\n'
+    client += '\n(defn main [] (-> i64) (if (and (= (hand-tests) 0) (check ' + json.dumps(many) + ' 42) (check-with ' + json.dumps(surface_program) + ' 42 true) (check-with ' + json.dumps(invalid_function_value) + ' 4 true)) 0 1))\n'
     (work/'main.coil').write_text(client)
     for flags in [[], ['--debug-checks'], ['--release']]:
         subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)
         subprocess.run(['coil', 'run', 'reference.coil', *flags], cwd=work, check=True)
 print('Source -> generated checking/lowering -> CIR -> native execution passed')
-print('OPEN COMPATIBILITY GAP: rewrite accepts bare function values rejected by installed Coil')
+print('Function designators rejected as values; explicit function pointers agree with installed Coil')
 
 source = (ROOT/'tests/schemas/lowering.schema').read_bytes()
 for invalid in [source + b'(lower Expr)', source.replace(b'(const value)', b'(const missing)'), source.replace(b'(add left right)', b'(unknown left right)'), source.replace(b'(Boolean (bool value))', b'')]:

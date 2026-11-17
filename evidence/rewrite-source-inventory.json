@@ -4,8 +4,8 @@
   "totals": {
     "authored-seed-and-runtime": {
       "files": 14,
-      "bytes": 119806,
-      "physical_lines": 2165
+      "bytes": 125927,
+      "physical_lines": 2259
     },
     "retained-authored-machinery-and-specifications": {
       "files": 161,
@@ -29,13 +29,13 @@
     },
     "rewrite-build-and-validation-tools": {
       "files": 7,
-      "bytes": 31183,
-      "physical_lines": 554
+      "bytes": 31855,
+      "physical_lines": 562
     },
     "rewrite-tests-and-fixtures": {
       "files": 21,
-      "bytes": 37046,
-      "physical_lines": 730
+      "bytes": 38736,
+      "physical_lines": 750
     }
   },
   "files": [
@@ -49,15 +49,15 @@
     {
       "path": "seed/README.md",
       "category": "authored-seed-and-runtime",
-      "sha256": "b9fc83f241fe2321dc5fec4c71c1689d396f8d0f1319534d73e88190950850d2",
-      "bytes": 27926,
-      "physical_lines": 213
+      "sha256": "e496bccfba7020bda865e70f97a51b3447f555e2fc48257f7e8e122865c3256c",
+      "bytes": 30033,
+      "physical_lines": 229
     },
     {
       "path": "seed/emit.coil",
       "category": "authored-seed-and-runtime",
-      "sha256": "9438662be83110a0800fea1235b013ee026a316a48c216b5b9f0749f220dcc30",
-      "bytes": 4276,
+      "sha256": "c09234e874922a62de68d619e62cdd3745903bfcb2c2dc10045111e003ba7640",
+      "bytes": 4641,
       "physical_lines": 85
     },
     {
@@ -70,16 +70,16 @@
     {
       "path": "seed/judgment.coil",
       "category": "authored-seed-and-runtime",
-      "sha256": "dee38ef6cb45ffdfa4da56326f1324d6f3686b9423c8f5ba23c45867b3294f37",
-      "bytes": 14548,
-      "physical_lines": 336
+      "sha256": "4e3096c77d2b9d33e2d9131720d82b8236764c776dda03fb75a83b9633cc574e",
+      "bytes": 17987,
+      "physical_lines": 412
     },
     {
       "path": "seed/lower.coil",
       "category": "authored-seed-and-runtime",
-      "sha256": "1fa194a9934d13b5a5135bfd860ade66a4b6fe62a4c0bc6f78f7aadc9be746bf",
-      "bytes": 9486,
-      "physical_lines": 198
+      "sha256": "8e8fc7aea75d5099e620b1c0fb5bebe23c6c0f6c9de4f54f82255ce782dbfdee",
+      "bytes": 9605,
+      "physical_lines": 200
     },
     {
       "path": "seed/main.coil",
@@ -98,8 +98,8 @@
     {
       "path": "seed/program.coil",
       "category": "authored-seed-and-runtime",
-      "sha256": "687157fa52a8c5b60cc20983764cfb8d326fa142a557b2a6ed449683a1cc921f",
-      "bytes": 8769,
+      "sha256": "e45b525038a66ec60351a749351a48fcfcf4c9e153d7500df3e2907bc75e430e",
+      "bytes": 8860,
       "physical_lines": 130
     },
     {
@@ -154,8 +154,8 @@
     {
       "path": "tests/calls.coil.in",
       "category": "rewrite-tests-and-fixtures",
-      "sha256": "a3ea57e37cf5d33c9ef020c54c57a7fe8f7bd8e97d635728056eaf395f238788",
-      "bytes": 3829,
+      "sha256": "5e833506512dafbe3e10fe1e81ab29f0da73a3ecff168abdf0ad67d89e0791b7",
+      "bytes": 3948,
       "physical_lines": 67
     },
     {
@@ -196,16 +196,16 @@
     {
       "path": "tests/program.coil.in",
       "category": "rewrite-tests-and-fixtures",
-      "sha256": "19f03f019bdaa8b968e5f921634669aee21605c7898bb8ca1e88f24284080cbf",
-      "bytes": 7426,
-      "physical_lines": 121
+      "sha256": "4802c86143e85164b6fb6dd0314e57983fc3a79f8d038c7c8e2ad210780ab0d4",
+      "bytes": 8117,
+      "physical_lines": 127
     },
     {
       "path": "tests/reader.coil.in",
       "category": "rewrite-tests-and-fixtures",
-      "sha256": "10af0faabc97fa453b8f8490ba0ab212542fb899c37a9ff2e2e468d117e1e3e7",
-      "bytes": 3141,
-      "physical_lines": 60
+      "sha256": "93f2fc01eee7029009a9ee8b8355640b520c94e191b43e748934d022bd91dedc",
+      "bytes": 3662,
+      "physical_lines": 68
     },
     {
       "path": "tests/schema.coil",
@@ -224,9 +224,9 @@
     {
       "path": "tests/schemas/lowering.schema",
       "category": "rewrite-tests-and-fixtures",
-      "sha256": "2c5aca55080ac7c59a0be282a36dee5132e60843b5b6df208b9dc63b0bfb66b6",
-      "bytes": 739,
-      "physical_lines": 11
+      "sha256": "8d7345e04c8099966a21150bf8619313f2f75be88c7fdf8fa1f8806e05453231",
+      "bytes": 908,
+      "physical_lines": 12
     },
     {
       "path": "tests/schemas/recursive.schema",
@@ -238,19 +238,19 @@
     {
       "path": "tests/schemas/surface.syntax",
       "category": "rewrite-tests-and-fixtures",
-      "sha256": "34c6ffb657e0773096d96ffff503bf7cb8685f6b761f76dba3cd5cf6aa4e6073",
-      "bytes": 430,
-      "physical_lines": 10
+      "sha256": "30421faabc0b95d853f7d365dfddc2fe0cffb96c56b97206990c245ad03db438",
+      "bytes": 477,
+      "physical_lines": 11
     },
     {
       "path": "tests/schemas/typing.schema",
       "category": "rewrite-tests-and-fixtures",
-      "sha256": "3ff7eabb95cd486204ca04c91fbc3ba266e77beee8ed00bef4fc355dbca5cdb9",
-      "bytes": 984,
-      "physical_lines": 26
+      "sha256": "2a27033aeba37c74e11a2374ee12fffdc356525c4e8f97a0318ea62701a2637a",
+      "bytes": 1116,
+      "physical_lines": 30
     },
     {
-      "path": "tests/surface-function-value-gap.coil.in",
+      "path": "tests/surface-function-value-invalid.coil.in",
       "category": "rewrite-tests-and-fixtures",
       "sha256": "7dabb2c8341e35fefc91d223ad42bb151172d8fcc3d6eb9e93b400521501a112",
       "bytes": 111,
@@ -259,8 +259,8 @@
     {
       "path": "tests/surface-program.coil.in",
       "category": "rewrite-tests-and-fixtures",
-      "sha256": "4b5068d13d7599c31f738c3a5f61393894f2ca5a0a05bc282852c1c291219493",
-      "bytes": 111,
+      "sha256": "37039dd7970d4462504ff452c2b52fdee3c827571e07e17959cd4df2b2f3ff40",
+      "bytes": 122,
       "physical_lines": 5
     },
     {
@@ -294,23 +294,23 @@
     {
       "path": "tools/check-lowering.py",
       "category": "rewrite-build-and-validation-tools",
-      "sha256": "f77c3352795e7b2e935b2375779d303d64ce3b8d5b9eea35ea6d85e6ba23cd13",
-      "bytes": 6753,
+      "sha256": "986fde3a826cfeceda37a9f03c6b17b77566504fab30a256b13b955b0846a1d3",
+      "bytes": 6831,
       "physical_lines": 96
     },
     {
       "path": "tools/check-seed.py",
       "category": "rewrite-build-and-validation-tools",
-      "sha256": "d45e7123b28d3a3788360d21bf885baca05478ccf5472f41ace4a470063e0ef4",
-      "bytes": 11061,
-      "physical_lines": 160
+      "sha256": "e80c22dddf543b3de25900792f2e590778bd9cefebfc24425ca79ae36a28ab86",
+      "bytes": 11529,
+      "physical_lines": 165
     },
     {
       "path": "tools/count-rewrite.py",
       "category": "rewrite-build-and-validation-tools",
-      "sha256": "9b5431ed6693447100c051dd4d9eac6bff3e593d3178cf9b5315ad1270ec0a77",
-      "bytes": 2433,
-      "physical_lines": 56
+      "sha256": "c10434741d3f71d10db6dbe96f2d84560ff288b2c643418180708de382623c70",
+      "bytes": 2559,
+      "physical_lines": 59
     },
     {
       "path": "tools/inventory.py",

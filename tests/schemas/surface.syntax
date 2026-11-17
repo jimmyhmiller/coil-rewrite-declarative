@@ -5,6 +5,7 @@
   (Add (list "+" (ref left) (ref right)))
   (Choose (list "if" (ref condition) (ref yes) (ref no)))
   (Let (list "let" (vector (symbol name) (ref value)) (ref body)))
+  (AddressOf (list "fnptr-of" (ref function)))
   (Call (list (ref callee) (ref argument))))
 (syntax Function
   (Function (list "defn" (symbol name) (vector (list (symbol parameter) "i64")) (list "->" "i64") (ref body))))

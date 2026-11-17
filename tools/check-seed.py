@@ -81,6 +81,11 @@ with tempfile.TemporaryDirectory(prefix='rewrite-judgment-') as directory:
     for flags in [[], ['--debug-checks'], ['--release']]:
         subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)
     for invalid, diagnostic in [
+        (typing.replace(b'(in [address] ?type)', b'(in [] ?type)'), b'expected (in'),
+        (typing.replace(b'(in [address] ?type)', b'(in [address address] ?type)'), b'duplicate accepted category'),
+        (typing.replace(b'(in [address] ?type)', b'(in [7] ?type)'), b'category must be a symbol'),
+        (typing.replace(b'(as address ?type)', b'(as address)'), b'expected (as'),
+        (typing.replace(b'(as address ?type)', b'(as 7 ?type)'), b'expected (as'),
         (typing.replace(b'(Boolean Bool)', b''), b'exactly one rule'),
         (typing + b'(judgment Expr)', b'duplicate judgment'),
         (typing.replace(b'(left Int)', b'(missing Int)'), b'unknown premise field'),

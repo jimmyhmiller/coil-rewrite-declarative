@@ -31,6 +31,9 @@
                        (UnboundName [_ _] (= expected 4))
                        (Mismatch [_ _ _ _ _ _] (= expected 5))
                        (ExpectedFunction [_ _] (= expected 8))
+                       (Classified [ty category] (and (= expected 9) (= ty 1) (= category "address")))
+                       (CategoryMismatch [node category lo hi]
+                         (and (= expected 10) (>= node 0) (> hi lo) (or (= category "address") (= category "value"))))
                        (_ false)))))))]
     (store-free! (mut store))
     (types/release! (mut type-store))
@@ -38,6 +41,11 @@
     ok))
 (defn main [] (-> i64)
   (if (and
+    (check "(Place (Integer 7))" 9)
+    (check "(Read (Place (Integer 7)))" 1)
+    (check "(Read (Integer 7))" 10)
+    (check "(Let \"x\" (Place (Integer 7)) (Variable \"x\"))" 10)
+    (check "(Add (Place (Integer 7)) (Integer 3))" 10)
     (check "(Let \"x\" (Integer 42) (Add (Variable \"x\") (Integer 1)))" 1)
     (check "(Let \"x\" (Integer 42) (Let \"x\" (Boolean true) (Variable \"x\")))" 2)
     (check "(Variable \"missing\")" 4)

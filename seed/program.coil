@@ -92,7 +92,7 @@
           (number! (mut b) body)
           (push-str! (mut b) " row)))))) (Ok declarations))))\n")
           (push-str! (mut b)
-                     "(defn program-check [(type-store (mut types/Types)) (store (ptr Store)) (declaration ProgramFunction) (context (ptr (Scope i64)))] (-> Judgment) (let [(mut local) (scope-bind context (.parameter declaration) (: 1 i64))] (judge-worker-")
+                     "(defn program-check [(type-store (mut types/Types)) (store (ptr Store)) (declaration ProgramFunction) (context (ptr (Scope TypeBinding)))] (-> Judgment) (let [(mut local) (scope-bind context (.parameter declaration) (TypeBinding :type 1 :category \"value\"))] (judge-worker-")
           (number! (mut b) expression)
           (push-str! (mut b) " (mut type-store) (field store rows")
           (number! (mut b) expression)
@@ -109,12 +109,12 @@
                      "(defn compile-program [(a (dyn Allocator)) (store (ptr Store)) (ids (ptr (ArrayList N")
           (number! (mut b) declaration)
           (push-str! (mut b)
-                     "Id)))] (-> (Result image/Image ProgramError)) (block :done (let [declarations (match (program-functions a store ids) (Err [error] (break :done (Err error))) (Ok [items] (box! a (ArrayList ProgramFunction) items))) (mut type-store) (types/create a) signature (match (types/function (mut type-store) 1 1) (Ok [id] id) (Err [_] (panic \"cannot construct program signature\"))) (mut im) (image/create a) (mut global-types) (HashMap::new [(slice u8) i64] a (keystr/keyops)) (mut global-values) (HashMap::new [(slice u8) ValueBinding] a (keystr/keyops)) (mut context) (scope-global (mut global-types)) (mut values) (scope-global (mut global-values))] (defer (types/release! (mut type-store))) (defer (free! (mut global-types))) (defer (free! (mut global-values))) ")
+                     "Id)))] (-> (Result image/Image ProgramError)) (block :done (let [declarations (match (program-functions a store ids) (Err [error] (break :done (Err error))) (Ok [items] (box! a (ArrayList ProgramFunction) items))) (mut type-store) (types/create a) signature (match (types/function (mut type-store) 1 1) (Ok [id] id) (Err [_] (panic \"cannot construct program signature\"))) (mut im) (image/create a) (mut global-types) (HashMap::new [(slice u8) TypeBinding] a (keystr/keyops)) (mut global-values) (HashMap::new [(slice u8) ValueBinding] a (keystr/keyops)) (mut context) (scope-global (mut global-types)) (mut values) (scope-global (mut global-values))] (defer (types/release! (mut type-store))) (defer (free! (mut global-types))) (defer (free! (mut global-values))) ")
           (for [step 0 (len order)]
             (let [name (get order step)]
               (cond (= name "register")
                       (push-str! (mut b)
-                                 "(for [i 0 (len (load declarations))] (let [d (get (load declarations) i)] (image/symbol! (mut im) (.name d)) (set! (mut global-types) (.name d) signature) (set! (mut global-values) (.name d) (GlobalSymbol (cast u32 i))))) ")
+                                 "(for [i 0 (len (load declarations))] (let [d (get (load declarations) i)] (image/symbol! (mut im) (.name d)) (set! (mut global-types) (.name d) (TypeBinding :type signature :category \"function\")) (set! (mut global-values) (.name d) (GlobalSymbol (cast u32 i))))) ")
                     (= name "check")
                       (push-str! (mut b)
                                  "(for [i 0 (len (load declarations))] (let [d (get (load declarations) i) result (program-check (mut type-store) store d (mut context))] (match result (Typed [ty] (unless (= ty 1) (break :done (Err (WrongReturn (.name d) ty))))) (_ (break :done (Err (InvalidBody (.name d) result))))))) ")

@@ -28,7 +28,9 @@
           (match (compile-program a (mut store) (mut ids))
                 (Err [e] (match e
                   (DuplicateFunction [_] (= expected 1))
-                  (InvalidBody [_ _] (= expected 2))
+                  (InvalidBody [_ reason] (or (= expected 2)
+                    (match reason (CategoryMismatch [_ category _ _]
+                      (or (and (= expected 4) (= category "function")) (and (= expected 5) (= category "value")))) (_ false))))
                   (WrongReturn [_ _] (= expected 3)) (_ false)))
                 (Ok [im]
                   (let [loaded (native/load-image a im)
@@ -67,13 +69,13 @@
         a (allocator (mut arena)) (mut store) (store-new a)
         (mut type-store) (types/create a)
         signature (match (types/function (mut type-store) 1 1) (Ok [id] id) (Err [_] (panic "signature")))
-        (mut type-index) (HashMap::new [(slice u8) i64] a (keystr/keyops))
+        (mut type-index) (HashMap::new [(slice u8) TypeBinding] a (keystr/keyops))
         (mut value-index) (HashMap::new [(slice u8) ValueBinding] a (keystr/keyops))
         (mut function) (cir/Func::new)]
     (for [i 0 2000]
       (let [(mut name) (StrBuf::new a)]
         (push-str! (mut name) "f") (push-i64! (mut name) i)
-        (set! (mut type-index) (str (load name)) signature)
+        (set! (mut type-index) (str (load name)) (TypeBinding :type signature :category "function"))
         (set! (mut value-index) (str (load name)) (GlobalSymbol (cast u32 i)))))
     (let [body (match (read-all a text 0)
                 (Err [_] (panic "source"))
@@ -106,15 +108,19 @@
     (surface-error "(let [1 2] 3)" "wrong syntax scalar")
     (surface-error "(let (x 2) x)" "wrong syntax container")
     (surface-error "(let [x 1 y 2] x)" "wrong syntax arity")
+    (check-with "(defn main [(n i64)] (-> i64) (let [f inc] (f n))) (defn inc [(x i64)] (-> i64) (+ x 1))" 4 true)
+    (check-with "(defn main [(n i64)] (-> i64) (inc inc)) (defn inc [(x i64)] (-> i64) (+ x 1))" 4 true)
+    (check-with "(defn main [(n i64)] (-> i64) (if inc 1 2)) (defn inc [(x i64)] (-> i64) (+ x 1))" 4 true)
+    (check-with "(defn main [(n i64)] (-> i64) (let [f (fnptr-of n)] (f n)))" 5 true)
     (check-with "(defn main [(n i64)] (-> i64) (inc n)) (defn inc [(x i64)] (-> i64) (+ x 1))" 42 true)
-    (check-with "(defn main [(n i64)] (-> i64) (let [inc inc] (if false 0 (inc n)))) (defn inc [(x i64)] (-> i64) (+ x 1))" 42 true)
+    (check-with "(defn main [(n i64)] (-> i64) (let [inc (fnptr-of inc)] (if false 0 (inc n)))) (defn inc [(x i64)] (-> i64) (+ x 1))" 42 true)
     (check-with "(defn main [(n i64)] (-> i64) (if true n false))" 2 true)
     (sparse-symbols "(Add (Variable \"x\") (Integer 1))" "x" 0)
     (sparse-symbols "(Add (Variable \"f1999\") (Integer 1))" "f1999" 0)
     (sparse-symbols "(Choose (Boolean true) (Call (Variable \"f1999\") (Variable \"x\")) (Call (Variable \"f1999\") (Variable \"x\")))" "x" 2)
     (check "(Function \"main\" \"n\" (Call (Variable \"inc\") (Variable \"n\"))) (Function \"inc\" \"x\" (Add (Variable \"x\") (Integer 1)))" 42)
     (check "(Function \"main\" \"n\" (Add (Let \"inc\" (Integer 1) (Variable \"inc\")) (Call (Variable \"inc\") (Integer 40)))) (Function \"inc\" \"x\" (Add (Variable \"x\") (Integer 1)))" 42)
-    (check "(Function \"main\" \"n\" (Let \"inc\" (Variable \"inc\") (Call (Variable \"inc\") (Variable \"n\")))) (Function \"inc\" \"x\" (Add (Variable \"x\") (Integer 1)))" 42)
+    (check "(Function \"main\" \"n\" (Let \"inc\" (AddressOf (Variable \"inc\")) (Call (Variable \"inc\") (Variable \"n\")))) (Function \"inc\" \"x\" (Add (Variable \"x\") (Integer 1)))" 42)
     (check "(Function \"main\" \"n\" (Integer 42)) (Function \"main\" \"x\" (Integer 1))" 1)
     (check "(Function \"main\" \"n\" (Integer 42)) (Function \"bad\" \"x\" (Variable \"missing\"))" 2)
     (check "(Function \"main\" \"n\" (Boolean true))" 3)

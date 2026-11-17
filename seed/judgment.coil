@@ -2,6 +2,7 @@
 (module rewrite.judgment)
 (import "rewrite.schema" :use *)
 (import "rewrite.emit" :use [number!])
+(import "rewrite.readers" :use [quoted!])
 (import "coil.alloc" :use *)
 (import "coil.arraylist" :use *)
 (import "coil.reader" :use *)
@@ -13,6 +14,58 @@
 
 (defn variable? [(name (slice u8))] (-> bool)
   (and (> (len name) 1) (= (get name 0) (: 63 u8))))
+
+;;; Categories describe expressions, independently of their canonical types.
+(defn qualified? [(term (ptr Sexp))] (-> bool)
+  (and (sexp-list? term)
+       (> (sexp-count term) 0)
+       (sexp-sym-is (sexp-nth term 0) "in")))
+
+(defn expected-type [(term (ptr Sexp))] (-> (ptr Sexp))
+  (if (and (qualified? term) (= (sexp-count term) 3)) (sexp-nth term 2) term))
+
+(defn validate-category [(term (ptr Sexp))] (-> (Result i64 Diag))
+  (block :done
+    (when (qualified? term)
+      (unless (and (= (sexp-count term) 3)
+                   (sexp-vec? (sexp-nth term 1))
+                   (> (sexp-count (sexp-nth term 1)) 0))
+        (break :done (Err (problem term "expected (in [Category ...] Type)"))))
+      (let [categories (sexp-nth term 1)]
+        (for [i 0 (sexp-count categories)]
+          (unless (sexp-sym? (sexp-nth categories i))
+            (break
+              :done
+                (Err (problem (sexp-nth categories i)
+                              "category must be a symbol"))))
+          (for [j 0 i]
+            (when (sexp-sym-is (sexp-nth categories j)
+                               (sexp-sym (sexp-nth categories i)))
+              (break
+                :done (Err (problem categories "duplicate accepted category"))))))))
+    (Ok 0)))
+
+(defn match-category! [(b (mut StrBuf))
+                       (expected (ptr Sexp))
+                       (premise (ptr Sexp))
+                       (field i64)] (-> void)
+  (push-str! (mut b) "(unless ")
+  (if (qualified? expected)
+      (let [categories (sexp-nth expected 1)]
+        (push-str! (mut b) "(or false ")
+        (for [i 0 (sexp-count categories)]
+          (push-str! (mut b) "(= category ")
+          (quoted! (mut b) (sexp-sym (sexp-nth categories i)))
+          (push-str! (mut b) ") "))
+        (push-str! (mut b) ")"))
+      (push-str! (mut b) "(= category \"value\")"))
+  (push-str! (mut b) " (break :rule (CategoryMismatch (.index f")
+  (number! (mut b) field)
+  (push-str! (mut b) ") category ")
+  (number! (mut b) (.lo premise))
+  (push-str! (mut b) " ")
+  (number! (mut b) (.hi premise))
+  (push-str! (mut b) "))) "))
 
 (defn occurrence [(term (ptr Sexp)) (name (slice u8))] (-> i64)
   (if (sexp-sym-is term name)
@@ -31,7 +84,7 @@
     (for [p 2 (sexp-count rule)]
       (let [premise (sexp-nth rule p)]
         (when (and (sexp-list? premise) (>= (sexp-count premise) 2))
-          (let [found (occurrence (sexp-nth premise 1) name)]
+          (let [found (occurrence (expected-type (sexp-nth premise 1)) name)]
             (when (>= found 0) (break :found found))))))
     (- 0 1)))
 
@@ -41,7 +94,7 @@
       (let [premise (sexp-nth rule p)]
         (when (and (sexp-list? premise)
                    (or (= (sexp-count premise) 2) (= (sexp-count premise) 3))
-                   (>= (occurrence (sexp-nth premise 1) name) 0))
+                   (>= (occurrence (expected-type (sexp-nth premise 1)) name) 0))
           (break :found p))))
     (- 0 1)))
 
@@ -171,9 +224,9 @@
               (push-str! (mut b)
                          "(let [(mut scope) (scope-bind context f")
               (number! (mut b) index)
-              (push-str! (mut b) " ")
+              (push-str! (mut b) " (TypeBinding :type ")
               (type-expression! (mut b) rule (sexp-sym ty))
-              (push-str! (mut b) ") ")
+              (push-str! (mut b) " :category \"value\")) ")
               (Ok 0))))))
 
 (defn compile-rule [(b (mut StrBuf))
@@ -184,19 +237,37 @@
   (block :done
     (unless (and (sexp-list? rule) (>= (sexp-count rule) 2))
       (break :done (Err (problem rule "expected (Variant Result premises...)"))))
-    (let [result (sexp-nth rule 1)
+    (let [result-form (sexp-nth rule 1)
+          categorized?
+            (and (sexp-list? result-form)
+                 (> (sexp-count result-form) 0)
+                 (sexp-sym-is (sexp-nth result-form 0) "as"))
+          result
+            (if (and categorized? (= (sexp-count result-form) 3))
+                (sexp-nth result-form 2)
+                result-form)
           v (elem (field n variants) vi)
           lookup?
             (and (sexp-list? result)
                  (= (sexp-count result) 2)
                  (sexp-sym-is (sexp-nth result 0) "lookup"))]
+      (when categorized?
+        (unless (and (= (sexp-count result-form) 3)
+                     (sexp-sym? (sexp-nth result-form 1))
+                     (not lookup?))
+          (break
+            :done
+              (Err (problem result-form "expected (as Category Type) result")))))
       (for [p 2 (sexp-count rule)]
         (let [premise (sexp-nth rule p)]
           (unless (and (sexp-list? premise)
                        (or (= (sexp-count premise) 2)
                            (= (sexp-count premise) 3)))
             (break :done (Err (problem premise "expected child premise"))))
-          (match (validate-term (sexp-nth premise 1) rule)
+          (match (validate-category (sexp-nth premise 1))
+            (Err [d] (break :done (Err d)))
+            (Ok [_]))
+          (match (validate-term (expected-type (sexp-nth premise 1)) rule)
             (Err [d] (break :done (Err d)))
             (Ok [_] 0))))
       (unless lookup?
@@ -213,7 +284,7 @@
       (for [p 2 (sexp-count rule)]
         (let [premise (sexp-nth rule p)]
           (when (and (sexp-list? premise) (>= (sexp-count premise) 2))
-            (declare-pattern! (mut b) rule (sexp-nth premise 1)))))
+            (declare-pattern! (mut b) rule (expected-type (sexp-nth premise 1))))))
       (push-str! (mut b) "] ")
       (for [p 2 (sexp-count rule)]
         (let [premise (sexp-nth rule p)]
@@ -230,7 +301,7 @@
               (break
                 :done
                   (Err (problem field-name "premise field must be a symbol"))))
-            (match (validate-term expected rule)
+            (match (validate-term (expected-type expected) rule)
               (Err [d] (break :done (Err d)))
               (Ok [_] 0))
             (for [f 0 (len (.fields v))]
@@ -255,9 +326,11 @@
                              (if (= (sexp-count premise) 3)
                                  "(mut scope)"
                                  "context"))
-                  (push-str! (mut b) ")] (match answer (Typed [actual] (do ")
-                  (match-type! (mut b) rule expected premise f)
-                  (push-str! (mut b) ")) (_ (break :rule answer)))) "))))
+                  (push-str! (mut b)
+                             ") actual (match answer (Typed [ty] ty) (Classified [ty _] ty) (_ (break :rule answer))) category (match answer (Typed [_] \"value\") (Classified [_ category] category) (_ (break :rule answer)))] ")
+                  (match-category! (mut b) expected premise f)
+                  (match-type! (mut b) rule (expected-type expected) premise f)
+                  (push-str! (mut b) ") "))))
             (unless found
               (break :done (Err (problem field-name "unknown premise field")))))))
       (if lookup?
@@ -269,8 +342,11 @@
             (number! (mut b) index)
             (push-str! (mut b) " (.index id))"))
           (do
-            (push-str! (mut b) "(Typed ")
+            (push-str! (mut b) (if categorized? "(classify " "(Typed "))
             (emit-term! (mut b) rule result)
+            (when categorized?
+              (push-str! (mut b) " ")
+              (quoted! (mut b) (sexp-sym (sexp-nth result-form 1))))
             (push-str! (mut b) ")")))
       (push-str! (mut b) ")))\n")
       (Ok 0))))
@@ -299,7 +375,7 @@
         (push-str! (mut b) "Row))) (id N")
         (number! (mut b) ni)
         (push-str! (mut b)
-                   "Id) (fuel i64) (context (ptr (Scope i64)))] (-> Judgment) (match (lookup-")
+                   "Id) (fuel i64) (context (ptr (Scope TypeBinding)))] (-> Judgment) (match (lookup-")
         (number! (mut b) ni)
         (push-str! (mut b)
                    " rows id) (None [] (InvalidReference (.index id))) (Some [row] (if (<= fuel 0) (CyclicInput (.index id)) (match row ")
@@ -329,7 +405,7 @@
         (push-str! (mut b) "Row))) (id N")
         (number! (mut b) ni)
         (push-str! (mut b)
-                   "Id)] (-> Judgment) (let [(mut context) (zeroed (Scope i64))] (judge-worker-")
+                   "Id)] (-> Judgment) (let [(mut context) (zeroed (Scope TypeBinding))] (judge-worker-")
         (number! (mut b) ni)
         (push-str! (mut b)
                    " (mut type-store) rows id (len (load rows)) (mut context))))\n")

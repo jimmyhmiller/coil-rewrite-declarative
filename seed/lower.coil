@@ -44,9 +44,10 @@
             call? (sexp-sym-is op "call")
             branch? (sexp-sym-is op "if")
             lookup? (sexp-sym-is op "name")
+            identity? (sexp-sym-is op "identity")
             bind? (sexp-sym-is op "let")
             arity
-              (cond (or (or constant? boolean?) lookup?) 1
+              (cond (or (or constant? boolean?) lookup? identity?) 1
                     (or add? call?) 2
                     (or branch? bind?) 3
                     :else 0)
@@ -89,6 +90,7 @@
                   (number! (mut b) (get fields 0))
                   (when boolean? (push-str! (mut b) " 1 0)"))
                   (push-str! (mut b) ")"))
+              identity? (child! (mut b) ni (get fields 0))
               lookup?
                 (do
                   (push-str! (mut b) "(match (value-lookup context f")

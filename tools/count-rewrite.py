@@ -31,9 +31,12 @@ def category(path):
 paths = subprocess.check_output(
     ['git', 'ls-files', '-z', '--cached', '--others', '--exclude-standard'], cwd=ROOT
 ).decode().split('\0')
+deleted = set(subprocess.check_output(
+    ['git', 'ls-files', '-z', '--deleted'], cwd=ROOT
+).decode().split('\0'))
 files = []
 totals = collections.defaultdict(lambda: dict(files=0, bytes=0, physical_lines=0))
-for path in sorted(set(paths) - {''}):
+for path in sorted(set(paths) - deleted - {''}):
     group = category(path)
     if group is None:
         continue
