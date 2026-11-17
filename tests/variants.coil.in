@@ -1,0 +1,22 @@
+(module fixture.main)
+(import "rewrite.generated" :use *)
+(import "coil.alloc" :use *)
+(import "coil.arraylist" :use *)
+(defn evaluate [(rows (ptr (ArrayList N0Row))) (id N0Id)] (-> i64)
+  (match (lookup-0 rows id)
+    (None [] (- 0 999))
+    (Some [row]
+      (match row
+        (N0V0 [value] value)
+        (N0V1 [left right] (+ (evaluate rows left) (evaluate rows right)))
+        (N0V2 [condition yes no] (evaluate rows (if condition yes no)))))))
+(defn main [] (-> i64)
+  (let [(mut rows) (ArrayList::new [N0Row] (malloc-allocator))
+        left (append-0 (mut rows) (N0V0 19))
+        right (append-0 (mut rows) (N0V0 23))
+        sum (append-0 (mut rows) (N0V1 left right))
+        chosen (append-0 (mut rows) (N0V2 true sum right))]
+    (for [i 0 4096] (append-0 (mut rows) (N0V0 i)))
+    (let [ok (= (evaluate (mut rows) chosen) 42)]
+      (free! (mut rows))
+      (if ok 0 1))))

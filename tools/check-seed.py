@@ -34,3 +34,22 @@ with tempfile.TemporaryDirectory(prefix='rewrite-recursive-') as directory:
 invalid = subprocess.run([str(ROOT / 'build/schema-seed')], input=b'(node X (x Missing))', capture_output=True)
 assert invalid.returncode != 0 and not invalid.stdout and b'unknown field type' in invalid.stderr
 print('Recursive schema and generator error-channel checks passed')
+
+with tempfile.TemporaryDirectory(prefix='rewrite-variants-') as directory:
+    work = Path(directory)
+    (work / 'Coil.toml').write_text('[package]\nname = "fixture"\nentry = "main.coil"\nsource-roots = ["."]\n')
+    (work / 'generated.coil').write_bytes(subprocess.check_output(
+        [str(ROOT / 'build/schema-seed')], input=(ROOT / 'tests/schemas/recursive.schema').read_bytes()))
+    (work / 'main.coil').write_text((ROOT / 'tests/variants.coil.in').read_text())
+    for flags in [[], ['--debug-checks'], ['--release']]:
+        subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)
+for source, diagnostic in [
+    (b'(sum Expr)', b'at least one variant'),
+    (b'(sum Expr (A) (A))', b'duplicate variant'),
+    (b'(sum Expr (A (x Unknown)))', b'unknown field type'),
+    (b'(sum Expr (A (x Int) (x Bool)))', b'duplicate field'),
+    (b'(sum Expr 12)', b'expected named variant'),
+]:
+    result = subprocess.run([str(ROOT / 'build/schema-seed')], input=source, capture_output=True)
+    assert result.returncode != 0 and not result.stdout and diagnostic in result.stderr, result
+print('Recursive variants: execution, growth, and invalid-declaration checks passed')

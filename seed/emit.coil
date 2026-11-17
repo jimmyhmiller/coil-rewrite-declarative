@@ -19,6 +19,17 @@
               (number! (mut b) i)
               (push-str! (mut b) "Id")))))
 
+(defn fields! [(b (mut StrBuf)) (s (ptr Schema)) (v (ptr Variant))] (-> void)
+  (push-str! (mut b) "[")
+  (for [j 0 (len (.fields v))]
+    (let [f (elem (field v fields) j)]
+      (push-str! (mut b) "(f")
+      (number! (mut b) j)
+      (push-str! (mut b) " ")
+      (type! (mut b) s (.type-name f))
+      (push-str! (mut b) ")")))
+  (push-str! (mut b) "]"))
+
 ;;; Numeric generated names cannot collide with keywords or user-provided symbols.
 ;;; Schema order defines the local numbering; artifacts must include schema identity.
 (defn emit [(a (dyn Allocator)) (s (ptr Schema))] (-> (slice u8))
@@ -29,17 +40,21 @@
       (let [n (elem (field s nodes) i)]
         (push-str! (mut b) "(defstruct N")
         (number! (mut b) i)
-        (push-str! (mut b) "Id [(index i64)])\n(defstruct N")
+        (push-str! (mut b) "Id [(index i64)])\n")
+        (push-str! (mut b) (if (.sum? n) "(defsum N" "(defstruct N"))
         (number! (mut b) i)
-        (push-str! (mut b) "Row [")
-        (for [j 0 (len (.fields n))]
-          (let [f (elem (field n fields) j)]
-            (push-str! (mut b) "(f")
-            (number! (mut b) j)
-            (push-str! (mut b) " ")
-            (type! (mut b) s (.type-name f))
-            (push-str! (mut b) ")")))
-        (push-str! (mut b) "])\n(defn append-")
+        (push-str! (mut b) "Row ")
+        (if (.sum? n)
+            (for [v 0 (len (.variants n))]
+              (push-str! (mut b) "(N")
+              (number! (mut b) i)
+              (push-str! (mut b) "V")
+              (number! (mut b) v)
+              (push-str! (mut b) " ")
+              (fields! (mut b) s (elem (field n variants) v))
+              (push-str! (mut b) ")"))
+            (fields! (mut b) s (elem (field n variants) 0)))
+        (push-str! (mut b) ")\n(defn append-")
         (number! (mut b) i)
         (push-str! (mut b) " [(rows (mut (ArrayList N")
         (number! (mut b) i)
