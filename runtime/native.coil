@@ -224,3 +224,43 @@
   (match (.callbacks loaded)
     (Some [callbacks] (jit/unload! callbacks))
     (None [])))
+
+(import "native.cir-ops" :as cop)
+
+;;; Marshal a runtime-sized list of integer arguments using the target's call ABI.
+(defn invoke-integers [(a (dyn Allocator))
+                       (address i64)
+                       (arguments (slice i64))] (-> i64)
+  (let [(mut wrapper) (cir/Func::new)
+        f (primitive/cast (ptr cir/Func) (mut wrapper))
+        (mut code) (image/create a)
+        symbol (image/symbol! (mut code) "invoke")
+        (mut args) (ArrayList::new [u32] a)
+        (mut flags) (ArrayList::new [u32] a)
+        (mut results) (ArrayList::new [u8] a)]
+    (defer (free! (mut args)))
+    (defer (free! (mut flags)))
+    (defer (free! (mut results)))
+    (defer (cir/func-free! f))
+    (cir/set-block! f (cir/new-block! f))
+    (let [callee (cir/iconst! f address)]
+      (for argument arguments
+        (push! (mut args) (cir/iconst! f argument))
+        (push! (mut flags) 0))
+      (push! (mut results) (cast u8 cop/T-I64))
+      (cir/ret1! f
+                 (cir/call! f
+                            (cir/none)
+                            callee
+                            (mut args)
+                            (mut flags)
+                            (mut results)
+                            false)))
+    (cir/finish! f)
+    (emit! a (mut code) f symbol)
+    (let [loaded (load-image a code)
+          invoke
+            (primitive/cast (fnptr (cc/C) [] i64)
+                            (jit/address-of loaded symbol))]
+      (defer (jit/unload! loaded))
+      (invoke))))

@@ -4,18 +4,18 @@
   "totals": {
     "authored-language-specifications": {
       "files": 20,
-      "bytes": 25579,
-      "physical_lines": 581
+      "bytes": 25865,
+      "physical_lines": 583
     },
     "authored-seed-and-runtime": {
       "files": 61,
-      "bytes": 689041,
-      "physical_lines": 12546
+      "bytes": 696460,
+      "physical_lines": 12666
     },
     "generated-language-toolchain": {
       "files": 18,
-      "bytes": 628600,
-      "physical_lines": 1327
+      "bytes": 631860,
+      "physical_lines": 1334
     },
     "retained-authored-machinery-and-specifications": {
       "files": 161,
@@ -39,13 +39,13 @@
     },
     "rewrite-build-and-validation-tools": {
       "files": 51,
-      "bytes": 318537,
-      "physical_lines": 4836
+      "bytes": 319525,
+      "physical_lines": 4849
     },
     "rewrite-tests-and-fixtures": {
       "files": 75,
-      "bytes": 363757,
-      "physical_lines": 7645
+      "bytes": 364049,
+      "physical_lines": 7654
     }
   },
   "files": [
@@ -59,9 +59,9 @@
     {
       "path": "compiler/README.md",
       "category": "authored-language-specifications",
-      "sha256": "832c509ad14204088c10d28cd6d03dcb2e076ba601c86e1a1991c95bc781cd5a",
-      "bytes": 2358,
-      "physical_lines": 26
+      "sha256": "1d62cb2c765d743f7a178dd26364cf5d5c6e90c5dcb3f24092806ee3c0c10ebf",
+      "bytes": 2628,
+      "physical_lines": 28
     },
     {
       "path": "compiler/expansion/admission.protocol",
@@ -115,8 +115,8 @@
     {
       "path": "compiler/frontend/core.schema",
       "category": "authored-language-specifications",
-      "sha256": "ab33452bcd820b5cf5cc3c047f14f95fc4eabc4c3911c403e5b7da027a2fc480",
-      "bytes": 2945,
+      "sha256": "98e062693dc2b74d26927cf02241ba9da9c0ed6bab2018e3a9ad5b45a38632ea",
+      "bytes": 2961,
       "physical_lines": 68
     },
     {
@@ -192,9 +192,9 @@
     {
       "path": "runtime/native.coil",
       "category": "authored-seed-and-runtime",
-      "sha256": "69f52824aef907ea66c51a3425a419841bf57e97743866c41089d6a8d70bf4a0",
-      "bytes": 9518,
-      "physical_lines": 226
+      "sha256": "3a75438469a524384efab014335a9a20cf39ee7897eff0c40528efbffebb8ee5",
+      "bytes": 11017,
+      "physical_lines": 266
     },
     {
       "path": "seed/README.md",
@@ -241,8 +241,8 @@
     {
       "path": "seed/command.coil",
       "category": "authored-seed-and-runtime",
-      "sha256": "c733b167c8c188ef819e378b97ef9b60608e59696686022e031459ee66b6031c",
-      "bytes": 2824,
+      "sha256": "b90b812e36338a5ebcf55ee0eef58d5ed9670ad3443ef3d94792401eae5a27ed",
+      "bytes": 3214,
       "physical_lines": 5
     },
     {
@@ -339,9 +339,9 @@
     {
       "path": "seed/generated/core_compiler.coil",
       "category": "generated-language-toolchain",
-      "sha256": "8ae8d938fd8d9984084b63530fec4cf176ad475b5f099a744a3fcff3fe16d624",
-      "bytes": 91938,
-      "physical_lines": 185
+      "sha256": "425c352f0da87ee84bd6d8ed56db86b583d5527c89df6b19b5aa607004bcafaa",
+      "bytes": 95198,
+      "physical_lines": 192
     },
     {
       "path": "seed/generated/derive_forms.coil",
@@ -528,9 +528,9 @@
     {
       "path": "seed/program.coil",
       "category": "authored-seed-and-runtime",
-      "sha256": "20b4d1e9087c8ce46efe261b03d94064a6795231236d6019bebc59a443a1e597",
-      "bytes": 17487,
-      "physical_lines": 275
+      "sha256": "775d70b4452df1df1683bf91980697f463143a747f964f86d668682c006756b6",
+      "bytes": 23017,
+      "physical_lines": 355
     },
     {
       "path": "seed/protocol.coil",
@@ -801,9 +801,9 @@
     {
       "path": "tests/compiler/integer-functions.coil",
       "category": "rewrite-tests-and-fixtures",
-      "sha256": "75caa44194277a9b9f39fb6fe49ffde0088cf0c7c37961fa3e0bd926b4666d34",
-      "bytes": 616,
-      "physical_lines": 23
+      "sha256": "f30fef93148d45ebbd16ad543f2beb3756d70bbbf2c2de1ff51f39c0255471ff",
+      "bytes": 908,
+      "physical_lines": 32
     },
     {
       "path": "tests/derive-registry.coil",
@@ -1389,9 +1389,9 @@
     {
       "path": "tools/check-compiler.py",
       "category": "rewrite-build-and-validation-tools",
-      "sha256": "c5cd232b98ef4f10b03fe0a7f4968673ef672de378dbdfb5e29a3a05a3ae07a4",
-      "bytes": 6059,
-      "physical_lines": 76
+      "sha256": "c9618e2fafa1661f575cbc303aba346e680e909db55e28e33eb2030683d92294",
+      "bytes": 7047,
+      "physical_lines": 89
     },
     {
       "path": "tools/check-context-policy.py",

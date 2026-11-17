@@ -21,3 +21,12 @@
   (+ (+ (+ (if (= x 0) 1 0) (if (!= x 0) 2 0))
         (+ (if (< x 0) 4 0) (if (<= x 0) 8 0)))
      (+ (if (> x 0) 16 0) (if (>= x 0) 32 0))))
+
+(defn forty-two [] (-> i64) 42)
+
+(defn weighted [(a i64) (b i64) (c i64)] (-> i64)
+  (+ (+ (* a 100) (* b 10)) c))
+
+(defn stack-arguments [(a i64) (b i64) (c i64) (d i64) (e i64) (f i64)
+                       (g i64) (h i64) (i i64) (j i64) (k i64) (l i64)] (-> i64)
+  (+ (* a l) (- k i)))

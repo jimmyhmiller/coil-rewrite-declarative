@@ -1,5 +1,5 @@
 {
-  "scope": "Executable DSL-authored compiler integration for unary integer functions; not complete Coil compatibility. CLI runs with empty PATH and does not invoke the bootstrap compiler on guest source.",
+  "scope": "Executable DSL-authored compiler integration for integer functions with ordered parameter lists; not complete Coil compatibility. CLI runs with empty PATH and does not invoke the bootstrap compiler on guest source.",
   "library_configurations": [
     "default",
     "debug-checks",
@@ -116,6 +116,46 @@
       "output": "type checking failed in bad"
     },
     {
+      "source_file": "tests/compiler/integer-functions.coil",
+      "source": null,
+      "entry": "stack-arguments",
+      "argument": "2 3 4 5 6 7 8 9 10 11 12 13",
+      "status": 0,
+      "output": "28"
+    },
+    {
+      "source_file": null,
+      "source": "(defn bad [(x i64) (x i64)] (-> i64) x)",
+      "entry": "bad",
+      "argument": "1 2",
+      "status": 1,
+      "output": "duplicate parameter: x"
+    },
+    {
+      "source_file": "tests/compiler/integer-functions.coil",
+      "source": null,
+      "entry": "forty-two",
+      "argument": "",
+      "status": 0,
+      "output": "42"
+    },
+    {
+      "source_file": "tests/compiler/integer-functions.coil",
+      "source": null,
+      "entry": "weighted",
+      "argument": "1 2 3",
+      "status": 0,
+      "output": "123"
+    },
+    {
+      "source_file": "tests/compiler/integer-functions.coil",
+      "source": null,
+      "entry": "weighted",
+      "argument": "1",
+      "status": 1,
+      "output": "entry argument count mismatch"
+    },
+    {
       "source_file": null,
       "source": "(defn present [(x i64)] (-> i64) x)",
       "entry": "absent",
@@ -124,14 +164,14 @@
       "output": "entry not found: absent"
     }
   ],
-  "binary_sha256": "8ea4ed39a90c2e7350ed198ee15e944811e263b2b458c23235797b94e8ef40d6",
+  "binary_sha256": "54a14b64655f3971f3ffc52dbb0bf49b94638a5a1522543398af67dd3b2cd3a5",
   "inputs": {
-    "compiler/frontend/core.schema": "ab33452bcd820b5cf5cc3c047f14f95fc4eabc4c3911c403e5b7da027a2fc480",
-    "seed/program.coil": "20b4d1e9087c8ce46efe261b03d94064a6795231236d6019bebc59a443a1e597",
+    "compiler/frontend/core.schema": "98e062693dc2b74d26927cf02241ba9da9c0ed6bab2018e3a9ad5b45a38632ea",
+    "seed/program.coil": "775d70b4452df1df1683bf91980697f463143a747f964f86d668682c006756b6",
     "seed/lower.coil": "ee2e2d1f9b7707ac1c14439e0cde5dc8351fb3fa34a7bace5c8ca26bff3bb16a",
-    "tests/compiler/integer-functions.coil": "75caa44194277a9b9f39fb6fe49ffde0088cf0c7c37961fa3e0bd926b4666d34",
-    "seed/command.coil": "c733b167c8c188ef819e378b97ef9b60608e59696686022e031459ee66b6031c",
-    "seed/generated/core_compiler.coil": "8ae8d938fd8d9984084b63530fec4cf176ad475b5f099a744a3fcff3fe16d624",
-    "tools/check-compiler.py": "c5cd232b98ef4f10b03fe0a7f4968673ef672de378dbdfb5e29a3a05a3ae07a4"
+    "tests/compiler/integer-functions.coil": "f30fef93148d45ebbd16ad543f2beb3756d70bbbf2c2de1ff51f39c0255471ff",
+    "seed/command.coil": "b90b812e36338a5ebcf55ee0eef58d5ed9670ad3443ef3d94792401eae5a27ed",
+    "seed/generated/core_compiler.coil": "425c352f0da87ee84bd6d8ed56db86b583d5527c89df6b19b5aa607004bcafaa",
+    "tools/check-compiler.py": "c9618e2fafa1661f575cbc303aba346e680e909db55e28e33eb2030683d92294"
   }
 }

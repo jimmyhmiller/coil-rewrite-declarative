@@ -40,6 +40,14 @@ with tempfile.TemporaryDirectory(prefix='coil-replacement-') as directory:
 (let [run (primitive/cast (fnptr (cc/C) [i64] i64) (jit/address-of loaded symbol))]
 (unless (= (run {argument}) {expected}) (panic {q(f'{entry}({argument}) != {expected}')}))))
 '''
+    for entry,arguments,expected in [('forty-two',[],42),('weighted',[1,2,3],123)]:
+        params=' '.join('i64' for _ in arguments)
+        values=' '.join(map(str,arguments))
+        driver+=f'''(let [(mut symbol) -1]
+(for [i 0 (len (.names image))] (when (= (get (.names image) i) {q(entry)}) (set! symbol i)))
+(when (< symbol 0) (panic "missing native function"))
+(let [run (primitive/cast (fnptr (cc/C) [{params}] i64) (jit/address-of loaded symbol))]
+(unless (= (run {values}) {expected}) (panic "incorrect native parameter binding"))))\n'''
     driver+=')))\n'
     for i,bad in enumerate(['(defn bad [(x i64)] (-> i64) (+ x true))','(defn bad [(x i64)] (-> i64) missing)','(unknown-form 1)','(defn bad [(x i64)] (-> i64) (if true 1 false))', '(defn bad [(x i64)] (-> i64) (* x true))', '(defn bad [(x i64)] (-> i64) (if (< x true) 1 0))', '(defn bad [(x i64)] (-> i64) (+ (< x 0) 1))'],2):
         driver+=f'''(let [(mut rejected) (store-new a)] (defer (store-free! (mut rejected)))
@@ -55,10 +63,15 @@ with tempfile.TemporaryDirectory(prefix='coil-replacement-') as directory:
     for name,text,entry,argument,status,output in [
         *[(f'valid-{i}.coil',source,entry,str(argument),0,str(expected)) for i,(entry,argument,expected) in enumerate(executions)],
         ('invalid.coil','(defn bad [(x i64)] (-> i64) (+ x true))','bad','1',1,'type checking failed in bad'),
+        ('stack.coil',source,'stack-arguments','2 3 4 5 6 7 8 9 10 11 12 13',0,'28'),
+        ('duplicate-parameter.coil','(defn bad [(x i64) (x i64)] (-> i64) x)','bad','1 2',1,'duplicate parameter: x'),
+        ('zero.coil',source,'forty-two','',0,'42'),
+        ('three.coil',source,'weighted','1 2 3',0,'123'),
+        ('wrong-entry-arity.coil',source,'weighted','1',1,'entry argument count mismatch'),
         ('missing.coil','(defn present [(x i64)] (-> i64) x)','absent','0',1,'entry not found: absent'),
     ]:
         path=work/name;path.write_text(text)
-        result=subprocess.run([str(binary),'run',str(path),entry,argument],cwd=work,env={**os.environ,'PATH':''},capture_output=True,text=True)
+        result=subprocess.run([str(binary),'run',str(path),entry,*argument.split()],cwd=work,env={**os.environ,'PATH':''},capture_output=True,text=True)
         assert (result.returncode,result.stdout.strip())==(status,output),(name,result)
         cli_cases.append(dict(source_file="tests/compiler/integer-functions.coil" if text==source else None,source=None if text==source else text,entry=entry,argument=argument,status=status,output=output))
     reference='(module driver.reference)\n'+source+'\n(defn main [] (-> i64)\n'
@@ -71,6 +84,6 @@ with tempfile.TemporaryDirectory(prefix='coil-replacement-') as directory:
     assert reference_results==[expected for _,_,expected in executions],baseline
     digest=lambda data:hashlib.sha256(data).hexdigest()
     inputs=[ROOT/'compiler/frontend/core.schema',ROOT/'seed/program.coil',ROOT/'seed/lower.coil',ROOT/'tests/compiler/integer-functions.coil',ROOT/'seed/command.coil',ROOT/'seed/generated/core_compiler.coil',Path(__file__)]
-    evidence=dict(scope='Executable DSL-authored compiler integration for unary integer functions; not complete Coil compatibility. CLI runs with empty PATH and does not invoke the bootstrap compiler on guest source.',library_configurations=['default','debug-checks','release'],reference_results=reference_results,cli_cases=cli_cases,binary_sha256=digest(binary.read_bytes()),inputs={str(p.relative_to(ROOT)):digest(p.read_bytes()) for p in inputs})
+    evidence=dict(scope='Executable DSL-authored compiler integration for integer functions with ordered parameter lists; not complete Coil compatibility. CLI runs with empty PATH and does not invoke the bootstrap compiler on guest source.',library_configurations=['default','debug-checks','release'],reference_results=reference_results,cli_cases=cli_cases,binary_sha256=digest(binary.read_bytes()),inputs={str(p.relative_to(ROOT)):digest(p.read_bytes()) for p in inputs})
     (ROOT/'evidence/compiler-command.json').write_text(json.dumps(evidence,indent=2)+'\n')
     print('Compiler command: file input, native execution, invalid programs and missing entry; empty PATH passed; arithmetic and recursive execution agrees with installed Coil')
