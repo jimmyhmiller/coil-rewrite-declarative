@@ -1,0 +1,20 @@
+(module rewrite.test-declarations)
+(import "rewrite.declarations" :as decl)
+(import "coil.alloc" :use *)
+(import "coil.reader" :use *)
+(import "coil.arraylist" :use *)
+(import "coil.result" :use *)
+
+(defn main [] (-> i64)
+  (match (read-all (malloc-allocator)
+                   "(defn main [] (-> i64) (answer)) (defn answer [] (-> i64) 42)" 0)
+    (Err [_] 1)
+    (Ok [forms]
+      (let [main-form (elem forms 0)
+            callee (elem forms 1)]
+        (if (and (decl/ordinary-function? main-form)
+                 (and (decl/ordinary-function? callee)
+                      (and (decl/nullary-call? (sexp-nth main-form 4))
+                           (not (decl/nullary-call? (sexp-nth callee 4))))))
+            0
+            1)))))

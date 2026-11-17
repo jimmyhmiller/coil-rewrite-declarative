@@ -1,0 +1,3 @@
+(recognize ordinary-function? (list "defn" symbol (vector ...) (list "->" _) _ ...))
+(recognize typed-parameter? (list symbol _))
+(recognize nullary-call? (list symbol))

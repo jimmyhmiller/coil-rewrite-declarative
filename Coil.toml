@@ -1,0 +1,9 @@
+[package]
+name = "rewrite"
+source-roots = ["dsls", "src"]
+
+[readers]
+".patterns" = "rewrite.pattern-reader"
+
+[modules]
+"rewrite.declarations" = "src/declarations.patterns"
