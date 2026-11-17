@@ -71,3 +71,8 @@
 (extract function-pointer-layout FunctionPointerLayout FunctionPointer NoFunctionPointer
   (list "fnptr" (list (spellings "coil.cc.C" "coil.cc.Fast" "coil.cc.Cold" "coil.cc.Tail" "coil.cc.SwiftTail"))
         (capture parameters (vector ...)) (capture result _)))
+(extract structure StructDeclaration Struct NoStruct
+  (list "defstruct" (capture name symbol) (capture fields (vector ...))))
+(recognize offset-name? "offsetof")
+(extract field-offset-query FieldOffsetQuery OffsetOf NoOffsetOf
+  (list (matches offset-name?) (capture type symbol) (capture field symbol)))

@@ -301,6 +301,7 @@
 (translate lower-function
   [(a (dyn Allocator)) (im (mut image/Image))
    (signatures modules/Lookup) (checked checker/Checked) (form (ptr Sexp))] (Result i64 Diag)
+  (on (structure form) (Struct [_ _]) (yield (Ok 0)))
   (where (static-definition? form)
     (choose
       (on (get (.constants checked) (.node-id form)) (Some [value])
