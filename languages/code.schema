@@ -77,3 +77,8 @@
 (node DeclaredTrait (name Text) (body (many Syntax)))
 (syntax DeclaredTrait
   (DeclaredTrait (list "deftrait" (symbol name) (rest body))))
+
+; Admission collects only primitive defn*, not the source-level defn macro.
+(node GeneratedFunction (name Text) (body (many Syntax)))
+(syntax GeneratedFunction
+  (GeneratedFunction (list "defn*" (symbol name) (rest body))))

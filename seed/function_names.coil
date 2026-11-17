@@ -1,0 +1,44 @@
+;;; Owned, ordered function-name collection during generated-form admission.
+(module rewrite.functionnames)
+(import "rewrite.codeforms" :as forms)
+(import "rewrite.source" :as source)
+(import "coil.alloc" :use [Allocator])
+(import "coil.arraylist" :use *)
+(import "coil.reader" :use *)
+(import "coil.result" :use *)
+(import "coil.str" :use [StrBuf])
+
+(defstruct Names [(strings source/Sources) (items (ArrayList (slice u8)))])
+
+(defn create [(a (dyn Allocator))] (-> Names)
+  (Names :strings (source/create a) :items (ArrayList::new [(slice u8)] a)))
+
+(defn release! [(names (mut Names))] (-> void)
+  (free! (mut (.items names)))
+  (source/release! (mut (.strings names))))
+
+;;; Observe a single admitted form. Normalization already flattened bundles.
+;;; Repeated names remain in order, matching allfns collection. Validation and
+;;; duplicate definition diagnostics belong to declaration checking, not here.
+(defn observe! [(scratch (dyn Allocator))
+                (names (ptr Names))
+                (form (ptr Sexp))
+                (module (Option (slice u8)))] (-> bool)
+  (block
+    :done
+      (let [view
+              (match (forms/view-8 scratch form)
+                (Err [_] (break :done false))
+                (Ok [view]
+                    (match view (Some [v] v) (None [] (break :done false)))))
+            capture (get (.captures view) 0)
+            name (sexp-sym (.source capture))
+            (mut text) (StrBuf::new scratch)]
+        (defer (free! (mut text)))
+        (match module
+          (None [])
+          (Some [name] (push-str! (mut text) name) (push-str! (mut text) ".")))
+        (push-str! (mut text) name)
+        (push! (field names items)
+               (source/intern! (field names strings) (str text)))
+        true)))

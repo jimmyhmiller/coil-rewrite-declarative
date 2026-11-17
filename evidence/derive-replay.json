@@ -16,7 +16,7 @@
     "tools/check-derive.py": "17800879111d337f4d89bf7c42d36caf782248a0b0e66cef228d2c12272efe9d",
     "languages/derive.schema": "61063d440a5733b4771fcafdfe38346659398cd0ef0dfaabaa6e07db19613529",
     "languages/derive_registration.protocol": "ab23a7d56e5f4768a7d91ccb2b4acec5c282ff1f25c317624ea8f78de59d48db",
-    "languages/code.schema": "332b6adc7a3521d92af26301bb85f3ad194807a421efd97d6688c7e66cf6927d",
+    "languages/code.schema": "fa5c550e29d697de8e88d1c4a1c0d3585cf9b2bfd65f3e0f614e71b20f6dff1f",
     "seed/derive_registry.coil": "15340af75c7e6fe592f481a50250a083d456418098dfd63da694f189b80ccb19",
     "seed/derive_registration.coil": "6a6ea5cb49987b9fb959f897cae57c1eca2c5086e26cdd2e944f9e14decebb32",
     "seed/types.coil": "e398f5cb019e3eea3339700ba5b3685b119421eb30ac5a2045c8835d5d9a6ce9",
@@ -27,6 +27,6 @@
     "seed/equality_runtime.coil": "677953a98f75ce17eba81be80da3133d56da5387413e15679ba218c10e462039",
     "seed/generated/derive_forms.coil": "c643bfd0eaaa76dd477767e275c5bcef24a410862f1b0fd04b3656c3a2df026a",
     "seed/generated/derive_protocol.coil": "5f9b8d74216ad035504bf46bd659b5b5579fea5dd20c67ff0f402a326d4dd023",
-    "seed/generated/code_forms.coil": "5e86c20526290506b5b707059a2521010ada1612fa8592276f7c6a79d0621490"
+    "seed/generated/code_forms.coil": "71ab0e12c534965c25e36de08282da54a46021e252b724b5b299878172c1e9fc"
   }
 }

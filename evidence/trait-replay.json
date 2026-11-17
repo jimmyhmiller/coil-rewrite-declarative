@@ -25,8 +25,8 @@
     "seed/trait_declarations.coil": "04f408228dde1e5512dce4f6911e7ee4c3c421eed7144105b90c6d16c4ef92aa",
     "seed/generated/name_forms.coil": "eac976d9bfd51328ab51804f38952ba3f0119367541ebc188b3329bec3ecfe20",
     "seed/generated/export_search.coil": "0958122e80f6ba9f2ff587e2760da4da371fafca3c73e633b8a4ba55b5ed663b",
-    "seed/generated/code_forms.coil": "5e86c20526290506b5b707059a2521010ada1612fa8592276f7c6a79d0621490",
+    "seed/generated/code_forms.coil": "71ab0e12c534965c25e36de08282da54a46021e252b724b5b299878172c1e9fc",
     "tools/check-traits.py": "bf10b260ede9694554beabe8d2ab15148157066aba3fc9bbdc5dc8e8e5d92662",
-    "languages/code.schema": "332b6adc7a3521d92af26301bb85f3ad194807a421efd97d6688c7e66cf6927d"
+    "languages/code.schema": "fa5c550e29d697de8e88d1c4a1c0d3585cf9b2bfd65f3e0f614e71b20f6dff1f"
   }
 }

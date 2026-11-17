@@ -12,6 +12,7 @@
 (import "rewrite.produced" :as produced)
 (import "rewrite.stage" :as stage)
 (import "rewrite.revision" :as revision)
+(import "rewrite.functionnames" :as functions)
 (import "coil.alloc" :use *)
 (import "coil.arraylist" :use *)
 (import "coil.reader" :use *)
@@ -45,7 +46,8 @@
       (Ok [v] v)
       (Err [_] (panic "normalize")))))
 
-(defstruct Context [(traits (ptr namespace/View)) (calls i64)])
+(defstruct Context
+  [(traits (ptr namespace/View)) (calls i64) (functions (ptr functions/Names))])
 
 ;;; Deliberately limited fixture validator: it accepts only named test forms and
 ;;; rejects all other declarations, including structs/sums. It is not a parser.
@@ -65,11 +67,13 @@
               (None [] (Err 8)))
           (or (sexp-sym-is name "register-derive")
               (sexp-sym-is name "deftrait")
-              (sexp-sym-is name "keep"))
+              (sexp-sym-is name "keep")
+              (sexp-sym-is name "defn*")
+              (sexp-sym-is name "defn"))
             (Ok true)
           :else (Err 99))))
 
-(defn check [(a (dyn Allocator))] (-> void)
+(defn check [(a (dyn Allocator)) (functions (ptr functions/Names))] (-> void)
   (let [(mut scratch) (zeroed ScratchArena)
         initialized (init (mut scratch) a)
         sa (allocator (mut scratch))
@@ -113,7 +117,8 @@
         (mut user)
           (Context
             :traits (primitive/cast (ptr namespace/View) (mut traits))
-            :calls 0)
+            :calls 0
+            :functions functions)
         (mut input) (code/create a)
         (mut output) (code/create a)
         original-root (root (mut input) 1 "(register-derive T :struct m)")
@@ -149,6 +154,7 @@
                                    (primitive/fnptr-of validate)
                                    (mut d)
                                    (mut r)
+                                   functions
                                    (mut supply)
                                    (Some original)
                                    (mut input)
@@ -175,6 +181,7 @@
                                      (primitive/fnptr-of validate)
                                      (mut d)
                                      (mut r)
+                                     functions
                                      (mut supply)
                                      (Some original)
                                      (mut input)
@@ -200,6 +207,7 @@
                                    (primitive/fnptr-of validate)
                                    (mut d)
                                    (mut r)
+                                   functions
                                    (mut supply)
                                    (None)
                                    (mut input)
@@ -224,6 +232,7 @@
                                    (primitive/fnptr-of validate)
                                    (mut d)
                                    (mut r)
+                                   functions
                                    (mut supply)
                                    (Some original)
                                    (mut input)
@@ -249,6 +258,7 @@
                              (primitive/fnptr-of validate)
                              (mut d)
                              (mut r)
+                             functions
                              (mut supply)
                              (None)
                              (mut input)
@@ -281,6 +291,7 @@
                                    (primitive/fnptr-of validate)
                                    (mut d)
                                    (mut r)
+                                   functions
                                    (mut supply)
                                    (None)
                                    (mut input)
@@ -299,6 +310,7 @@
                              (primitive/fnptr-of validate)
                              (mut d)
                              (mut r)
+                             functions
                              (mut supply)
                              (None)
                              (mut input)
@@ -320,6 +332,29 @@
                (_ (panic "unsupported declaration failure")))))
       (unless (= (.last supply) 6)
         (panic "failed declaration received an identity")))
+    (let [(mut normalized)
+            (batch a
+                   (mut output)
+                   9
+                   "(do (defn* generated [] (-> i64) 1) (defn source [] (-> i64) 2) (defn* generated [] (-> i64) 3))")
+          (mut result)
+            (match (admission/run! a
+                                   (mut user)
+                                   (primitive/fnptr-of validate)
+                                   (mut d)
+                                   (mut r)
+                                   functions
+                                   (mut supply)
+                                   (None)
+                                   (mut input)
+                                   (mut output)
+                                   (mut normalized))
+              (Ok [v] v)
+              (Err [_] (panic "function names")))]
+      (defer (free! (mut normalized)))
+      (defer (free! (mut result)))
+      (unless (and (= (len result) 3) (= (len (.items functions)) 2))
+        (panic "primitive function collection")))
     (let [(mut normalized) (batch a (mut output) 7 "(do)")
           (mut result)
             (match (admission/run! a
@@ -327,6 +362,7 @@
                                    (primitive/fnptr-of validate)
                                    (mut d)
                                    (mut r)
+                                   functions
                                    (mut supply)
                                    (Some original)
                                    (mut input)
@@ -336,12 +372,19 @@
               (Err [_] (panic "empty output")))]
       (defer (free! (mut normalized)))
       (defer (free! (mut result)))
-      (unless (and (= (len result) 0) (= (.last supply) 6))
+      (unless (and (= (len result) 0) (= (.last supply) 9))
         (panic "empty output effects")))))
 
 (defn main [] (-> i64)
   (let [debug (DebugAllocator::new (malloc-allocator))]
-    (check (DebugAllocator::view debug))
+    (let [(mut functions) (functions/create (DebugAllocator::view debug))]
+      (check (DebugAllocator::view debug) (mut functions))
+      ; All source and syntax stores from admission have been released.
+      (unless (and (= (len (.items functions)) 2)
+                   (= (get (.items functions) 0) "app.generated")
+                   (= (get (.items functions) 1) "app.generated"))
+        (panic "function collection ownership/order"))
+      (functions/release! (mut functions)))
     (unless (= (DebugAllocator::deinit! debug) 0) (panic "admission leak")))
   (println "admission: singleton exception, metadata change, ordered declarations, raw counts, failure effects, retry and empty output passed")
   0)

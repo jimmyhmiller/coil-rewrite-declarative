@@ -6,6 +6,7 @@
 (import "rewrite.deriveregistry" :as registry)
 (import "rewrite.traitdeclarations" :as traits)
 (import "rewrite.revision" :as revision)
+(import "rewrite.functionnames" :as functions)
 (import "rewrite.stage" :as stage)
 (import "rewrite.code" :as code)
 (import "rewrite.equality" :as equality)
@@ -36,6 +37,7 @@
                        (Result bool E)))
    (derives (ptr derives/Context))
    (registry (ptr registry/Registry))
+   (functions (ptr functions/Names))
    (supply (ptr revision/Supply))
    (original (Option revision/Tagged))
    (input (ptr code/Syntax))
@@ -90,6 +92,14 @@
       (Ok [_] (Ok (policy/Event-Done)))
       (Err [e] (Err (Declaration [E] e))))))
 
+(defn collect :cc (cc/C) [C E] [(c (ptr (Context C E)))]
+  (-> (Result policy/Event (Error E)))
+  (functions/observe! (.scratch c)
+                      (.functions c)
+                      (.form c)
+                      (.module (.entry c)))
+  (Ok (policy/Event-Done)))
+
 (defn publish :cc (cc/C) [C E] [(c (ptr (Context C E)))]
   (-> (Result policy/Event (Error E)))
   (match (revision/version! (.scratch c)
@@ -107,8 +117,8 @@
         (Ok (policy/Event-Done)))))
 
 ;;; Normalized forms must remain immutable. Declaration work is mandatory: the
-;;; callback must validate/register generated structs/sums and collect defn* names
-;;; for its compiler. There is no default acceptance callback or old-host fallback.
+;;; callback must validate/register generated structs/sums for its compiler.
+;;; Function-name collection follows successful declaration work. There is no default acceptance callback or old-host fallback.
 ;;; Result array is owned by caller; forms borrow output. On error no array is
 ;;; returned, but prior registration/declaration effects and spent IDs persist.
 (defn run! [C E] [(a (dyn Allocator))
@@ -118,6 +128,7 @@
                                       (Result bool E)))
                   (derives (ptr derives/Context))
                   (registry (ptr registry/Registry))
+                  (functions (ptr functions/Names))
                   (supply (ptr revision/Supply))
                   (original (Option revision/Tagged))
                   (input (ptr code/Syntax))
@@ -142,6 +153,8 @@
                                (primitive/fnptr-of register [C E])
                                :step-declare
                                (primitive/fnptr-of accept-declaration [C E])
+                               :step-collect
+                               (primitive/fnptr-of collect [C E])
                                :step-publish
                                (primitive/fnptr-of publish [C E]))]
         (defer (close! (mut scratch)))
@@ -165,6 +178,8 @@
                            derives
                            :registry
                            registry
+                           :functions
+                           functions
                            :supply
                            supply
                            :original

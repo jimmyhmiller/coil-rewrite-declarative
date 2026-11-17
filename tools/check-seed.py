@@ -439,3 +439,4 @@ subprocess.run(['python3', 'tools/check-pairs.py'], cwd=ROOT, check=True)
 subprocess.run(['python3', 'tools/check-derive.py'], cwd=ROOT, check=True)
 
 subprocess.run(['python3', 'tools/check-traits.py'], cwd=ROOT, check=True)
+subprocess.run(['python3', 'tools/check-functions.py'], cwd=ROOT, check=True)

@@ -1,0 +1,435 @@
+{
+  "scope": "Real installed primitive reader/parse-program via dump-ast, without module loading or macro expansion. AST dumps omit struct/sum bounds, annotations and hidden initializer payloads; success does not prove those fields equal. One installed executable/profile, not three separately built configurations.",
+  "compiler_version": "coil 0.1.0 (commit dcbbfee64333, 2026-11-17)",
+  "compiler_sha256": "a0e3f4c481945e8c29607cf022283ece170299f795c79b9487af75a931a55869",
+  "reference_revision": "dcbbfee643335a2854d7b5aa0bd066f9d1a0112d",
+  "source_sha256": {
+    "src/compiler/driver.coil": "9b21009909cfe97b60d58918bd7df9558fb0fb8635fdc8e837ab85d73252e365",
+    "src/compiler/frontend/parser.coil": "daa9424368ca143d6497b3afe9e462b192c23d1a360dcbf77ed03fb6e9f75d4a",
+    "src/compiler/frontend/ast.coil": "c4f8d4fd07f48e07a8cead0cbdecf32a6b5a91d6523f14eceff806af1688d0ed",
+    "src/compiler/frontend/astdump.coil": "472456d5594b118f90885c6a71d4e36f1dbeb357debf002dbaa03b391d788ad0"
+  },
+  "capture_script_sha256": "a9b7eded08fd89fd3e676ecfa421cadf9538f35aa035a8d935b36c51c5166024",
+  "cases": [
+    {
+      "name": "empty-struct",
+      "source": "(defstruct Empty [])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Empty\" [] (c) []))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "struct-fields",
+      "source": "(defstruct Pair [(x i64) (next (ptr Pair))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Pair\" [] (c) [(fld \"x\" (int 64 1)) (fld \"next\" (ptr (primitive/struct? \"Pair\")))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "generic-struct",
+      "source": "(defstruct Box [T] [(value T)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Box\" [\"T\"] (c) [(fld \"value\" (primitive/struct? \"T\"))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "bounded-struct",
+      "source": "(defstruct Box [(T Ord)] [(value T)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Box\" [\"T\"] (c) [(fld \"value\" (primitive/struct? \"T\"))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "empty-two-vectors",
+      "source": "(defstruct Empty [] [])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Empty\" [] (c) []))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "missing-fields",
+      "source": "(defstruct Empty)\n",
+      "exit_code": 1,
+      "output": "(error@0:0:17:0 \"defstruct 'Empty': expected a field vector\")"
+    },
+    {
+      "name": "symbol-fields",
+      "source": "(defstruct Bad fields)\n",
+      "exit_code": 1,
+      "output": "(error@0:0:22:0 \"defstruct 'Bad': expected a field vector\")"
+    },
+    {
+      "name": "bad-field",
+      "source": "(defstruct Bad [x])\n",
+      "exit_code": 1,
+      "output": "(error@0:16:17:0 \"field must be (name type [:at N] [:default VALUE])\")"
+    },
+    {
+      "name": "short-field",
+      "source": "(defstruct Bad [(x)])\n",
+      "exit_code": 1,
+      "output": "(error@0:0:21:0 \"field missing type\")"
+    },
+    {
+      "name": "default-field",
+      "source": "(defstruct Defaults [(x i64 :default 42)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Defaults\" [] (c) [(fld \"x\" (int 64 1))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "field-offset",
+      "source": "(defstruct Offset [(x i64 :at 0)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Offset\" [] (explicit [0] (none) 0) [(fld \"x\" (int 64 1))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "old-layout",
+      "source": "(defstruct Old :layout packed [(x i64)])\n",
+      "exit_code": 1,
+      "output": "(error@0:23:29:0 \":layout packed is now a coil.layout.Layout value, such as :layout (layout/Packed) or :layout (layout/Align 16), with (import \\\"coil.layout\\\" :as layout)\")"
+    },
+    {
+      "name": "written-layout",
+      "source": "(defstruct Packed :layout (layout/Packed) [(x i64)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Packed\" [] (written (call@0:26:41:0 \"layout/Packed\" [] [])) [(fld \"x\" (int 64 1))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "align-only",
+      "source": "(defstruct Align :align 16 [(x i64)])\n",
+      "exit_code": 1,
+      "output": "(error@0:0:37:0 \"defstruct 'Align': :size and :align apply to a (layout/Explicit) struct\")"
+    },
+    {
+      "name": "bad-align",
+      "source": "(defstruct Align :align 3 [])\n",
+      "exit_code": 1,
+      "output": "(error@0:0:29:0 \"alignment must be a positive power of two\")"
+    },
+    {
+      "name": "size-only",
+      "source": "(defstruct Size :size 16 [])\n",
+      "exit_code": 1,
+      "output": "(error@0:0:28:0 \"defstruct 'Size': :size and :align apply to a (layout/Explicit) struct\")"
+    },
+    {
+      "name": "negative-size",
+      "source": "(defstruct Size :size -1 [])\n",
+      "exit_code": 1,
+      "output": "(error@0:0:28:0 \"defstruct 'Size': :size and :align apply to a (layout/Explicit) struct\")"
+    },
+    {
+      "name": "backing-only",
+      "source": "(defstruct Back :backing u32 [])\n",
+      "exit_code": 1,
+      "output": "(error@0:0:32:0 \"defstruct 'Back': :backing applies to a (layout/Bits) struct\")"
+    },
+    {
+      "name": "bad-backing",
+      "source": "(defstruct Back :backing f64 [])\n",
+      "exit_code": 1,
+      "output": "(error@0:25:28:0 \":backing must be an integer type\")"
+    },
+    {
+      "name": "bits-field",
+      "source": "(defstruct Bits [(x :bits 3) (y :bits 5 :signed true)])\n",
+      "exit_code": 1,
+      "output": "(error@0:0:55:0 \"defstruct 'Bits': field 'x' is a bitfield, and only a (layout/Bits) struct has them\")"
+    },
+    {
+      "name": "hidden-fields",
+      "source": "(defstruct Hidden :hidden [(counter i64 0)] [])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Hidden\" [] (c) [(fld \"hidden counter\" (int 64 1))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "duplicate-hidden",
+      "source": "(defstruct Hidden :hidden [(counter i64 0) (counter i64 1)] [])\n",
+      "exit_code": 1,
+      "output": "(error@0:43:58:0 \"defstruct 'Hidden': two hidden fields are named 'counter'\")"
+    },
+    {
+      "name": "bad-hidden-arity",
+      "source": "(defstruct Hidden :hidden [(counter i64)] [])\n",
+      "exit_code": 1,
+      "output": "(error@0:27:40:0 \"a hidden field must be (name type initializer): a construction does not name it, so the struct says what it starts as\")"
+    },
+    {
+      "name": "annotation",
+      "source": "(defstruct Annotated :doc \"note\" [])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Annotated\" [] (c) []))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "unknown-annotation",
+      "source": "(defstruct Annotated :custom/key (+ 1 2) [])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Annotated\" [] (c) []))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "missing-option",
+      "source": "(defstruct Missing :size)\n",
+      "exit_code": 1,
+      "output": "(error@0:0:25:0 \"defstruct: ':size' missing value\")"
+    },
+    {
+      "name": "duplicate-option",
+      "source": "(defstruct Sized :align 8 :align 16 [])\n",
+      "exit_code": 1,
+      "output": "(error@0:0:39:0 \"defstruct 'Sized': :size and :align apply to a (layout/Explicit) struct\")"
+    },
+    {
+      "name": "trailing-struct",
+      "source": "(defstruct Trailing [] extra)\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Trailing\" [] (c) []))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "duplicate-field",
+      "source": "(defstruct Duplicated [(x i64) (x i32)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Duplicated\" [] (c) [(fld \"x\" (int 64 1)) (fld \"x\" (int 32 1))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "empty-sum",
+      "source": "(defsum Empty)\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs)\n(sums (sum \"Empty\" [] []))\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "sum-variants",
+      "source": "(defsum Choice (A) (B [(value i64)]))\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs)\n(sums (sum \"Choice\" [] [(variant \"A\" []) (variant \"B\" [(fld \"value\" (int 64 1))])]))\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "generic-sum",
+      "source": "(defsum Maybe [T] (None) (Some [(value T)]))\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs)\n(sums (sum \"Maybe\" [\"T\"] [(variant \"None\" []) (variant \"Some\" [(fld \"value\" (primitive/struct? \"T\"))])]))\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "bounded-sum",
+      "source": "(defsum Maybe [(T Ord)] (None) (Some [(value T)]))\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs)\n(sums (sum \"Maybe\" [\"T\"] [(variant \"None\" []) (variant \"Some\" [(fld \"value\" (primitive/struct? \"T\"))])]))\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "sum-annotation",
+      "source": "(defsum Choice :doc \"note\" (A))\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs)\n(sums (sum \"Choice\" [] [(variant \"A\" [])]))\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "bad-variant",
+      "source": "(defsum Choice A)\n",
+      "exit_code": 1,
+      "output": "(error@0:15:16:0 \"variant must be (Name [fields])\")"
+    },
+    {
+      "name": "missing-variant-name",
+      "source": "(defsum Choice ())\n",
+      "exit_code": 1,
+      "output": "(error@0:0:18:0 \"variant: missing name\")"
+    },
+    {
+      "name": "bad-variant-fields",
+      "source": "(defsum Choice (A (x i64)))\n",
+      "exit_code": 1,
+      "output": "(error@0:15:26:0 \"variant 'A': fields must be a vector\")"
+    },
+    {
+      "name": "extra-variant-items",
+      "source": "(defsum Choice (A [] ignored))\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs)\n(sums (sum \"Choice\" [] [(variant \"A\" [])]))\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "duplicate-variant",
+      "source": "(defsum Choice (A) (A))\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs)\n(sums (sum \"Choice\" [] [(variant \"A\" []) (variant \"A\" [])]))\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "bad-struct-name",
+      "source": "(defstruct 3 [])\n",
+      "exit_code": 1,
+      "output": "(error@0:11:12:0 \"struct name: expected symbol, got 3\")"
+    },
+    {
+      "name": "bad-sum-name",
+      "source": "(defsum :Bad (A))\n",
+      "exit_code": 1,
+      "output": "(error@0:8:12:0 \"sum name: expected symbol, got :Bad\")"
+    },
+    {
+      "name": "missing-struct-name",
+      "source": "(defstruct)\n",
+      "exit_code": 1,
+      "output": "(error@0:0:11:0 \"defstruct: missing name\")"
+    },
+    {
+      "name": "missing-sum-name",
+      "source": "(defsum)\n",
+      "exit_code": 1,
+      "output": "(error@0:0:8:0 \"defsum: missing name\")"
+    },
+    {
+      "name": "field-type-0",
+      "source": "(defstruct Typed [(value i8)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Typed\" [] (c) [(fld \"value\" (int 8 1))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "field-type-1",
+      "source": "(defstruct Typed [(value u64)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Typed\" [] (c) [(fld \"value\" (int 64 0))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "field-type-2",
+      "source": "(defstruct Typed [(value f32)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Typed\" [] (c) [(fld \"value\" (float 32))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "field-type-3",
+      "source": "(defstruct Typed [(value bool)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Typed\" [] (c) [(fld \"value\" bool)]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "field-type-4",
+      "source": "(defstruct Typed [(value void)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Typed\" [] (c) [(fld \"value\" void)]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "field-type-5",
+      "source": "(defstruct Typed [(value Code)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Typed\" [] (c) [(fld \"value\" code)]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "field-type-6",
+      "source": "(defstruct Typed [(value true)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Typed\" [] (c) [(fld \"value\" (const true))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "field-type-7",
+      "source": "(defstruct Typed [(value :unit)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Typed\" [] (c) [(fld \"value\" (const :unit))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "field-type-8",
+      "source": "(defstruct Typed [(value 42)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Typed\" [] (c) [(fld \"value\" (const 42))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "field-type-9",
+      "source": "(defstruct Typed [(value (const N))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Typed\" [] (c) [(fld \"value\" (const N))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "field-type-10",
+      "source": "(defstruct Typed [(value (ptr))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Typed\" [] (c) [(fld \"value\" (ptr (int 64 1)))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "field-type-11",
+      "source": "(defstruct Typed [(value (ptr i32 ignored))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Typed\" [] (c) [(fld \"value\" (ptr (int 32 1)))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "field-type-12",
+      "source": "(defstruct Typed [(value (ref i64))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Typed\" [] (c) [(fld \"value\" (ref 0 (int 64 1)))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "field-type-13",
+      "source": "(defstruct Typed [(value (mut i64))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Typed\" [] (c) [(fld \"value\" (ref 1 (int 64 1)))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "field-type-14",
+      "source": "(defstruct Typed [(value (slice u8))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Typed\" [] (c) [(fld \"value\" (slice (int 8 0)))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "field-type-15",
+      "source": "(defstruct Typed [(value (array i64 0))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Typed\" [] (c) [(fld \"value\" (array (int 64 1) 0))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "field-type-16",
+      "source": "(defstruct Typed [(value (array i64 -1))])\n",
+      "exit_code": 1,
+      "output": "(error@0:25:39:0 \"array type: a length cannot be negative\")"
+    },
+    {
+      "name": "field-type-17",
+      "source": "(defstruct Typed [(value (array i64 N))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Typed\" [] (c) [(fld \"value\" (array (int 64 1) N))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "field-type-18",
+      "source": "(defstruct Typed [(value (vec i32 4))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Typed\" [] (c) [(fld \"value\" (vec (int 32 1) 4))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "field-type-19",
+      "source": "(defstruct Typed [(value (mask 8))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Typed\" [] (c) [(fld \"value\" (vec bool 8))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "field-type-20",
+      "source": "(defstruct Typed [(value (dyn Show))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Typed\" [] (c) [(fld \"value\" (primitive/struct? \"Show-dyn\"))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "field-type-21",
+      "source": "(defstruct Typed [(value (Box i64))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Typed\" [] (c) [(fld \"value\" (app \"Box\" [(int 64 1)]))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "field-type-22",
+      "source": "(defstruct Typed [(value (fnptr (cc/C) [i64] i64))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"Typed\" [] (c) [(fld \"value\" (fn \"(cc/C)\" [(int 64 1)] (int 64 1)))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "name": "field-type-23",
+      "source": "(defstruct Typed [(value (array i64))])\n",
+      "exit_code": 1,
+      "output": "(error@0:25:36:0 \"array type: missing length; write (array T N) with N a non-negative integer, an integer constant or an integer value parameter\")"
+    },
+    {
+      "name": "field-type-24",
+      "source": "(defstruct Typed [(value ())])\n",
+      "exit_code": 1,
+      "output": "(error@0:25:27:0 \"empty list\")"
+    },
+    {
+      "name": "field-type-25",
+      "source": "(defstruct Typed [(value [i64])])\n",
+      "exit_code": 1,
+      "output": "(error@0:25:30:0 \"unsupported type: [i64]\")"
+    },
+    {
+      "name": "field-type-26",
+      "source": "(defstruct Typed [(value \"i64\")])\n",
+      "exit_code": 1,
+      "output": "(error@0:25:30:0 \"unsupported type: \\\"i64\\\"\")"
+    }
+  ]
+}

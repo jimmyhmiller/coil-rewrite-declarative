@@ -1,0 +1,26 @@
+{
+  "scope": "Generated primitive-name view and ordered owned collection against exact helper capture; not full declaration validation.",
+  "cases": 51,
+  "configurations": [
+    "default",
+    "debug-checks",
+    "release"
+  ],
+  "allocator_leaks": 0,
+  "host_version": "coil 0.1.0 (commit dcbbfee64333, 2026-11-17)",
+  "host_sha256": "a0e3f4c481945e8c29607cf022283ece170299f795c79b9487af75a931a55869",
+  "reference_sha256": "59124b255d824f7c4e25b6f367cab685e0487efb436f07a401544de1e992781a",
+  "driver_sha256": "6a4f44e59bf769e2aa6a78dbd89ee2c40558e3901f61a47a4f1d7c5bf4f7139b",
+  "inputs": {
+    "seed/types.coil": "e398f5cb019e3eea3339700ba5b3685b119421eb30ac5a2045c8835d5d9a6ce9",
+    "seed/scope.coil": "c7be3143d3e955ecd8c05ea3c7ffb4b8b6d9981a223fc5de55507aa89f35e71f",
+    "seed/resolution.coil": "b080dca9f1a7b3848105faf4e2369a3272911fe8ab22a0e23f75e23d112521c6",
+    "seed/source.coil": "090c81a0015f5a4941deb45e3dc8ff582b33cd4da97296cde4e3454979dad640",
+    "seed/sequence.coil": "bdcac1aac27c0ed59c3020705e0583ff28f8b553c115f8e9d4211d7d59976120",
+    "seed/equality_runtime.coil": "677953a98f75ce17eba81be80da3133d56da5387413e15679ba218c10e462039",
+    "seed/function_names.coil": "0f0ddee6b2ab11af5bbd5759d1ebd56eb7df1fc1852b36521b4f521c2f6ae905",
+    "seed/generated/code_forms.coil": "71ab0e12c534965c25e36de08282da54a46021e252b724b5b299878172c1e9fc",
+    "tools/check-functions.py": "d585ddb194b81ec62ac132923cee855a1facfb50b9bb1a8b58778b406d657263",
+    "languages/code.schema": "fa5c550e29d697de8e88d1c4a1c0d3585cf9b2bfd65f3e0f614e71b20f6dff1f"
+  }
+}
