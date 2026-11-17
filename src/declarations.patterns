@@ -76,3 +76,10 @@
 (recognize offset-name? "offsetof")
 (extract field-offset-query FieldOffsetQuery OffsetOf NoOffsetOf
   (list (matches offset-name?) (capture type symbol) (capture field symbol)))
+(extract sum-declaration SumDeclaration Sum NoSum
+  (list "defsum" (capture name symbol) ...))
+(extract variant-name VariantName VariantNamed NoVariantName
+  (list (capture name symbol))
+  (list (capture name symbol) (vector ...)))
+(extract variant-fields VariantFields Payload NoPayload
+  (list symbol (capture fields (vector ...))))

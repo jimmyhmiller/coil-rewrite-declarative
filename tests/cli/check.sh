@@ -124,6 +124,16 @@ compare 1 '(defstruct i17 [])'
 run_both 12 '(defstruct A [(x u24) (p (ptr i129))]) (defn main [] (-> i64) (+ (offsetof A p) (sizeof u24)))'
 compare 1 '(defstruct A [(x i32) (x i16)])'
 compare 1 '(defstruct A [(x u16)]) (defn f [] (-> i64) (offsetof A y))'
+run_both 48 '(module app) (module msg) (export Event Empty) (defstruct Pair [(x u8) (y u8)]) (defsum Event (Empty) (Batch [(pairs (array Pair 2))]) (Single [(wide i128)])) (module app) (import "msg" :as m) (defn main [] (-> i64) (+ (sizeof m/Event) (alignof m/Event)))'
+run_both 40 '(defsum S (Wide [(prefix u8) (value i128)])) (defn main [] (-> i64) (sizeof S))'
+compare 1 '(defsum S (A [(value T)])) (defstruct T [(s S)])'
+printf '%s\n' '(defsum S (Same)) (defsum T (Same))' > input.coil
+for compiler in coil ./rewrite; do
+    if "$compiler" check input.coil >diagnostic 2>&1; then exit 1; fi
+    grep -F 'variant' diagnostic >/dev/null
+done
+grep -F 'input.coil:' diagnostic >/dev/null
+compare 1 '(defsum S (Bad [(value Missing)]))'
 run_both 72 '(defn main [] (-> i64) (third 9 45 72)) (defn third [(x i64) (y i64) (z i64)] (-> i64) z)'
 run_both 19 '(defn main [] (-> i64) (discard false -7) 19) (defn discard [(x bool) (y i8)] (-> i8) y)'
 

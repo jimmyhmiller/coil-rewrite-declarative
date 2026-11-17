@@ -15,6 +15,7 @@
 (context ConstantValue [(layout-dependent bool) (contextual bool) (reads-storage bool) (literal (ptr coil.reader.Sexp)) (type (slice u8))])
 (context Checked
   [(allocator (dyn coil.alloc.Allocator))
+   (payload-sizes (coil.hashmap.HashMap i64 i64))
    (field-offsets (coil.hashmap.HashMap i64 i64))
    (layouts (coil.hashmap.HashMap i64 Layout)) (layout-started (coil.hashmap.HashMap i64 bool))
    (statics (coil.hashmap.HashMap i64 (ptr coil.reader.Sexp)))
@@ -115,10 +116,10 @@
     (require (<= size (- 9223372036854775807 padding)) site "struct alignment overflows")
     (conclude (+ size padding))))
 
-(derive struct-layout [(unit (ptr rewrite.modules.SourceUnit)) (checked (mut Checked))
+(derive nominal-layout [(unit (ptr rewrite.modules.SourceUnit)) (checked (mut Checked))
                        (form (ptr coil.reader.Sexp))] Layout
   (cases (get (.layouts checked) (.node-id form)) ((Some [layout]) (conclude layout)) (_))
-  (require (not (contains? (.layout-started checked) (.node-id form))) form "struct contains itself by value")
+  (require (not (contains? (.layout-started checked) (.node-id form))) form "type contains itself by value")
   (record (.layout-started checked) (.node-id form) true)
   (cases (structure form)
     ((Struct [name fields])
@@ -141,7 +142,72 @@
             (with layout (Layout :size size :alignment (load alignment))
               (record (.layouts checked) (.node-id form) layout)
               (conclude layout))))))
-    (_ (reject form "expected a struct declaration"))))
+    (_ (cases (sum-declaration form)
+         ((Sum [name])
+           (require (not (builtin-type-name? name)) name "sum name is a built-in type")
+           (with (mut largest) 0
+             (each-child variant form 2 i
+               (cases (variant-fields variant)
+                 ((Payload [fields])
+                   (obtain bytes (payload-fields-size (rewrite.modules.lookup-for unit form) (mut checked) fields)
+                     (when (> bytes (load largest)) (perform (set! largest bytes)))))
+                 (_)))
+             (with word (scalar-bytes (rewrite.host.unsigned-word-type))
+               (obtain payload (aligned-size (load largest) word form)
+                 (require (<= payload (- 9223372036854775807 word)) form "sum size overflows")
+                 (with layout (Layout :size (+ word payload) :alignment word)
+                   (record (.layouts checked) (.node-id form) layout)
+                   (conclude layout))))))
+         (_ (reject form "expected a type declaration"))))))
+
+(derive payload-size [(lookup rewrite.modules.Lookup) (checked (mut Checked))
+                      (type (ptr coil.reader.Sexp)) (layout Layout)] i64
+  (when (coil.reader.sexp-sym? type)
+    (when (= (scalar-bytes (scalar-type type)) 0)
+      (obtain resolved (rewrite.modules.find-name lookup type true)
+        (cases resolved
+          ((Some [form])
+            (cases (structure form)
+              ((Struct [_ fields])
+                (cases (get (.payload-sizes checked) (.node-id form))
+                  ((Some [cached]) (conclude cached)) (_))
+                (obtain size (payload-fields-size (rewrite.modules.lookup-for (.unit lookup) form) (mut checked) fields)
+                  (record (.payload-sizes checked) (.node-id form) size)
+                  (conclude size)))
+              (_)))
+          (_)))))
+  (cases (array-layout type)
+    ((ArrayOf [element count])
+      (obtain n (array-length lookup (mut checked) count)
+        (obtain inner (type-layout lookup (mut checked) element)
+          (obtain bytes (payload-size lookup (mut checked) element inner)
+            (require (or (= bytes 0) (<= n (/ 9223372036854775807 bytes))) count "payload array size overflows")
+            (conclude (* n bytes))))))
+    (_ (conclude (.size layout)))))
+
+;; A variant reserves a whole eight-byte slot for each field, and enough space
+;; for natural padding when a field requires greater alignment. Nested structs
+;; contribute their payload footprint recursively.
+(derive payload-fields-size [(lookup rewrite.modules.Lookup) (checked (mut Checked))
+                             (fields (ptr coil.reader.Sexp))] i64
+  (with (mut rounded) 0
+    (with (mut end) 0
+      (with (mut alignment) 1
+        (each-child field fields 0 i
+          (cases (typed-parameter field)
+            ((Parameter [_ type])
+              (obtain layout (type-layout lookup (mut checked) type)
+                (obtain bytes (payload-size lookup (mut checked) type layout)
+                  (obtain slot (aligned-size bytes 8 field)
+                    (require (<= slot (- 9223372036854775807 (load rounded))) field "sum payload size overflows")
+                    (perform (set! rounded (+ (load rounded) slot))))
+                  (obtain offset (aligned-size (load end) (.alignment layout) field)
+                    (require (<= bytes (- 9223372036854775807 offset)) field "sum payload size overflows")
+                    (perform (set! end (+ offset bytes))))
+                  (when (> (.alignment layout) (load alignment)) (perform (set! alignment (.alignment layout)))))))
+            (_ (reject field "expected a named variant field"))))
+        (obtain natural (aligned-size (load end) (load alignment) fields)
+          (conclude (if (> natural (load rounded)) natural (load rounded))))))))
 
 (derive type-layout [(lookup rewrite.modules.Lookup) (checked (mut Checked)) (type (ptr coil.reader.Sexp))] Layout
   (obtain result (inspect-type lookup (mut checked) type true)
@@ -159,7 +225,7 @@
         (cases resolved
           ((Some [form])
             (when (not measure?) (conclude (None [Layout])))
-            (obtain layout (struct-layout (.unit lookup) (mut checked) form) (conclude (Some layout))))
+            (obtain layout (nominal-layout (.unit lookup) (mut checked) form) (conclude (Some layout))))
           (_ (reject type "unknown type"))))))
   (cases (address-layout type)
     ((AddressOf [kind element])
@@ -206,7 +272,7 @@
       (obtain resolved (rewrite.modules.find-name lookup type true)
         (cases resolved
           ((Some [form])
-            (prove (struct-layout (.unit lookup) (mut checked) form))
+            (prove (nominal-layout (.unit lookup) (mut checked) form))
             (cases (structure form)
               ((Struct [_ fields])
                 (each-child item fields 0 i
@@ -633,12 +699,13 @@
                         "linker symbol must be nonempty and contain no NUL byte"))
              (when (not (coil.reader.sexp-sym-is result "void")) (prove (check-type result)))
              (each-child parameter parameters 0 position (prove (check-type parameter))))
-           (_ (require (or (match (structure form) (Struct [_ _] true) (_ false)) (match (constant-declaration form) (Constant [_ _] true) (_ false))) form "unsupported declaration")))))))
+           (_ (require (or (match (rewrite.modules.type-name form) (Some [_] true) (_ false)) (match (constant-declaration form) (Constant [_ _] true) (_ false))) form "unsupported declaration")))))))
 
 (derive check-functions
   [(allocator (dyn coil.alloc.Allocator))
    (unit (ptr rewrite.modules.SourceUnit))] Checked
-  (with (mut checked) (Checked :field-offsets (coil.hashmap.HashMap::new-scalar [i64 i64] allocator)
+  (with (mut checked) (Checked :payload-sizes (coil.hashmap.HashMap::new-scalar [i64 i64] allocator)
+                               :field-offsets (coil.hashmap.HashMap::new-scalar [i64 i64] allocator)
                                :layouts (coil.hashmap.HashMap::new-scalar [i64 Layout] allocator)
                                :layout-started (coil.hashmap.HashMap::new-scalar [i64 bool] allocator)
                                :allocator allocator :statics (coil.hashmap.HashMap::new-scalar [i64 (ptr coil.reader.Sexp)] allocator)
@@ -669,6 +736,6 @@
             (prove (check-body (rewrite.modules.lookup-for unit form) (mut checked) locals form (rewrite.modules.function-body-start form parameters)
                      (if (coil.reader.sexp-sym-is result "void") (Discard)
                          (Expect (scalar-type result)))))))
-        (_ (cases (structure form) ((Struct [_ _]) (prove (struct-layout unit (mut checked) form)))
+        (_ (cases (rewrite.modules.type-name form) ((Some [_]) (prove (nominal-layout unit (mut checked) form)))
              (_ (when (not (rewrite.modules.external? form)) (prove (constant-value unit (mut checked) form))))))))
     (conclude checked)))
