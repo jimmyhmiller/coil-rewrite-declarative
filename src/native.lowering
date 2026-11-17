@@ -190,7 +190,7 @@
     (choose
       (on (get (.callees (.checked f)) (.node-id expr)) (Some [function])
         (choose
-          (on (ordinary-function function) (Function [_ name parameters result])
+          (on (modules/callable function) (Function [_ name parameters result])
             (bind (mut args) (al/ArrayList::new [i32] (.a f)))
             (walk position arg expr 1
               (need value (lower-expression (mut f) (mut im) signatures arg) (< (.control f) 0))
@@ -265,6 +265,7 @@
 (translate lower-function
   [(a (dyn Allocator)) (im (mut image/Image))
    (signatures modules/Lookup) (checked checker/Checked) (form (ptr Sexp))] (Result i64 Diag)
+  (where (modules/external? form) (yield (Ok 0)))
   (on (ordinary-function form) (Function [_ name parameters result])
     (need rep (machine-type (sexp-sym result) result))
     (bind (mut f) (Frame :loops (hm/HashMap::new-scalar [i64 (ptr LoopEdges)] a) :a a :checked checked :g (graph/create a) :control 0

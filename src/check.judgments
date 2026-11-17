@@ -1,4 +1,5 @@
 (use "rewrite.modules")
+(use "coil.project")
 (use "rewrite.declarations")
 
 (use "coil.amap")
@@ -208,15 +209,14 @@
               (_ (reject expr "call to undefined function"))))
           ((Some [found])
             (record (.callees checked) (.node-id expr) found)
-            (cases (ordinary-function found)
+            (cases (rewrite.modules.callable found)
               ((Function [_ _ parameters result])
                 (require (= (coil.reader.sexp-count parameters) (- (coil.reader.sexp-count expr) 1))
                          expr "wrong number of arguments")
                 (each-child arg expr 1 i
-                  (cases (typed-parameter (coil.reader.sexp-nth parameters (- i 1)))
-                    ((Parameter [_ type])
-                      (prove (check-expression signatures (mut checked) locals arg (Expect (coil.reader.sexp-sym type)))))
-                    (_ (reject found "invalid parameter"))))
+                  (with parameter (coil.reader.sexp-nth parameters (- i 1))
+                    (with type (match (typed-parameter parameter) (Parameter [_ t] t) (_ parameter))
+                      (prove (check-expression signatures (mut checked) locals arg (Expect (coil.reader.sexp-sym type)))))))
                 (conclude (coil.reader.sexp-sym result)))
               (_ (reject found "invalid function signature")))))))
     (_ (reject expr "unsupported expression"))))
@@ -353,7 +353,14 @@
                 (insert-unique names name form "duplicate parameter name")
                 (prove (check-type type)))
               (_ (reject parameter "invalid parameter"))))))
-      (_ (reject form "unsupported declaration")))))
+      (_ (cases (rewrite.modules.foreign-signature form)
+           ((External [name parameters result])
+             (with link (rewrite.modules.external-symbol form name)
+               (require (and (> (len link) 0) (< (coil.project.m-index link (: 0 u8)) 0)) form
+                        "linker symbol must be nonempty and contain no NUL byte"))
+             (when (not (coil.reader.sexp-sym-is result "void")) (prove (check-type result)))
+             (each-child parameter parameters 0 position (prove (check-type parameter))))
+           (_ (reject form "unsupported declaration")))))))
 
 (derive check-functions
   [(allocator (dyn coil.alloc.Allocator))
@@ -383,5 +390,5 @@
             (prove (check-body (rewrite.modules.lookup-for unit form) (mut checked) locals form 4
                      (if (coil.reader.sexp-sym-is result "void") (Discard)
                          (Expect (coil.reader.sexp-sym result)))))))
-        (_ (reject form "unsupported declaration"))))
+        (_ (require (rewrite.modules.external? form) form "unsupported declaration"))))
     (conclude checked)))

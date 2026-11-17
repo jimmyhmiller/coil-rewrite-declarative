@@ -411,3 +411,39 @@ TOML
     done
 
 )
+
+run_both 27 '(module app) (extern abs [i32] (-> i32)) (defn main [] (-> i64) (cast i64 (abs -27)))'
+run_both 37 '(module app) (module lib) (extern labs [i64] (-> i64)) (extern labs [i64] (-> i64)) (module app) (import "lib" :as c) (defn main [] (-> i64) (c/labs -37))'
+compare 1 '(extern labs [i64] (-> i64)) (defn main [] (-> i64) (labs false))'
+compare 1 '(extern labs [i64] (-> i64)) (defn main [] (-> i64) (labs))'
+
+echo '(module app) (extern record_value [i64 i64 i64 i64 i64 i64 i64 i64 u8 u8] (-> void)) (extern read_value [] (-> i64)) (defn main [] (-> i64) (record_value 1 2 3 4 5 6 7 8 13 17) (read_value))' > external.coil
+cat > external.c <<'C'
+#include <stdint.h>
+static int64_t saved;
+void record_value(int64_t a, int64_t b, int64_t c, int64_t d,
+                  int64_t e, int64_t f, int64_t g, int64_t h,
+                  uint8_t i, uint8_t j) {
+    saved = a + b + c + d + e + f + g + h + i + j;
+}
+int64_t read_value(void) { return saved; }
+C
+for compiler in coil ./rewrite; do
+    "$compiler" emit-obj external.coil -o external.o
+    cc external.c external.o -o external-app
+    status=0
+    ./external-app || status=$?
+    [ "$status" -eq 66 ]
+done
+
+run_both 43 '(module app) (extern magnitude :as "labs" [i64] (-> i64)) (defn main [] (-> i64) (magnitude -43))'
+compare 1 '(extern magnitude :as "" [i64] (-> i64))'
+
+for declarations in '(extern labs [i64] (-> i64)) (extern labs [i32] (-> i32))' \
+    '(extern magnitude :as "labs" [i64] (-> i64)) (extern magnitude :as "other" [i64] (-> i64))'; do
+    echo "$declarations" > input.coil
+    for compiler in coil ./rewrite; do
+        if "$compiler" check input.coil >diagnostic 2>&1; then exit 1; fi
+        grep -F "conflicting signatures" diagnostic >/dev/null
+    done
+done

@@ -9,6 +9,44 @@
 (use "coil.slice")
 
 (context WildcardImport [(provider (ptr ModuleScope)) (excluded (coil.hashmap.HashMap (slice u8) bool))])
+(value foreign-signature [(form (ptr coil.reader.Sexp))] ExternalDeclaration
+  (match (linked-external form)
+    (LinkedExtern [name _ parameters result] (External name parameters result))
+    (_ (external-function form))))
+
+(value external-symbol [(form (ptr coil.reader.Sexp)) (name (ptr coil.reader.Sexp))] (slice u8)
+  (match (linked-external form)
+    (LinkedExtern [_ link _ _] (coil.reader.sexp-str link))
+    (_ (coil.reader.sexp-sym name))))
+
+(value callable [(form (ptr coil.reader.Sexp))] FunctionDeclaration
+  (match (foreign-signature form)
+    (External [name parameters result] (Function form name parameters result))
+    (_ (ordinary-function form))))
+
+(predicate external? [(form (ptr coil.reader.Sexp))]
+  (match (foreign-signature form) (External [_ _ _] true) (_ false)))
+
+(predicate same-foreign-signature? [(left (ptr coil.reader.Sexp)) (right (ptr coil.reader.Sexp))]
+  (block :compare
+    (match (foreign-signature left)
+      (External [lname a r]
+        (match (foreign-signature right)
+          (External [rname b s]
+            (when (or (!= (external-symbol left lname) (external-symbol right rname))
+                      (!= (coil.reader.sexp-count a) (coil.reader.sexp-count b))
+                      (not (coil.reader.sexp-sym? r))
+                      (not (coil.reader.sexp-sym-is s (coil.reader.sexp-sym r))))
+              (return-from :compare false))
+            (for [i 0 (coil.reader.sexp-count a)]
+              (let [param (coil.reader.sexp-nth a i)]
+                (unless (and (coil.reader.sexp-sym? param)
+                             (coil.reader.sexp-sym-is (coil.reader.sexp-nth b i) (coil.reader.sexp-sym param)))
+                  (return-from :compare false))))
+            true)
+          (_ false)))
+      (_ false))))
+
 (context ModuleScope
   [(wildcards (coil.arraylist.ArrayList WildcardImport)) (explicit-exports bool) (exports (coil.hashmap.HashMap (slice u8) bool))
    (selected (coil.hashmap.HashMap (slice u8) (ptr ModuleScope)))
@@ -347,13 +385,17 @@
                     (perform (push! (mut (.visibility unit)) (VisibilityCheck :scope scope :name item :definition? true)))))
                 (when (not (export-form? form)) (perform (push! (.declarations unit) (load form))))))
             (record (.owners unit) (.node-id form) scope)
-            (cases (ordinary-function form)
+            (cases (callable form)
               ((Function [_ name _ _])
                 (with spelling (coil.reader.sexp-sym name)
                   (with canonical (definition-name allocator (load namespace) (and entry? (= (load namespace) (.root sources))) spelling)
-                    (require (not (contains? (.globals unit) canonical)) form "duplicate function declaration")
+                    (cases (get (.globals unit) canonical)
+                      ((Some [prior])
+                        (require (and (external? prior) (external? form)) form "duplicate function declaration")
+                        (require (same-foreign-signature? prior form) form "extern declared with conflicting signatures"))
+                      (_))
                     (record (.globals unit) canonical form)
-                    (record (.symbols unit) (.node-id form) canonical)
+                    (record (.symbols unit) (.node-id form) (if (external? form) (external-symbol form name) canonical))
                     (record (.locals scope) spelling form)
                     (when (and (!= (load namespace) "") (!= canonical "main"))
                       (with member (subslice canonical (+ (len (load namespace)) 1) (len canonical))

@@ -40,3 +40,8 @@
 (extract import-module ModuleImport Imported NoImport
   (list "import" (capture target string) ...))
 (recognize export-form? (list "export" ...))
+(extract external-function ExternalDeclaration External NoExternal
+  (list "extern" (capture name symbol) (capture parameters (vector ...)) (list "->" (capture result _))))
+(extract linked-external LinkedExternal LinkedExtern NoLinkedExtern
+  (list "extern" (capture name symbol) (keyword "as") (capture link string)
+        (capture parameters (vector ...)) (list "->" (capture result _))))
