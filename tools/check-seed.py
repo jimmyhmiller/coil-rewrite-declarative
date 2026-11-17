@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 subprocess.run(['python3', 'tools/gen-schema.py', '--check', '--bootstrap-check'], cwd=ROOT, check=True)
 for flags in [[], ['--debug-checks'], ['--release']]:
     subprocess.run(['coil', 'run', 'tests/schema.coil', *flags], cwd=ROOT, check=True)
+    subprocess.run(['coil', 'run', 'tests/classification.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/schema-scale.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/phases.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/protocol.coil', *flags], cwd=ROOT, check=True)
@@ -429,6 +430,7 @@ subprocess.run(['python3', 'tools/check-syntax-tails.py'], cwd=ROOT, check=True)
 subprocess.run(['python3', 'tools/check-identifiers.py'], cwd=ROOT, check=True)
 subprocess.run(['python3', 'tools/check-first-or.py'], cwd=ROOT, check=True)
 subprocess.run(['python3', 'tools/check-type-syntax.py'], cwd=ROOT, check=True)
+subprocess.run(['python3', 'tools/check-classification.py'], cwd=ROOT, check=True)
 
 subprocess.run(['python3', 'tools/check-walk.py'], cwd=ROOT, check=True)
 

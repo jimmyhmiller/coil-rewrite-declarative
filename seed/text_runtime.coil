@@ -1,0 +1,34 @@
+;;; Allocation-free byte predicates used by generated text classifiers.
+(module rewrite.textclassification)
+(import "coil.arraylist" :use *)
+(import "coil.result" :use *)
+(import "coil.slice" :use [subslice])
+(import "coil.primitive" :as primitive)
+
+(defn prefix? [(text (slice u8)) (prefix (slice u8))] (-> bool)
+  (and (>= (len text) (len prefix)) (= (subslice text 0 (len prefix)) prefix)))
+
+(defn suffix? [(text (slice u8)) (suffix (slice u8))] (-> bool)
+  (and (>= (len text) (len suffix))
+       (= (subslice text (- (len text) (len suffix)) (len text)) suffix)))
+
+;;; Decimal suffixes contain at least one ASCII digit. Overflow is a non-match.
+(defn decimal [(text (slice u8))
+               (prefix (slice u8))
+               (minimum i64)
+               (maximum i64)]
+  (-> (Option i64))
+  (block :done
+    (unless (and (>= minimum 0)
+                 (>= maximum minimum)
+                 (prefix? text prefix)
+                 (> (len text) (len prefix)))
+      (break :done (None [i64])))
+    (let [(mut value) 0]
+      (for [i (len prefix) (len text)]
+        (let [digit (- (primitive/cast i64 (get text i)) 48)]
+          (unless (and (>= digit 0) (<= digit 9)) (break :done (None [i64])))
+          (when (or (> digit maximum) (> value (/ (- maximum digit) 10)))
+            (break :done (None [i64])))
+          (set! value (+ (* value 10) digit))))
+      (if (>= value minimum) (Some value) (None [i64])))))

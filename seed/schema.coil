@@ -246,6 +246,8 @@
                        (> (sexp-count (elem forms i)) 0)
                        (or (sexp-sym-is (sexp-nth (elem forms i) 0)
                                         "pair-selection")
+                           (sexp-sym-is (sexp-nth (elem forms i) 0)
+                                        "text-classifier")
                            (sexp-sym-is (sexp-nth (elem forms i) 0) "selection")
                            (sexp-sym-is (sexp-nth (elem forms i) 0) "walk")
                            (sexp-sym-is (sexp-nth (elem forms i) 0) "module")

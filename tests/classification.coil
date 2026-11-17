@@ -1,0 +1,45 @@
+(module rewrite.testclassification)
+(import "rewrite.schema" :as schema)
+(import "rewrite.classification" :as classification)
+(import "coil.alloc" :as alloc :use [Allocator malloc-allocator])
+(import "coil.arraylist" :use *)
+(import "coil.reader" :use *)
+(import "coil.result" :use *)
+(import "coil.scratch" :use [ScratchArena])
+(import "coil.debug-allocator" :use [DebugAllocator])
+
+(defn check [(a (dyn Allocator)) (text (slice u8)) (valid bool)] (-> void)
+  (let [(mut scratch) (zeroed ScratchArena)
+        initialized (init (mut scratch) a)
+        sa (allocator (mut scratch))
+        forms (match (read-all sa text 1) (Ok [v] v) (_ (panic "source")))
+        (mut schema)
+          (match (schema/parse-forms sa forms)
+            (Ok [v] v)
+            (_ (panic "schema")))]
+    (defer (close! (mut scratch)))
+    ; The emitter uses an allocator that frees; the schema itself uses an arena.
+    (match (classification/emit a (mut schema) forms)
+      (Err [_] (when valid (panic "valid classifier rejected")))
+      (Ok [output]
+          (unless valid (panic "invalid classifier accepted"))
+          (unless (> (len output) 100) (panic "missing generated function"))
+          (unless (= (get output 0) (: 40 u8)) (panic "released output buffer"))
+          (alloc/free [u8] a output)))))
+
+(defn main [] (-> i64)
+  (let [debug (DebugAllocator::new (malloc-allocator))
+        a (DebugAllocator::view debug)]
+    (check a
+           "(node X (n Int)) (text-classifier choose X (exact \"x\" (X 3)) (default (X $parameter)))"
+           true)
+    (check a
+           "(node X (n Int)) (text-classifier choose X (exact \"x\" (X 3)))"
+           false)
+    (check a
+           "(node X (n Int)) (text-classifier choose X (default (X $input)))"
+           false)
+    (unless (= (DebugAllocator::deinit! debug) 0)
+      (panic "classifier emitter leak")))
+  (println "classification emitter: independent allocator, output ownership and error cleanup passed")
+  0)

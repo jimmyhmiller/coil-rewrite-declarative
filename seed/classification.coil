@@ -1,0 +1,210 @@
+;;; Compile ordered text policies into typed, allocation-free classifiers.
+(module rewrite.classification)
+(import "rewrite.classificationforms" :as grammar)
+(import "rewrite.schema" :use *)
+(import "rewrite.protocol" :use [name?])
+(import "rewrite.emit" :use [number!])
+(import "rewrite.readers" :use [quoted!])
+(import "coil.alloc" :use [Allocator])
+(import "coil.arraylist" :use *)
+(import "coil.reader" :use *)
+(import "coil.result" :use *)
+(import "coil.str" :use [StrBuf])
+
+(defn result! [(b (mut StrBuf))
+               (schema (ptr Schema))
+               (target i64)
+               (store (ptr grammar/Store))
+               (id grammar/N1Id)
+               (number? bool)
+               (at (ptr Sexp))] (-> (Result bool Diag))
+  (block :done
+    (let [result (get (.rows1 store) (.index id))
+          node (elem (field schema nodes) target)
+          (mut variant) (- 0 1)
+          count
+            (match (grammar/sequence-size-0 store (.f1 result))
+              (Some [n] n)
+              (_ (panic "classifier arguments")))]
+      (for [i 0 (len (.variants node))]
+        (when (= (.name (elem (field node variants) i)) (.f0 result))
+          (set! variant i)))
+      (when (< variant 0)
+        (break :done (Err (problem at "unknown classification constructor"))))
+      (let [v (elem (field node variants) variant)]
+        (unless (= count (len (.fields v)))
+          (break :done (Err (problem at "classification constructor arity"))))
+        (push-str! (mut b) "(N")
+        (number! (mut b) target)
+        (if (.sum? node)
+            (do (push-str! (mut b) "V") (number! (mut b) variant))
+            (push-str! (mut b) "Row"))
+        (for [i 0 count]
+          (let [field (elem (field v fields) i)
+                arg-id
+                  (match (grammar/sequence-item-0 store (.f1 result) i)
+                    (Some [v] v)
+                    (_ (panic "classifier argument")))
+                arg (get (.rows0 store) (.index arg-id))
+                type (.type-name field)]
+            (when (or (.many? field) (not (scalar? type)))
+              (break
+                :done
+                  (Err (problem at "classifier results require scalar fields"))))
+            (unless (.sum? node) (push-str! (mut b) " :f") (number! (mut b) i))
+            (push-str! (mut b) " ")
+            (match arg
+              (grammar/N0V0 [value]
+                            (unless (= type "Int")
+                              (break
+                                :done
+                                  (Err (problem at
+                                                "classification argument type"))))
+                            (number! (mut b) value))
+              (grammar/N0V1 [value]
+                            (unless (= type "Bool")
+                              (break
+                                :done
+                                  (Err (problem at
+                                                "classification argument type"))))
+                            (push-str! (mut b) (if value "true" "false")))
+              (grammar/N0V2 [value]
+                            (unless (= type "Text")
+                              (break
+                                :done
+                                  (Err (problem at
+                                                "classification argument type"))))
+                            (quoted! (mut b) value))
+              (grammar/N0V3 [name]
+                            (cond (and (= name "$input") (= type "Text"))
+                                    (push-str! (mut b) "input")
+                                  (and (= name "$parameter") (= type "Int"))
+                                    (push-str! (mut b) "parameter")
+                                  (and (= name "$number")
+                                       (= type "Int")
+                                       number?)
+                                    (push-str! (mut b) "number")
+                                  :else
+                                    (break
+                                      :done
+                                        (Err (problem at
+                                                      "invalid classification variable or type"))))))))
+        (push-str! (mut b) ")")))
+    (Ok true)))
+
+(defn emit [(a (dyn Allocator))
+            (schema (ptr Schema))
+            (forms (ptr (ArrayList Sexp)))]
+  (-> (Result (slice u8) Diag))
+  (block
+    :done
+      (let [(mut store) (grammar/store-new a)
+            (mut output) (StrBuf::new a)
+            (mut names) (ArrayList::new [(slice u8)] a)]
+        (defer (grammar/store-free! (mut store)))
+        (defer (free! (mut output)))
+        (defer (free! (mut names)))
+        (for [f 0 (len (load forms))]
+          (let [form (elem forms f)]
+            (when (and (sexp-list? form)
+                       (> (sexp-count form) 0)
+                       (sexp-sym-is (sexp-nth form 0) "text-classifier"))
+              (let [id
+                      (match (grammar/surface-3 (mut store) form)
+                        (Ok [v] v)
+                        (Err [e] (break :done (Err e))))
+                    row (get (.rows3 store) (.index id))
+                    name (.f0 row)
+                    (mut target) (- 0 1)
+                    count
+                      (match (grammar/sequence-size-2 (mut store) (.f2 row))
+                        (Some [n] n)
+                        (_ (panic "classifier rules")))]
+                (unless (name? name)
+                  (break :done (Err (problem form "invalid classifier name"))))
+                (for prior names
+                  (when (= prior name)
+                    (break
+                      :done (Err (problem form "duplicate classifier name")))))
+                (push! (mut names) name)
+                (for [i 0 (len (.nodes schema))]
+                  (when (= (.name (elem (field schema nodes) i)) (.f1 row))
+                    (set! target i)))
+                (when (< target 0)
+                  (break
+                    :done
+                      (Err (problem form "unknown classifier result schema"))))
+                (when (= count 0)
+                  (break
+                    :done
+                      (Err (problem form "classifier requires final default"))))
+                (when (= (len names) 1)
+                  (push-str! (mut output)
+                             "(import \"rewrite.textclassification\" :as classification-text)\n"))
+                (push-str! (mut output) "(defn classify-")
+                (push-str! (mut output) name)
+                (push-str! (mut output)
+                           " [(input (slice u8)) (parameter i64)] (-> N")
+                (number! (mut output) target)
+                (push-str! (mut output) "Row) (block :classified ")
+                (for [i 0 count]
+                  (let [rule-id
+                          (match (grammar/sequence-item-2 (mut store)
+                                                          (.f2 row)
+                                                          i)
+                            (Some [v] v)
+                            (_ (panic "classifier rule")))
+                        rule (get (.rows2 store) (.index rule-id))
+                        default? (match rule (grammar/N2V3 [_] true) (_ false))
+                        decimal?
+                          (match rule (grammar/N2V2 [_ _ _ _] true) (_ false))
+                        result
+                          (match rule
+                            (grammar/N2V0 [text result]
+                                          (push-str! (mut output)
+                                                     "(when (= input ")
+                                          (quoted! (mut output) text)
+                                          (push-str! (mut output) ") ")
+                                          result)
+                            (grammar/N2V1 [text result]
+                                          (push-str! (mut output)
+                                                     "(when (classification-text/suffix? input ")
+                                          (quoted! (mut output) text)
+                                          (push-str! (mut output) ") ")
+                                          result)
+                            (grammar/N2V2 [prefix minimum maximum result]
+                                          (when (> minimum maximum)
+                                            (break
+                                              :done
+                                                (Err (problem form
+                                                              "classification decimal range is reversed"))))
+                                          (push-str! (mut output)
+                                                     "(match (classification-text/decimal input ")
+                                          (quoted! (mut output) prefix)
+                                          (push-str! (mut output) " ")
+                                          (number! (mut output) minimum)
+                                          (push-str! (mut output) " ")
+                                          (number! (mut output) maximum)
+                                          (push-str! (mut output)
+                                                     ") (None []) (Some [number] ")
+                                          result)
+                            (grammar/N2V3 [result] result))]
+                    (unless (= default? (= i (- count 1)))
+                      (break
+                        :done
+                          (Err (problem form
+                                        "classifier requires exactly one final default"))))
+                    (push-str! (mut output) "(break :classified ")
+                    (match (result! (mut output)
+                                    schema
+                                    target
+                                    (mut store)
+                                    result
+                                    decimal?
+                                    form)
+                      (Err [e] (break :done (Err e)))
+                      (Ok [_]))
+                    (push-str! (mut output)
+                               (cond default? ") " decimal? "))) " :else ")) "))))
+                (push-str! (mut output) "))\n")))))
+        (Ok (finish! (mut output))))))

@@ -1,0 +1,21 @@
+(module rewrite.classificationforms)
+(sum Argument (Integer (value Int)) (Boolean (value Bool))
+  (Text (value Text)) (Variable (name Text)))
+(syntax Argument
+  (Integer (int value)) (Boolean (bool value))
+  (Text (text value)) (Variable (symbol name)))
+(node Result (constructor Text) (arguments (many Argument)))
+(syntax Result (Result (list (symbol constructor) (rest arguments))))
+(sum Rule
+  (Exact (text Text) (result Result))
+  (Suffix (text Text) (result Result))
+  (Decimal (prefix Text) (minimum Int) (maximum Int) (result Result))
+  (Default (result Result)))
+(syntax Rule
+  (Exact (list "exact" (text text) (ref result)))
+  (Suffix (list "suffix" (text text) (ref result)))
+  (Decimal (list "decimal" (text prefix) (int minimum :min 0) (int maximum :min 0) (ref result)))
+  (Default (list "default" (ref result))))
+(node Classifier (name Text) (target Text) (rules (many Rule)))
+(syntax Classifier
+  (Classifier (list "text-classifier" (symbol name) (symbol target) (rest rules))))
