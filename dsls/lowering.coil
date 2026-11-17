@@ -36,7 +36,12 @@
                 (p/error "yield must end its clause"))
           (p/code-eq tag `need)
             `(match ~(get step 2)
-               (Ok [~(get step 1)] ~(steps body (+ i 1)))
+               (Ok [~(get step 1)]
+                   ~(if (= (p/code-count step) 4)
+                        `(if ~(get step 3)
+                             (return-from :translation (Ok ~(get step 1)))
+                             ~(steps body (+ i 1)))
+                        (steps body (+ i 1))))
                (Err [diag] (return-from :translation (Err diag))))
           (p/code-eq tag `bind)
             `(let [~(get step 1) ~(get step 2)] ~(steps body (+ i 1)))

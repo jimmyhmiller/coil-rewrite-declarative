@@ -29,3 +29,6 @@
   (list (keyword "") (capture value _) (capture type _)))
 (extract numeric-cast NumericCast Convert NoCast
   (list "cast" (capture type _) (capture value _)))
+(recognize repetition? (list "loop" _ ...))
+(recognize exit-loop? (list "break" ...))
+(recognize next-iteration? (list "continue" ...))

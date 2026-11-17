@@ -4,6 +4,7 @@ entry = "dsls/entry.coil"
 source-roots = ["dsls", "src"]
 
 [readers]
+".templates" = "rewrite.template-reader"
 ".operators" = "rewrite.operator-reader"
 ".lowering" = "rewrite.lowering-reader"
 ".machine" = "rewrite.machine-reader"
@@ -14,6 +15,7 @@ source-roots = ["dsls", "src"]
 ".patterns" = "rewrite.pattern-reader"
 
 [modules]
+"rewrite.control" = "src/control.templates"
 "rewrite.operators" = "src/core.operators"
 "rewrite.native" = "src/native.lowering"
 "rewrite.host" = "src/host.machine"

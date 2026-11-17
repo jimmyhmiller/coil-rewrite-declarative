@@ -1,0 +1,73 @@
+(module rewrite.template-reader)
+(import "coil.primitive" :as p)
+(import "coil.meta" :as meta)
+
+(reader-provider "rewrite.template-reader" read-templates)
+
+;; Compile syntax constructors once. Captured subtrees retain their original
+;; identity and spans. Introduced syntax takes the invocation's span.
+(defn template [(form Code) (arity i64)] (-> Code)
+  (cond (p/code-int? form) `(mk-sexp-src (KInt ~form) site)
+        (p/code-sym? form) `(mk-sexp-src (KSym ~(p/code-str form)) site)
+        (p/code-list? form)
+          (if (and (= (p/code-count form) 2) (p/code-eq (get form 0) `arg))
+              (let [index (p/code-int (get form 1))]
+                (when (or (< index 1) (> index arity))
+                  (p/error "arg exceeds guaranteed arguments"))
+                `(load (sexp-nth site ~index)))
+              (let [actions (p/code-list-new)]
+                (for [i 0 (p/code-count form)]
+                  (let [item (get form i)]
+                    (p/code-list-push! actions
+                                       (if (and (p/code-list? item)
+                                                (and (= (p/code-count item) 2)
+                                                     (p/code-eq (get item 0)
+                                                                `tail)))
+                                           (let [start (p/code-int (get item 1))]
+                                             (when (or (< start 1)
+                                                       (> start (+ arity 1)))
+                                               (p/error "tail index is out of bounds"))
+                                             `(for [k ~start (sexp-count site)]
+                                                (push! (mut children)
+                                                       (load (sexp-nth site k)))))
+                                           `(push! (mut children)
+                                                   ~(template item arity))))))
+                `(let [(mut children) (ArrayList::new [Sexp] a)]
+                   ~@(p/code-list-done actions)
+                   (mk-sexp-src (KList (box-items a children)) site))))
+        :else (do (p/error "unsupported syntax template") `0)))
+
+(defn read-templates [(ctx Code)] (-> Code)
+  (let [forms (p/code-read (get ctx 2) `(reader-config))
+        arms (p/code-list-new)]
+    (for [i 1 (p/code-count forms)]
+      (let [rule (get forms i)]
+        (when (!= (p/code-count rule) 4)
+          (p/error "expected (name arity exact|rest template)"))
+        (let [n (get rule 1)
+              mode (get rule 2)]
+          (p/code-list-push! arms
+                             `(and (= name ~(get rule 0))
+                                   ~(cond (p/code-eq mode `exact) `(= argc ~n)
+                                          (p/code-eq mode `rest) `(>= argc ~n)
+                                          :else
+                                            (do
+                                              (p/error "unknown template arity")
+                                              `false))))
+          (p/code-list-push! arms
+                             `(Some (box-sexp a
+                                              ~(template (get rule 3)
+                                                         (p/code-int n))))))))
+    (p/code-read (meta/source `(do
+                                 (import "coil.reader" :use *)
+                                 (import "coil.arraylist" :use *)
+                                 (import "coil.alloc" :use *)
+                                 (import "coil.str" :use *)
+                                 (defn expand-call [(a (dyn Allocator))
+                                                    (site (ptr Sexp))
+                                                    (name (slice u8))]
+                                   (-> (Option (ptr Sexp)))
+                                   (let [argc (- (sexp-count site) 1)]
+                                     (cond ~@(p/code-list-done arms) :else
+                                           (None [(ptr Sexp)]))))))
+                 `(reader-config))))

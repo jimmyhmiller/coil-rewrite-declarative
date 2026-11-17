@@ -73,3 +73,23 @@
 (builder bool-byte [(value i32)] i32
   (node byte declarative.backend.nodes.zext! declarative.backend.nodes.T-U8 value)
   (yield byte))
+
+(builder loop-header [(incoming i32)] i32
+  (node header declarative.backend.nodes.loop! 2)
+  (input header 0 incoming)
+  (yield header))
+
+(builder join-controls [(controls (slice i32))] i32
+  (node region declarative.backend.nodes.region! (len controls))
+  (inputs region 0 controls)
+  (yield region))
+
+(builder join-values [(type i32) (region i32) (values (slice i32))] i32
+  (node phi declarative.backend.nodes.phi! type region (len values))
+  (inputs phi 1 values)
+  (yield phi))
+
+(builder jump-edge [(control i32)] i32
+  (node edge declarative.backend.nodes.region! 1)
+  (input edge 0 control)
+  (yield edge))

@@ -26,6 +26,7 @@
           (p/code-eq tag `conclude) `(return-from :judgment (Ok ~(get rule 1)))
           (p/code-eq tag `with)
             `(let [~(get rule 1) ~(get rule 2)] ~(premises rule 3))
+          (p/code-eq tag `perform) (get rule 1)
           (p/code-eq tag `record)
             `(set! (mut ~(get rule 1)) ~(get rule 2) ~(get rule 3))
           (p/code-eq tag `obtain)
@@ -44,6 +45,8 @@
               `(for [~position ~(get rule 3) (coil.reader.sexp-count ~form)]
                  (let [~(get rule 1) (coil.reader.sexp-nth ~form ~position)]
                    ~(premises rule 5))))
+          (p/code-eq tag `each-index)
+            `(for [~(get rule 1) 0 ~(get rule 2)] ~(premises rule 3))
           (p/code-eq tag `each-pair)
             (let [tree (get rule 3)]
               `(for [pair 0 (/ (coil.reader.sexp-count ~tree) 2)]

@@ -13,8 +13,11 @@
 (use "rewrite.declarations" syntax)
 (use "rewrite.host" host)
 
+(context LoopEdges
+  [(backs (al/ArrayList i32)) (exits (al/ArrayList i32)) (values (al/ArrayList i32))])
+
 (context Frame
-  [(a (dyn Allocator)) (g graph/Graph) (control i32)
+  [(loops (hm/HashMap i64 (ptr LoopEdges))) (a (dyn Allocator)) (g graph/Graph) (control i32)
    (checked checker/Checked)
    (locals (hm/HashMap i64 i32))])
 
@@ -27,6 +30,7 @@
   (where (= type "u16") (yield (Ok ir/T-U16)))
   (where (= type "i8") (yield (Ok ir/T-I8)))
   (where (= type "u8") (yield (Ok ir/T-U8)))
+  (where (= type "never") (yield (Ok ir/T-CTRL)))
   (where (= type "void") (yield (Ok ir/T-CTRL)))
   (where (= type "bool") (yield (Ok ir/T-BOOL)))
   (otherwise (yield (Err (mk-diag-src (.source at) (.lo at) (.hi at)
@@ -39,6 +43,11 @@
   (where (ir/type-signed? source) (yield (ir/sext! (mut g) target value)))
   (otherwise (yield (ir/zext! (mut g) target value))))
 
+(translate merge-controls [(g (mut graph/Graph)) (edges (al/ArrayList i32))] i32
+  (where (= (len edges) 0) (yield (: -1 i32)))
+  (where (= (len edges) 1) (yield (get edges 0)))
+  (otherwise (yield (nodes/join-controls (mut g) (slice edges)))))
+
 (translate lower-parameter [(f (mut Frame)) (position i64) (param (ptr Sexp))] (Result i32 Diag)
   (on (typed-parameter param) (Parameter [name type])
     (need rep (machine-type (sexp-sym type) type))
@@ -50,10 +59,20 @@
 (translate lower-expression
   [(f (mut Frame)) (im (mut image/Image))
    (signatures (hm/HashMap (slice u8) (ptr Sexp))) (expr (ptr Sexp))] (Result i32 Diag)
+  (where (< (.control f) 0) (yield (Ok (: -1 i32))))
+  (on (get (.expanded (.checked f)) (.node-id expr)) (Some [expanded])
+    (yield (lower-expression (mut f) (mut im) signatures expanded)))
   (on (get (.types (.checked f)) (.node-id expr)) (Some [type])
     (need rep (machine-type type expr))
     (yield (lower-value (mut f) (mut im) signatures expr rep)))
   (otherwise (yield (Err (mk-diag (.lo expr) (.hi expr) "missing checked expression type")))))
+
+(translate jump-edges [(f Frame) (expr (ptr Sexp))] (Result (ptr LoopEdges) Diag)
+  (on (get (.targets (.checked f)) (.node-id expr)) (Some [id])
+    (choose
+      (on (get (.loops f) id) (Some [edges]) (yield (Ok edges)))
+      (otherwise (yield (Err (mk-diag (.lo expr) (.hi expr) "missing native jump target"))))))
+  (otherwise (yield (Err (mk-diag (.lo expr) (.hi expr) "jump target was not resolved")))))
 
 (translate lower-value
   [(f (mut Frame)) (im (mut image/Image))
@@ -74,11 +93,11 @@
   (on (type-ascription expr) (Ascribed [value _])
     (yield (lower-expression (mut f) (mut im) signatures value)))
   (on (numeric-cast expr) (Convert [_ value])
-    (need operand (lower-expression (mut f) (mut im) signatures value))
+    (need operand (lower-expression (mut f) (mut im) signatures value) (< (.control f) 0))
     (yield (Ok (convert-integer (mut (.g f)) operand (graph/ty (.g f) operand) expected))))
   (on (local-bindings expr) (Bindings [pairs])
     (walk-pairs name init pairs
-      (need value (lower-expression (mut f) (mut im) signatures init))
+      (need value (lower-expression (mut f) (mut im) signatures init) (< (.control f) 0))
       (choose
         (on (mutable-binding name) (CellBinding [symbol])
           (bind bits (ir/type-bits (graph/ty (.g f) value)))
@@ -92,8 +111,44 @@
     (yield (lower-sequence (mut f) (mut im) signatures expr 2)))
   (on (sequence-expression expr) (Sequence [])
     (yield (lower-sequence (mut f) (mut im) signatures expr 1)))
+  (where (repetition? expr)
+    (bind incoming (.control f))
+    (bind header (nodes/loop-header (mut (.g f)) incoming))
+    (bind edges (box! (.a f) LoopEdges (LoopEdges :backs (al/ArrayList::new [i32] (.a f))
+                         :exits (al/ArrayList::new [i32] (.a f)) :values (al/ArrayList::new [i32] (.a f)))))
+    (perform (set! (mut (.loops f)) (.node-id expr) edges))
+    (perform (set! (.control f) header))
+    (need _ (lower-sequence (mut f) (mut im) signatures expr
+                            (if (sexp-kw? (sexp-nth expr 1)) 2 1)))
+    (perform (when (>= (.control f) 0) (push! (mut (.backs edges)) (.control f))))
+    (bind back (merge-controls (mut (.g f)) (.backs edges)))
+    (perform (if (< back 0)
+                 (do (graph/replace-uses! (mut (.g f)) header incoming) (graph/drop! (mut (.g f)) header))
+                 (graph/set-input! (mut (.g f)) header 1 back)))
+    (bind join (merge-controls (mut (.g f)) (.exits edges)))
+    (perform (set! (.control f) join))
+    (choose
+      (where (or (< join 0) (= expected ir/T-CTRL)) (yield (Ok join)))
+      (where (= (len (.values edges)) 1) (yield (Ok (get (.values edges) 0))))
+      (otherwise (yield (Ok (nodes/join-values (mut (.g f)) expected join (slice (.values edges))))))))
+  (where (exit-loop? expr)
+    (need edges (jump-edges f expr))
+    (bind first-value (if (checker/labelled-jump? expr) 2 1))
+    (need value (if (> (sexp-count expr) first-value)
+                    (lower-expression (mut f) (mut im) signatures (sexp-nth expr first-value))
+                    (Ok (nodes/literal (mut (.g f)) ir/T-I64 0))))
+    (perform (when (>= (.control f) 0)
+               (push! (mut (.exits edges)) (nodes/jump-edge (mut (.g f)) (.control f)))
+               (push! (mut (.values edges)) value)))
+    (perform (set! (.control f) -1))
+    (yield (Ok (: -1 i32))))
+  (where (next-iteration? expr)
+    (need edges (jump-edges f expr))
+    (perform (push! (mut (.backs edges)) (nodes/jump-edge (mut (.g f)) (.control f))))
+    (perform (set! (.control f) -1))
+    (yield (Ok (: -1 i32))))
   (on (conditional expr) (Branches [condition then else])
-    (need predicate (lower-expression (mut f) (mut im) signatures condition))
+    (need predicate (lower-expression (mut f) (mut im) signatures condition) (< (.control f) 0))
     (bind type (graph/ty (.g f) predicate))
     (bind truth (if (= type ir/T-BOOL) predicate (nodes/nonzero (mut (.g f)) type predicate)))
     (bind split (nodes/branch (mut (.g f)) (.control f) truth))
@@ -102,16 +157,22 @@
     (bind left-end (.control f))
     (perform (set! (.control f) (nodes/untaken (mut (.g f)) split)))
     (need right (lower-expression (mut f) (mut im) signatures else))
-    (bind join (nodes/merge-paths (mut (.g f)) left-end (.control f)))
-    (perform (set! (.control f) join))
-    (yield (Ok (if (= expected ir/T-CTRL) join
-                   (nodes/merge-values (mut (.g f)) expected join left right)))))
+    (choose
+      (where (< left-end 0) (yield (Ok right)))
+      (where (< (.control f) 0)
+        (perform (set! (.control f) left-end))
+        (yield (Ok left)))
+      (otherwise
+        (bind join (nodes/merge-paths (mut (.g f)) left-end (.control f)))
+        (perform (set! (.control f) join))
+        (yield (Ok (if (= expected ir/T-CTRL) join
+                       (nodes/merge-values (mut (.g f)) expected join left right)))))))
   (on (get (.operators (.checked f)) (.node-id expr)) (Some [op])
-    (need left (lower-expression (mut f) (mut im) signatures (sexp-nth expr 1)))
+    (need left (lower-expression (mut f) (mut im) signatures (sexp-nth expr 1)) (< (.control f) 0))
     (bind type (graph/ty (.g f) left))
     (bind (mut result) left)
     (walk position arg expr 2
-      (need right (lower-expression (mut f) (mut im) signatures arg))
+      (need right (lower-expression (mut f) (mut im) signatures arg) (< (.control f) 0))
       (perform (set! result (ops/emit-operator op (mut (.g f)) type (load result) right)))
       (yield 0))
     (yield (Ok (if (= (sexp-count expr) 2)
@@ -124,7 +185,7 @@
           (on (ordinary-function function) (Function [_ name parameters result])
             (bind (mut args) (al/ArrayList::new [i32] (.a f)))
             (walk position arg expr 1
-              (need value (lower-expression (mut f) (mut im) signatures arg))
+              (need value (lower-expression (mut f) (mut im) signatures arg) (< (.control f) 0))
               (perform (push! (mut args) value))
               (yield 0))
             (bind symbol (image/symbol! (mut im) (sexp-sym name)))
@@ -163,7 +224,7 @@
   (on (get (.references (.checked f)) (.node-id name)) (Some [binding])
     (choose
       (on (get (.locals f) binding) (Some [address])
-        (need value (lower-expression (mut f) (mut im) signatures expr))
+        (need value (lower-expression (mut f) (mut im) signatures expr) (< (.control f) 0))
         (perform (save-scalar (mut f) address value))
         (yield (Ok (nodes/literal (mut (.g f)) ir/T-I64 0))))
       (otherwise (yield (Err (mk-diag (.lo name) (.hi name) "missing native cell"))))))
@@ -176,7 +237,7 @@
   (otherwise
     (bind (mut last-value) (.control f))
     (walk position item expr start
-      (need value (lower-expression (mut f) (mut im) signatures item))
+      (need value (lower-expression (mut f) (mut im) signatures item) (< (.control f) 0))
       (perform (set! last-value value))
       (yield 0))
     (yield (Ok (load last-value)))))
@@ -186,7 +247,7 @@
    (signatures (hm/HashMap (slice u8) (ptr Sexp))) (checked checker/Checked) (form (ptr Sexp))] (Result i64 Diag)
   (on (ordinary-function form) (Function [_ name parameters result])
     (need rep (machine-type (sexp-sym result) result))
-    (bind (mut f) (Frame :a a :checked checked :g (graph/create a) :control 0
+    (bind (mut f) (Frame :loops (hm/HashMap::new-scalar [i64 (ptr LoopEdges)] a) :a a :checked checked :g (graph/create a) :control 0
                          :locals (hm/HashMap::new-scalar [i64 i32] a)))
     (perform (set! (.control f) (nodes/start (mut (.g f)))))
     (walk position param parameters 0
@@ -195,9 +256,9 @@
     (walk position expr form 4
       (bind last? (= (+ position 1) (sexp-count form)))
       (need value (lower-expression (mut f) (mut im) signatures expr))
-      (perform (when (and last? (!= rep ir/T-CTRL)) (nodes/finish (mut (.g f)) (.control f) value)))
+      (perform (when (and (>= (.control f) 0) (and last? (!= rep ir/T-CTRL))) (nodes/finish (mut (.g f)) (.control f) value)))
       (yield 0))
-    (perform (when (= rep ir/T-CTRL) (nodes/finish-void (mut (.g f)) (.control f))))
+    (perform (when (and (>= (.control f) 0) (= rep ir/T-CTRL)) (nodes/finish-void (mut (.g f)) (.control f))))
     (choose
       (on (host/append-graph! a (mut im) (image/symbol! (mut im) (sexp-sym name)) (.g f))
           (Err [message]) (yield (Err (mk-diag (.lo form) (.hi form) message))))
