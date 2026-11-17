@@ -127,6 +127,50 @@
             (panic "invalid immutable sequence segment")))))
     (None)))
 
+;;; Inspect only the first selected path, without allocating or visiting the tail.
+;;; Invalid handles/ranges and cycles on that path are errors, never empty results.
+(defn first! [T] [(table (ptr (Table T))) (index i64)]
+  (-> (Result (Option T) SequenceError))
+  (block :done
+    (let [(mut current) index
+          (mut steps) 0]
+      (while true
+        (unless (valid? table current)
+          (break :done (Err (InvalidSequence current))))
+        (when (>= steps (len (.segments table)))
+          (break :done (Err (SequenceCycle current))))
+        (set! steps (+ steps 1))
+        (let [segment (get (.segments table) current)
+              available
+                (if (.join? segment) (len (.edges table)) (len (.values table)))]
+          (unless (and (>= (.length segment) 0)
+                       (>= (.start segment) 0)
+                       (<= (.start segment) available)
+                       (>= (.count segment) 0)
+                       (<= (.count segment) (- available (.start segment))))
+            (break :done (Err (InvalidSequence current))))
+          (unless (.join? segment)
+            (unless (= (.length segment) (.count segment))
+              (break :done (Err (InvalidSequence current))))
+            (break
+              :done
+                (Ok (if (= (.count segment) 0)
+                        (None [T])
+                        (Some (get (.values table) (.start segment)))))))
+          (when (= (.length segment) 0) (break :done (Ok (None [T]))))
+          (let [(mut found?) false]
+            (for [i 0 (.count segment)]
+              (unless found?
+                (let [child (get (.edges table) (+ (.start segment) i))]
+                  (unless (valid? table child)
+                    (break :done (Err (InvalidSequence child))))
+                  (let [length (.length (get (.segments table) child))]
+                    (when (< length 0)
+                      (break :done (Err (InvalidSequence child))))
+                    (when (> length 0) (set! current child) (set! found? true))))))
+            (unless found? (break :done (Err (InvalidSequence current))))))))
+    (Err (InvalidSequence index))))
+
 ;;; Explicit traversal avoids host-stack growth on deeply nested joins.
 ;;; Output must not alias the table's internal values.
 (defn materialize! [T] [(a (dyn Allocator))

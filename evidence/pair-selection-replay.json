@@ -1,7 +1,7 @@
 {
   "host_version": "coil 0.1.0 (commit dcbbfee64333, 2026-11-17)",
   "host_sha256": "a0e3f4c481945e8c29607cf022283ece170299f795c79b9487af75a931a55869",
-  "seed_sha256": "c1adf127b5d451bd23f94ae42e20e00a27d759e87cd3348fa6f5ad7fb71f4db0",
+  "seed_sha256": "734cc02a148144e7101c7013d81f5947c3c66113be43f30cde0cce75dfaa5420",
   "driver_sha256": "8c448428d16d53a0e7404bc0cc99accc20648c2a7a777257f985cc17b67dee03",
   "independent_generated_sha256": "c2d315cf559fd92aed1a8295cb9c508c81188641570ec927ca37fff387005287",
   "scope": "Generated pair selection and selected syntax occurrence preservation; derive registry and full admission are not replayed.",

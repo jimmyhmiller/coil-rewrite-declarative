@@ -15,6 +15,7 @@ for flags in [[], ['--debug-checks'], ['--release']]:
     subprocess.run(['coil', 'run', 'tests/protocol.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/types.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/type-syntax.coil', *flags], cwd=ROOT, check=True)
+    subprocess.run(['coil', 'run', 'tests/type-elaboration.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/code.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/equality.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/revision.coil', *flags], cwd=ROOT, check=True)
@@ -426,6 +427,7 @@ subprocess.run(['python3', 'tools/check-context-policy.py'], cwd=ROOT, check=Tru
 subprocess.run(['python3', 'tools/check-syntax-views.py'], cwd=ROOT, check=True)
 subprocess.run(['python3', 'tools/check-syntax-tails.py'], cwd=ROOT, check=True)
 subprocess.run(['python3', 'tools/check-identifiers.py'], cwd=ROOT, check=True)
+subprocess.run(['python3', 'tools/check-first-or.py'], cwd=ROOT, check=True)
 subprocess.run(['python3', 'tools/check-type-syntax.py'], cwd=ROOT, check=True)
 
 subprocess.run(['python3', 'tools/check-walk.py'], cwd=ROOT, check=True)

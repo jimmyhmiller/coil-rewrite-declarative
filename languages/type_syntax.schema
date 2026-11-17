@@ -61,3 +61,60 @@
 (syntax Width :expect "expected positive integer or width parameter"
   (Fixed (int value :min 1))
   (Parameter (identifier name scope module)))
+
+; Structural elaboration. Bare type names remain explicit classification work;
+; this representation is not yet interned or resolved against declarations.
+(node Identifier (spelling Text) (scope Int) (module Text))
+(sum TypeConstant
+  (Integer (value Int)) (Keyword (value Text)) (Boolean (value Bool))
+  (Reference (name Identifier)))
+(sum TypeExtent (Fixed (value Int)) (Parameter (name Identifier)))
+(sum TypeConvention (Named (name Identifier)) (Value (name Identifier)))
+(sum Type
+  (Integer (bits Int) (signed Bool))
+  (Float (bits Int))
+  (Boolean) (Void) (Never) (Code) (CodeBuilder) (ExternRef)
+  (UnclassifiedName (name Identifier))
+  (Nominal (name Text))
+  (Dynamic (name Text))
+  (Pointer (element Type))
+  (Reference (mutable Bool) (element Type))
+  (Array (element Type) (length TypeExtent))
+  (Slice (element Type))
+  (Vector (element Type) (width TypeExtent))
+  (Function (convention TypeConvention) (parameters (many Type)) (result Type))
+  (Application (name Identifier) (arguments (many Type)))
+  (Constant (value TypeConstant)))
+
+(transform Constant TypeConstant
+  (Integer (Integer value))
+  (Keyword (Keyword value))
+  (Boolean (Boolean value))
+  (Reference (Reference (Identifier name scope module))))
+(transform Length TypeExtent
+  (Fixed (Fixed value))
+  (Parameter (Parameter (Identifier name scope module))))
+(transform Width TypeExtent
+  (Fixed (Fixed value))
+  (Parameter (Parameter (Identifier name scope module))))
+(transform Convention TypeConvention
+  (Named (Named (Identifier name scope module)))
+  (Value (Value (Identifier name scope module))))
+(transform WrittenType Type
+  (Integer (Constant (Integer value)))
+  (Keyword (Constant (Keyword value)))
+  (Boolean (Constant (Boolean value)))
+  (Name (UnclassifiedName (Identifier name scope module)))
+  (Constant (Constant value))
+  (Mask (Vector (Boolean) width))
+  (Mutable (Reference true element))
+  (Reference (Reference false element))
+  (Pointer (Pointer (first-or elements (Integer 64 true))))
+  (Array (Array element length))
+  (Slice (Slice element))
+  (Vector (Vector element width))
+  (Struct (Nominal name))
+  (Dynamic (Dynamic name))
+  (Function (Function convention parameters result))
+  (Application (Application (Identifier name scope module) arguments)))
+(equality Type)

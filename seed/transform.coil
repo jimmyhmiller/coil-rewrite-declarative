@@ -186,6 +186,56 @@
         (push-str! (mut b)
                    "Seq :index index)) (Err [error] (break :done (Err (TransformSequence error))))))")
         (break :done (Ok 0))))
+    (when (and (sexp-list? term)
+               (> (sexp-count term) 0)
+               (sexp-sym-is (sexp-nth term 0) "first-or"))
+      (unless (and (= (sexp-count term) 3)
+                   (sexp-sym? (sexp-nth term 1))
+                   (not (scalar? expected)))
+        (break
+          :done
+            (Err (problem term
+                          "first-or requires a sequence field, fallback and schema result"))))
+      (let [(mut matched) false]
+        (for [f 0 (len (.fields v))]
+          (let [field (elem (field v fields) f)]
+            (when (and (.many? field)
+                       (sexp-sym-is (sexp-nth term 1) (.name field)))
+              (for pass (load passes)
+                (when (and (not (.many? pass))
+                           (= (.type-name field)
+                              (.name (elem (field s nodes) (.source pass))))
+                           (= expected
+                              (.name (elem (field s nodes) (.target pass)))))
+                  (set! matched true)
+                  (push-str! (mut b)
+                             "(match (sequence/first! (field input sequences")
+                  (number! (mut b) (.source pass))
+                  (push-str! (mut b) ") (.index f")
+                  (number! (mut b) f)
+                  (push-str! (mut b)
+                             ")) (Err [error] (break :done (Err (TransformSequence error)))) (Ok [first] (match first (Some [selected] (match (")
+                  (function-name! (mut b) (.source pass) (.target pass) false)
+                  (push-str! (mut b)
+                             " (mut state) selected) (Ok [out] out) (Err [error] (break :done (Err error))))) (None [] ")
+                  (match (term! (mut b)
+                                s
+                                passes
+                                source
+                                v
+                                (sexp-nth term 2)
+                                expected
+                                false
+                                rule)
+                    (Err [d] (break :done (Err d)))
+                    (Ok [_]))
+                  (push-str! (mut b) "))))"))))))
+        (unless matched
+          (break
+            :done
+              (Err (problem term
+                            "first-or field needs a matching single-result element map")))))
+      (break :done (Ok 0)))
     (when (sexp-sym? term)
       (for [i 0 (len (.fields v))]
         (let [field (elem (field v fields) i)]

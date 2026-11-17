@@ -26,7 +26,7 @@ accepted (match (surface-3 (mut store) (elem input 0)) (Ok [_] true) (Err [_] fa
 (defer (close! (mut scratch))) (defer (store-free! (mut store)))
 (println "case|{i}|{{}}" accepted))\n'''
 driver+='''(unless (= (DebugAllocator::deinit! debug) 0) (panic "type syntax leak"))) 0)'''
-inputs=[ROOT/f'seed/{n}.coil' for n in ['types','scope','resolution','source','sequence']]+[ROOT/'seed/generated/type_syntax.coil']
+inputs=[ROOT/f'seed/{n}.coil' for n in ['types','scope','resolution','source','sequence','equality_runtime']]+[ROOT/'seed/generated/type_syntax.coil']
 with tempfile.TemporaryDirectory(prefix='rewrite-type-syntax-') as directory:
     work=Path(directory);(work/'Coil.toml').write_text('[package]\nname="fixture"\nentry="main.coil"\nsource-roots=["."]\n')
     for p in inputs:shutil.copyfile(p,work/p.name)

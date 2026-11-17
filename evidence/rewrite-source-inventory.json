@@ -4,18 +4,18 @@
   "totals": {
     "authored-language-specifications": {
       "files": 16,
-      "bytes": 12197,
-      "physical_lines": 312
+      "bytes": 14473,
+      "physical_lines": 369
     },
     "authored-seed-and-runtime": {
       "files": 56,
-      "bytes": 599898,
-      "physical_lines": 10909
+      "bytes": 606789,
+      "physical_lines": 11013
     },
     "generated-language-toolchain": {
       "files": 16,
-      "bytes": 303841,
-      "physical_lines": 870
+      "bytes": 378802,
+      "physical_lines": 959
     },
     "retained-authored-machinery-and-specifications": {
       "files": 161,
@@ -38,14 +38,14 @@
       "physical_lines": 2869
     },
     "rewrite-build-and-validation-tools": {
-      "files": 40,
-      "bytes": 255096,
-      "physical_lines": 3985
+      "files": 41,
+      "bytes": 260897,
+      "physical_lines": 4065
     },
     "rewrite-tests-and-fixtures": {
-      "files": 69,
-      "bytes": 332210,
-      "physical_lines": 6922
+      "files": 70,
+      "bytes": 337632,
+      "physical_lines": 7043
     }
   },
   "files": [
@@ -157,9 +157,9 @@
     {
       "path": "languages/type_syntax.schema",
       "category": "authored-language-specifications",
-      "sha256": "d8e1784ded5ca073ae16bdae5c0c70b1bf23c4483cef78dc21d48fa0ddf08c67",
-      "bytes": 2835,
-      "physical_lines": 63
+      "sha256": "d10bd72daba4970fc417040ed83a3cfd13bf9910c13e2291cd0a30a126108ef2",
+      "bytes": 5111,
+      "physical_lines": 120
     },
     {
       "path": "runtime/native.coil",
@@ -171,9 +171,9 @@
     {
       "path": "seed/README.md",
       "category": "authored-seed-and-runtime",
-      "sha256": "6bec8d897e49ac78f15ee9dea6b2389c149b67d57b88b8cea8cf166a706eb3f4",
-      "bytes": 135918,
-      "physical_lines": 766
+      "sha256": "87488f5e35ec7b5cb6e2d5db38f21fc33c3c786568ffd564eb04f22920495da3",
+      "bytes": 138250,
+      "physical_lines": 776
     },
     {
       "path": "seed/admission.coil",
@@ -367,9 +367,9 @@
     {
       "path": "seed/generated/type_syntax.coil",
       "category": "generated-language-toolchain",
-      "sha256": "c0304bab3a4802388849fca7fef0ad9adf4add177a9599d69b95048bc74ed0ad",
-      "bytes": 58412,
-      "physical_lines": 93
+      "sha256": "b795e4c4a308d7422d23e6eea2cbb0afa20770de2df3583e3bf2969878706256",
+      "bytes": 133373,
+      "physical_lines": 182
     },
     {
       "path": "seed/index.coil",
@@ -591,9 +591,9 @@
     {
       "path": "seed/sequence.coil",
       "category": "authored-seed-and-runtime",
-      "sha256": "bdcac1aac27c0ed59c3020705e0583ff28f8b553c115f8e9d4211d7d59976120",
-      "bytes": 10810,
-      "physical_lines": 255
+      "sha256": "0cedbddbb2d87ff758d26012b6d5bed8953469f6cab544bed8909795f8c459bc",
+      "bytes": 12975,
+      "physical_lines": 299
     },
     {
       "path": "seed/source.coil",
@@ -647,9 +647,9 @@
     {
       "path": "seed/transform.coil",
       "category": "authored-seed-and-runtime",
-      "sha256": "8675e3994ca56a2802a2243f7ba83bd17d1e224352e221f1a1f8c68bd78989bd",
-      "bytes": 25136,
-      "physical_lines": 511
+      "sha256": "319c000032aeba824520cbfec202c54a8e1efc560f6b9376e5776ed58de1de11",
+      "bytes": 27530,
+      "physical_lines": 561
     },
     {
       "path": "seed/types.coil",
@@ -1121,6 +1121,13 @@
       "physical_lines": 109
     },
     {
+      "path": "tests/type-elaboration.coil",
+      "category": "rewrite-tests-and-fixtures",
+      "sha256": "921448454ce48a9942749e06bb39bdd8121b6bca349f835cc37cdbdf932e8bd8",
+      "bytes": 5422,
+      "physical_lines": 121
+    },
+    {
       "path": "tests/type-syntax.coil",
       "category": "rewrite-tests-and-fixtures",
       "sha256": "8b4ce0837ccd4cf2b587c16444d96f30d40cbfa9abfefb00a11e349259f3fabb",
@@ -1268,6 +1275,13 @@
       "physical_lines": 105
     },
     {
+      "path": "tools/check-first-or.py",
+      "category": "rewrite-build-and-validation-tools",
+      "sha256": "a0368b091dfccd43f9d6f0c9012724a98b75d8c6ae7dc4fac9eb17ffb0c13435",
+      "bytes": 5608,
+      "physical_lines": 78
+    },
+    {
       "path": "tools/check-functions.py",
       "category": "rewrite-build-and-validation-tools",
       "sha256": "d585ddb194b81ec62ac132923cee855a1facfb50b9bb1a8b58778b406d657263",
@@ -1326,9 +1340,9 @@
     {
       "path": "tools/check-seed.py",
       "category": "rewrite-build-and-validation-tools",
-      "sha256": "95266c357e804361a4501a7b6f97ebe3cf3b80bea6094973d059d518c0028bdd",
-      "bytes": 30433,
-      "physical_lines": 446
+      "sha256": "c0a3f846978e948203e6e65ed59b6697b462dee8302f284afe63efe16de840c1",
+      "bytes": 30607,
+      "physical_lines": 448
     },
     {
       "path": "tools/check-selection.py",
@@ -1361,8 +1375,8 @@
     {
       "path": "tools/check-type-syntax.py",
       "category": "rewrite-build-and-validation-tools",
-      "sha256": "778a08353aefc3dcac2c962387c83909cfe552eab37c5363a48ec04a02423ff6",
-      "bytes": 3246,
+      "sha256": "520512fe5168d0c8bd0a4fea4238ca4bdb3d5a333681d5fcf82a202dc0e11ced",
+      "bytes": 3265,
       "physical_lines": 45
     },
     {
