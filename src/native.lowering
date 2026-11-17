@@ -74,7 +74,7 @@
 
 (translate lower-parameter [(f (mut Frame)) (position i64) (param (ptr Sexp))] (Result i32 Diag)
   (on (typed-parameter param) (Parameter [name type])
-    (need rep (machine-type (sexp-sym type) type))
+    (need rep (machine-type (checker/scalar-type type) type))
     (bind value (nodes/parameter (mut (.g f)) rep (cast u64 position)))
     (perform (set! (mut (.locals f)) (.node-id name) value))
     (yield (Ok rep)))
@@ -292,7 +292,7 @@
    (signatures modules/Lookup) (checked checker/Checked) (form (ptr Sexp))] (Result i64 Diag)
   (where (modules/external? form) (yield (Ok 0)))
   (on (ordinary-function form) (Function [_ name parameters result])
-    (need rep (machine-type (sexp-sym result) result))
+    (need rep (machine-type (checker/scalar-type result) result))
     (bind (mut f) (Frame :loops (hm/HashMap::new-scalar [i64 (ptr LoopEdges)] a) :a a :checked checked :g (graph/create a) :control 0
                          :locals (hm/HashMap::new-scalar [i64 i32] a)))
     (perform (set! (.control f) (nodes/start (mut (.g f)))))

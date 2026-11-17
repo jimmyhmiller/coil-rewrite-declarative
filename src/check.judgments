@@ -1,4 +1,5 @@
 (use "rewrite.modules")
+(use "rewrite.host")
 (use "coil.project")
 (use "rewrite.declarations")
 
@@ -31,6 +32,11 @@
   ("i32" -2147483648 2147483647) ("u32" 0 4294967295)
   ("i64") ("u64") ("i128") ("u128"))
 
+(value scalar-type [(type (ptr coil.reader.Sexp))] (slice u8)
+  (cond (coil.reader.sexp-sym-is type "isize") (rewrite.host.signed-word-type)
+        (coil.reader.sexp-sym-is type "usize") (rewrite.host.unsigned-word-type)
+        :else (coil.reader.sexp-sym type)))
+
 (predicate float-type? [(type (slice u8))]
   (or (= type "f32") (= type "f64")))
 
@@ -50,8 +56,8 @@
 
 (judgment check-type [(type (ptr coil.reader.Sexp))]
   (require (and (coil.reader.sexp-sym? type)
-               (or (integer-result? (coil.reader.sexp-sym type) 0)
-                   (float-type? (coil.reader.sexp-sym type)) (coil.reader.sexp-sym-is type "bool")))
+               (or (integer-result? (scalar-type type) 0)
+                   (float-type? (scalar-type type)) (coil.reader.sexp-sym-is type "bool")))
            type "unsupported type"))
 
 (derive synthesize
@@ -80,16 +86,16 @@
   (cases (type-ascription expr)
     ((Ascribed [value type])
       (prove (check-type type))
-      (obtain t (check-expression signatures (mut checked) locals value (Expect (coil.reader.sexp-sym type)))
+      (obtain t (check-expression signatures (mut checked) locals value (Expect (scalar-type type)))
         (conclude t)))
     (_))
   (cases (numeric-cast expr)
     ((Convert [type value])
       (prove (check-type type))
       (obtain source (check-expression signatures (mut checked) locals value (Infer))
-        (require (and (numeric-type? source) (numeric-type? (coil.reader.sexp-sym type)))
+        (require (and (numeric-type? source) (numeric-type? (scalar-type type)))
                  expr "cast requires numeric operands")
-        (conclude (coil.reader.sexp-sym type))))
+        (conclude (scalar-type type))))
     (_))
   (cases (local-bindings expr)
     ((Bindings [pairs])
@@ -230,8 +236,8 @@
                 (each-child arg expr 1 i
                   (with parameter (coil.reader.sexp-nth parameters (- i 1))
                     (with type (match (typed-parameter parameter) (Parameter [_ t] t) (_ parameter))
-                      (prove (check-expression signatures (mut checked) locals arg (Expect (coil.reader.sexp-sym type)))))))
-                (conclude (coil.reader.sexp-sym result)))
+                      (prove (check-expression signatures (mut checked) locals arg (Expect (scalar-type type)))))))
+                (conclude (scalar-type result)))
               (_ (reject found "invalid function signature")))))))
     (_ (reject expr "unsupported expression"))))
 
@@ -399,11 +405,11 @@
             (each-child param parameters 0 index
               (cases (typed-parameter param)
                 ((Parameter [name type])
-                  (record (.types checked) (.node-id name) (coil.reader.sexp-sym type))
+                  (record (.types checked) (.node-id name) (scalar-type type))
                   (record locals (coil.reader.sexp-sym name) (.node-id name)))
                 (_ (reject param "invalid parameter"))))
             (prove (check-body (rewrite.modules.lookup-for unit form) (mut checked) locals form 4
                      (if (coil.reader.sexp-sym-is result "void") (Discard)
-                         (Expect (coil.reader.sexp-sym result)))))))
+                         (Expect (scalar-type result)))))))
         (_ (require (rewrite.modules.external? form) form "unsupported declaration"))))
     (conclude checked)))

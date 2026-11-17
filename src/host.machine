@@ -1,3 +1,3 @@
-(target aarch64 darwin "declarative.a64.unit" "declarative.a64.target" "declarative.a64.plans" "declarative.a64.macho")
-(target x86_64 linux "declarative.x64.unit" "declarative.x64.target" "declarative.x64.plans" "declarative.x64.elf")
+(target aarch64 darwin "declarative.a64.unit" "declarative.a64.target" "declarative.a64.plans" "declarative.a64.macho" "i64" "u64")
+(target x86_64 linux "declarative.x64.unit" "declarative.x64.target" "declarative.x64.plans" "declarative.x64.elf" "i64" "u64")
 (emit append-graph! object-bytes plans/default)
