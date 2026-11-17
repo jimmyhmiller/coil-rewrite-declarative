@@ -53,4 +53,11 @@ This makes the collection boundary executable. It does not make the program phas
 
 Binding declarations now specify each constructor's reference field and names visible in individual children. The seed validates that model once and supplies it to judgment and lowering generation. Judgment premises provide type payloads; lowering provides evaluated value payloads. Both clients check declared scope/reference coverage and payload count. A two-name fixture proves outer-scope value evaluation, body visibility, ordered shadowing and isolation; changing only its declared name order changes both type inference and native execution.
 
-This shares lexical topology without introducing a new runtime resolver. Text lookup still occurs in each consumer, and the model does not prove that arbitrary client rules assign equivalent payloads. Canonical binding IDs, namespace/import resolution, recursive groups and binding-aware transforms remain unimplemented. Program-global signature/index construction remains outside this lexical model.
+Typing and lowering still perform their own Text lookup, and the model does not prove that arbitrary client rules assign equivalent payloads. A generated resolver now produces result-local declaration identities separately; semantic clients do not yet consume them. Namespace/import resolution, recursive groups and binding-aware transforms remain unimplemented. Program-global signature/index construction remains outside this lexical model.
+
+
+## Resolution artifact
+
+Schema edges and shared binding topology now derive occurrence-aware resolution. A result records each visited row's lexical occurrence and each reference's declaration identity. A repeated DAG row may have different targets in different occurrences; a binder field has one identity per owning occurrence, shared across its declared child scopes. Ordered scope installation preserves shadowing. Globals are explicitly supplied names; the resolver does not derive modules or signatures.
+
+Resolution borrows names from immutable input storage, releases partial results on failure, and reports invalid references, cycles, unknown names and duplicate globals. The next binding-aware transformation boundary must explicitly transport these identities or report changes to binding relationships. Re-running name lookup after rewriting is not proof of capture avoidance. Existing context-free maps remain separate and make no such guarantee. Identity transport, fresh introduced declarations and semantic-client integration remain required.

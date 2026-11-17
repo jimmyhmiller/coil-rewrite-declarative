@@ -1,0 +1,107 @@
+(module fixture.main)
+(import "rewrite.generated" :use *)
+(import "rewrite.resolution" :as resolution)
+(import "coil.alloc" :use *)
+(import "coil.arraylist" :use *)
+(import "coil.result" :use *)
+
+(defn target? [(result (ptr resolution/Resolution)) (occurrence i64) (binding i64)] (-> bool)
+  (match (.target (get (.occurrences result) occurrence))
+    (Some [id] (= (.index id) binding)) (None [] false)))
+(defn main [] (-> i64)
+  (let [a (malloc-allocator) (mut store) (store-new a)
+        (mut globals) (ArrayList::new [(slice u8)] a) (mut ok) true
+        literal (append-0 (mut (.rows0 store)) (N0V0 1))
+        shared (append-0 (mut (.rows0 store)) (N0V1 "x"))
+        inner (append-0 (mut (.rows0 store)) (N0V2 "x" shared shared))
+        both (append-0 (mut (.rows0 store)) (N0V3 inner shared))
+        root (append-1 (mut (.rows1 store)) (N1Row :f0 "x" :f1 both))]
+    (match (resolve-1 a (mut store) root (mut globals))
+      (Err [_] (set! ok false))
+      (Ok [result] (let [(mut result) result]
+        (unless (and (= (len (.occurrences result)) 6) (= (len (.declarations result)) 2)
+                     (target? (mut result) 3 0) (target? (mut result) 4 1) (target? (mut result) 5 0)
+                     (= (.owner (get (.declarations result) 0)) 0)
+                     (= (.owner (get (.declarations result) 1)) 2)) (set! ok false))
+        (resolution/release! (mut result)))))
+    ; Same binder row visited twice introduces distinct declarations.
+    (let [(mut items) (ArrayList::new [N0Id] a)]
+      (push! (mut items) inner) (push! (mut items) inner)
+      (let [group (append-0 (mut (.rows0 store)) (N0V4 (sequence-0 (mut store) (mut items))))
+            root (append-1 (mut (.rows1 store)) (N1Row :f0 "x" :f1 group))]
+        (match (resolve-1 a (mut store) root (mut globals))
+          (Err [_] (set! ok false))
+          (Ok [result] (let [(mut result) result]
+            (unless (and (= (len (.occurrences result)) 8) (= (len (.declarations result)) 3)
+                         (target? (mut result) 3 0) (target? (mut result) 4 1)
+                         (target? (mut result) 6 0) (target? (mut result) 7 2)
+                         (= (.item (get (.occurrences result) 2)) 0)
+                         (= (.item (get (.occurrences result) 5)) 1)) (set! ok false))
+            (resolution/release! (mut result))))))
+      (free! (mut items)))
+    ; A sequence child shares its enclosing binder; two scoped children also
+    ; refer to one declaration, not a new declaration for every scope edge.
+    (let [(mut items) (ArrayList::new [N0Id] a)]
+      (push! (mut items) shared) (push! (mut items) shared)
+      (let [root (append-2 (mut (.rows2 store)) (N2Row :f0 "x" :f1 (sequence-0 (mut store) (mut items))))]
+        (match (resolve-2 a (mut store) root (mut globals))
+          (Err [_] (set! ok false))
+          (Ok [result] (let [(mut result) result]
+            (unless (and (= (len (.declarations result)) 1) (target? (mut result) 1 0) (target? (mut result) 2 0)) (set! ok false))
+            (resolution/release! (mut result))))))
+      (free! (mut items)))
+    (let [root (append-3 (mut (.rows3 store)) (N3Row :f0 "x" :f1 shared :f2 shared))]
+      (match (resolve-3 a (mut store) root (mut globals))
+        (Err [_] (set! ok false))
+        (Ok [result] (let [(mut result) result]
+          (unless (and (= (len (.declarations result)) 1) (target? (mut result) 1 0) (target? (mut result) 2 0)) (set! ok false))
+          (resolution/release! (mut result))))))
+    (let [root (append-4 (mut (.rows4 store)) (N4Row :f0 "x" :f1 "x" :f2 shared))]
+      (match (resolve-4 a (mut store) root (mut globals))
+        (Err [_] (set! ok false))
+        (Ok [result] (let [(mut result) result]
+          (unless (and (= (len (.declarations result)) 2) (target? (mut result) 1 0)) (set! ok false))
+          (resolution/release! (mut result))))))
+    ; Repeated shared subgraphs must survive table growth without merging binders.
+    (let [(mut items) (ArrayList::new [N0Id] a)]
+      (for [i 0 10000] (push! (mut items) inner))
+      (let [root (append-2 (mut (.rows2 store)) (N2Row :f0 "x" :f1 (sequence-0 (mut store) (mut items))))]
+        (match (resolve-2 a (mut store) root (mut globals))
+          (Err [_] (set! ok false))
+          (Ok [result] (let [(mut result) result]
+            (unless (and (= (len (.declarations result)) 10001) (= (len (.occurrences result)) 30001)) (set! ok false))
+            (for [i 0 10000]
+              (unless (and (target? (mut result) (+ (* i 3) 2) 0)
+                           (target? (mut result) (+ (* i 3) 3) (+ i 1))) (set! ok false)))
+            (resolution/release! (mut result))))))
+      (free! (mut items)))
+    (match (resolve-0 a (mut store) shared (mut globals))
+      (Err [e] (match e (resolution/UnknownName [schema row field name]
+        (unless (and (= schema 0) (= row (.index shared)) (= field 0) (= name "x")) (set! ok false)))
+        (_ (set! ok false))))
+      (Ok [result] (let [(mut result) result] (set! ok false) (resolution/release! (mut result)))))
+    (push! (mut globals) "x")
+    (match (resolve-0 a (mut store) shared (mut globals))
+      (Err [_] (set! ok false))
+      (Ok [result] (let [(mut result) result]
+        (unless (and (target? (mut result) 0 0) (= (.owner (get (.declarations result) 0)) (- 0 1))) (set! ok false))
+        (resolution/release! (mut result)))))
+    (let [cycle (append-0 (mut (.rows0 store)) (N0V3 literal literal))]
+      (set! (mut (.rows0 store)) (.index cycle) (N0V3 shared cycle))
+      (match (resolve-0 a (mut store) cycle (mut globals))
+        (Err [e] (match e (resolution/Cycle [schema row] (unless (and (= schema 0) (= row (.index cycle))) (set! ok false))) (_ (set! ok false))))
+        (Ok [result] (let [(mut result) result] (set! ok false) (resolution/release! (mut result))))))
+    (match (resolve-0 a (mut store) (N0Id :index (- 0 1)) (mut globals))
+      (Err [e] (match e (resolution/InvalidRow [_ _]) (_ (set! ok false))))
+      (Ok [result] (let [(mut result) result] (set! ok false) (resolution/release! (mut result)))))
+    (let [bad (append-0 (mut (.rows0 store)) (N0V4 (N0Seq :index (- 0 1))))]
+      (match (resolve-0 a (mut store) bad (mut globals))
+        (Err [e] (match e (resolution/InvalidItems [_ _]) (_ (set! ok false))))
+        (Ok [result] (let [(mut result) result] (set! ok false) (resolution/release! (mut result))))))
+    (push! (mut globals) "x")
+    (match (resolve-0 a (mut store) literal (mut globals))
+      (Err [e] (match e (resolution/DuplicateGlobal [name] (unless (= name "x") (set! ok false))) (_ (set! ok false))))
+      (Ok [result] (let [(mut result) result] (set! ok false) (resolution/release! (mut result)))))
+    (store-free! (mut store)) (free! (mut globals))
+    (println "resolution: occurrence identities, shadowing, sequences, globals and invalid graphs: {}" ok)
+    (if ok 0 1)))

@@ -1,0 +1,97 @@
+;;; Resolution identities belong to one result. Names borrow the input stores.
+(module rewrite.resolution)
+(import "coil.alloc" :use [Allocator])
+(import "coil.arraylist" :use *)
+(import "coil.hashmap" :use [HashMap])
+(import "coil.result" :use *)
+(import "coil.str" :as keystr)
+
+(defstruct BindingId [(index i64)])
+
+(defstruct Declaration [(owner i64) (field i64) (name (slice u8))])
+
+(defstruct Occurrence
+  [(schema i64)
+   (row i64)
+   (parent i64)
+   (field i64)
+   (item i64)
+   (target (Option BindingId))])
+
+(defstruct Resolution
+  [(declarations (ArrayList Declaration)) (occurrences (ArrayList Occurrence))])
+
+(defsum ResolveError
+  (UnknownName [(schema i64) (row i64) (field i64) (name (slice u8))])
+  (InvalidRow [(schema i64) (row i64)])
+  (Cycle [(schema i64) (row i64)])
+  (InvalidItems [(schema i64) (index i64)])
+  (DuplicateGlobal [(name (slice u8))]))
+
+(defn create [(a (dyn Allocator))] (-> Resolution)
+  (Resolution
+    :declarations (ArrayList::new [Declaration] a)
+    :occurrences (ArrayList::new [Occurrence] a)))
+
+(defn release! [(result (mut Resolution))] (-> void)
+  (free! (mut (.declarations result)))
+  (free! (mut (.occurrences result))))
+
+(defn declare! [(result (mut Resolution))
+                (owner i64)
+                (field i64)
+                (name (slice u8))]
+  (-> BindingId)
+  (let [id (BindingId :index (len (.declarations result)))]
+    (push! (mut (.declarations result))
+           (Declaration
+             :owner owner
+             :field field
+             :name name))
+    id))
+
+(defn occurrence! [(result (mut Resolution))
+                   (schema i64)
+                   (row i64)
+                   (parent i64)
+                   (field i64)
+                   (item i64)] (-> i64)
+  (let [id (len (.occurrences result))]
+    (push! (mut (.occurrences result))
+           (Occurrence
+             :schema schema
+             :row row
+             :parent parent
+             :field field
+             :item item
+             :target (None [BindingId])))
+    id))
+
+;;; Active rows detect cycles along the current path, not repeated DAG occurrences.
+(defstruct Walk
+  [(result Resolution)
+   (active (ArrayList (HashMap i64 bool)))
+   (globals (HashMap (slice u8) BindingId))])
+
+(defn walk-new [(a (dyn Allocator)) (schemas i64)] (-> Walk)
+  (let [(mut active) (ArrayList::new [(HashMap i64 bool)] a)]
+    (for [i 0 schemas] (push! (mut active) (HashMap::new-scalar [i64 bool] a)))
+    (Walk
+      :result (create a)
+      :active active
+      :globals (HashMap::new [(slice u8) BindingId] a (keystr/keyops)))))
+
+(defn walk-free! [(walk (mut Walk))] (-> void)
+  (for [i 0 (len (.active walk))] (free! (elem (mut (.active walk)) i)))
+  (free! (mut (.active walk)))
+  (free! (mut (.globals walk))))
+
+(defn enter! [(walk (mut Walk)) (schema i64) (row i64)] (-> bool)
+  (let [active (elem (mut (.active walk)) schema)]
+    (match (get (load active) row)
+      (Some [_] false)
+      (None [] (set! active row true) true))))
+
+(defn leave! [(walk (mut Walk)) (schema i64) (row i64)] (-> void)
+  (let [active (elem (mut (.active walk)) schema)]
+    (remove! active row)))

@@ -21,6 +21,7 @@ with tempfile.TemporaryDirectory(prefix='rewrite-schema-') as directory:
     work = Path(directory)
     shutil.copyfile(ROOT / "seed/types.coil", work / "types.coil")
     shutil.copyfile(ROOT / "seed/scope.coil", work / "scope.coil")
+    shutil.copyfile(ROOT / "seed/resolution.coil", work / "resolution.coil")
     shutil.copyfile(ROOT / "seed/source.coil", work / "source.coil")
     shutil.copyfile(ROOT / "seed/sequence.coil", work / "sequence.coil")
     (work / 'Coil.toml').write_text('[package]\nname = "fixture"\nentry = "main.coil"\nsource-roots = ["."]\n')
@@ -42,6 +43,7 @@ with tempfile.TemporaryDirectory(prefix='rewrite-recursive-') as directory:
     work = Path(directory)
     shutil.copyfile(ROOT / "seed/types.coil", work / "types.coil")
     shutil.copyfile(ROOT / "seed/scope.coil", work / "scope.coil")
+    shutil.copyfile(ROOT / "seed/resolution.coil", work / "resolution.coil")
     shutil.copyfile(ROOT / "seed/source.coil", work / "source.coil")
     shutil.copyfile(ROOT / "seed/sequence.coil", work / "sequence.coil")
     (work / 'generated.coil').write_bytes(subprocess.check_output([str(ROOT / 'build/schema-seed')], input=recursive))
@@ -54,6 +56,7 @@ with tempfile.TemporaryDirectory(prefix='rewrite-variants-') as directory:
     work = Path(directory)
     shutil.copyfile(ROOT / "seed/types.coil", work / "types.coil")
     shutil.copyfile(ROOT / "seed/scope.coil", work / "scope.coil")
+    shutil.copyfile(ROOT / "seed/resolution.coil", work / "resolution.coil")
     shutil.copyfile(ROOT / "seed/source.coil", work / "source.coil")
     shutil.copyfile(ROOT / "seed/sequence.coil", work / "sequence.coil")
     (work / 'Coil.toml').write_text('[package]\nname = "fixture"\nentry = "main.coil"\nsource-roots = ["."]\n')
@@ -77,6 +80,7 @@ with tempfile.TemporaryDirectory(prefix='rewrite-judgment-') as directory:
     work = Path(directory)
     shutil.copyfile(ROOT / "seed/types.coil", work / "types.coil")
     shutil.copyfile(ROOT / "seed/scope.coil", work / "scope.coil")
+    shutil.copyfile(ROOT / "seed/resolution.coil", work / "resolution.coil")
     shutil.copyfile(ROOT / "seed/source.coil", work / "source.coil")
     shutil.copyfile(ROOT / "seed/sequence.coil", work / "sequence.coil")
     (work / 'Coil.toml').write_text('[package]\nname = "fixture"\nentry = "main.coil"\nsource-roots = ["."]\n')
@@ -119,6 +123,7 @@ with tempfile.TemporaryDirectory(prefix='rewrite-reader-') as directory:
     work = Path(directory)
     shutil.copyfile(ROOT / "seed/types.coil", work / "types.coil")
     shutil.copyfile(ROOT / "seed/scope.coil", work / "scope.coil")
+    shutil.copyfile(ROOT / "seed/resolution.coil", work / "resolution.coil")
     shutil.copyfile(ROOT / "seed/source.coil", work / "source.coil")
     shutil.copyfile(ROOT / "seed/sequence.coil", work / "sequence.coil")
     (work / 'Coil.toml').write_text('[package]\nname = "fixture"\nentry = "main.coil"\nsource-roots = ["."]\n')
@@ -133,6 +138,7 @@ with tempfile.TemporaryDirectory(prefix='rewrite-index-') as directory:
     work = Path(directory)
     shutil.copyfile(ROOT/'seed/types.coil', work/'types.coil')
     shutil.copyfile(ROOT/'seed/scope.coil', work/'scope.coil')
+    shutil.copyfile(ROOT/'seed/resolution.coil', work/'resolution.coil')
     shutil.copyfile(ROOT/'seed/source.coil', work/'source.coil')
     shutil.copyfile(ROOT/'seed/sequence.coil', work/'sequence.coil')
     (work/'Coil.toml').write_text('[package]\nname="fixture"\nentry="main.coil"\nsource-roots=["."]\n')
@@ -354,3 +360,16 @@ for invalid, diagnostic in [
     result = subprocess.run([str(ROOT/'build/schema-seed')], input=invalid, capture_output=True)
     assert result.returncode != 0 and not result.stdout and diagnostic in result.stderr, result
 print('Named output modules and syntax expectation contracts passed')
+
+# Binding topology derives reference identities independently of typing/lowering.
+with tempfile.TemporaryDirectory(prefix='rewrite-resolution-') as directory:
+    work = Path(directory)
+    for runtime in ('types', 'scope', 'resolution', 'source', 'sequence'):
+        shutil.copyfile(ROOT / f'seed/{runtime}.coil', work / f'{runtime}.coil')
+    (work / 'Coil.toml').write_text('[package]\nname="fixture"\nentry="main.coil"\nsource-roots=["."]\n')
+    (work / 'generated.coil').write_bytes(subprocess.check_output(
+        [str(ROOT / 'build/schema-seed')], input=(ROOT / 'tests/schemas/resolution.schema').read_bytes()))
+    (work / 'main.coil').write_bytes((ROOT / 'tests/resolution.coil.in').read_bytes())
+    for flags in [[], ['--debug-checks'], ['--release']]:
+        subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)
+print('Generated lexical resolution: identity and invalid-graph checks passed')

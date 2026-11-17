@@ -1,0 +1,188 @@
+;;; Derive occurrence-aware lexical resolution from schema edges and binding topology.
+(module rewrite.resolve)
+(import "rewrite.schema" :use *)
+(import "rewrite.binding" :as binding)
+(import "rewrite.emit" :use [number!])
+(import "coil.alloc" :use [Allocator])
+(import "coil.arraylist" :use *)
+(import "coil.str" :use *)
+(import "coil.result" :use *)
+
+(defn indexed! [(b (mut StrBuf))
+                (prefix (slice u8))
+                (n i64)
+                (suffix (slice u8))] (-> void)
+  (push-str! (mut b) prefix)
+  (number! (mut b) n)
+  (push-str! (mut b) suffix))
+
+(defn node-number [(schema (ptr Schema)) (name (slice u8))] (-> i64)
+  (block :done
+    (for [i 0 (len (.nodes schema))]
+      (when (= name (.name (elem (field schema nodes) i))) (break :done i)))
+    (panic "checked reference type")))
+
+(defn binder? [(bindings (ptr binding/Bindings))
+               (node i64)
+               (variant i64)
+               (field i64)] (-> bool)
+  (block :done
+    (for scope (.scopes bindings)
+      (when (and (= node (.node scope)) (= variant (.variant scope)))
+        (for name (.names scope) (when (= name field) (break :done true)))))
+    false))
+
+(defn case! [(b (mut StrBuf))
+             (schema (ptr Schema))
+             (bindings (ptr binding/Bindings))
+             (n i64)
+             (v i64)] (-> void)
+  (let [node (elem (field schema nodes) n)
+        variant (elem (field node variants) v)
+        reference (binding/reference bindings n v)]
+    (for [f 0 (len (.fields variant))]
+      (when (binder? bindings n v f)
+        (indexed! (mut b)
+                  "(let [binding"
+                  f
+                  " (resolution/declare! (mut (.result walk)) occurrence ")
+        (number! (mut b) f)
+        (indexed! (mut b) " f" f ")] ")))
+    (when (>= reference 0)
+      (indexed! (mut b)
+                "(match (scope-lookup context f"
+                reference
+                ") (Some [target] (set! (.target (elem (mut (.occurrences (.result walk))) occurrence)) (Some target))) (None [] (break :done (Err (resolution/UnknownName ")
+      (number! (mut b) n)
+      (push-str! (mut b) " (.index id) ")
+      (number! (mut b) reference)
+      (indexed! (mut b) " f" reference "))))) "))
+    (for [f 0 (len (.fields variant))]
+      (let [field (elem (field variant fields) f)]
+        (unless (scalar? (.type-name field))
+          (let [target (node-number schema (.type-name field))
+                (mut names) 0]
+            (match (binding/child-scope bindings n v f)
+              (Some [scope]
+                    (set! names (len (.names scope)))
+                    (for [i 0 names]
+                      (indexed! (mut b) "(let [(mut context" i ") (scope-bind ")
+                      (if (= i 0)
+                          (push-str! (mut b) "context")
+                          (indexed! (mut b) "(mut context" (- i 1) ")"))
+                      (indexed! (mut b) " f" (get (.names scope) i) "")
+                      (indexed! (mut b) " binding" (get (.names scope) i) ")] ")))
+              (None []))
+            (when (.many? field)
+              (indexed! (mut b)
+                        "(let [count (match (sequence-size-"
+                        target
+                        " store ")
+              (indexed! (mut b)
+                        "f"
+                        f
+                        ") (Some [n] n) (None [] (break :done (Err (resolution/InvalidItems ")
+              (number! (mut b) target)
+              (indexed! (mut b)
+                        " (.index f"
+                        f
+                        "))))))] (for [item 0 count] (let [child (match (sequence-item-")
+              (number! (mut b) target)
+              (indexed! (mut b)
+                        " store f"
+                        f
+                        " item) (Some [child] child) (None [] (break :done (Err (resolution/InvalidItems ")
+              (number! (mut b) target)
+              (indexed! (mut b) " (.index f" f "))))))] "))
+            (indexed! (mut b)
+                      "(match (resolve-walk-"
+                      target
+                      " store (mut walk) ")
+            (if (.many? field)
+                (push-str! (mut b) "child")
+                (indexed! (mut b) "f" f ""))
+            (push-str! (mut b) " ")
+            (if (= names 0)
+                (push-str! (mut b) "context")
+                (indexed! (mut b) "(mut context" (- names 1) ")"))
+            (push-str! (mut b) " occurrence ")
+            (number! (mut b) f)
+            (push-str! (mut b) (if (.many? field) " item" " (- 0 1)"))
+            (push-str! (mut b) ") (Ok [_]) (Err [e] (break :done (Err e)))) ")
+            (when (.many? field) (push-str! (mut b) "))) "))
+            (for [i 0 names] (push-str! (mut b) ") "))))))
+    (push-str! (mut b) "(Ok occurrence)")
+    (for [f 0 (len (.fields variant))]
+      (when (binder? bindings n v f) (push-str! (mut b) ")")))))
+
+(defn emit [(a (dyn Allocator))
+            (schema (ptr Schema))
+            (bindings (ptr binding/Bindings))] (-> (slice u8))
+  (let [(mut b) (StrBuf::new a)]
+    (when (or (> (len (.references bindings)) 0) (> (len (.scopes bindings)) 0))
+      (push-str! (mut b) "(import \"rewrite.resolution\" :as resolution)\n")
+      (for [n 0 (len (.nodes schema))]
+        (let [node (elem (field schema nodes) n)]
+          (indexed! (mut b)
+                    "(defn resolve-walk-"
+                    n
+                    " [(store (ptr Store)) (walk (mut resolution/Walk)) (id N")
+          (number! (mut b) n)
+          (push-str! (mut b)
+                     "Id) (context (ptr (Scope resolution/BindingId))) (parent i64) (field i64) (item i64)] (-> (Result i64 resolution/ResolveError)) (block :done (let [row (match (lookup-")
+          (number! (mut b) n)
+          (indexed! (mut b)
+                    " (field store rows"
+                    n
+                    ") id) (Some [row] row) (None [] (break :done (Err (resolution/InvalidRow ")
+          (number! (mut b) n)
+          (push-str! (mut b)
+                     " (.index id))))))] (unless (resolution/enter! (mut walk) ")
+          (number! (mut b) n)
+          (push-str! (mut b)
+                     " (.index id)) (break :done (Err (resolution/Cycle ")
+          (number! (mut b) n)
+          (push-str! (mut b)
+                     " (.index id))))) (defer (resolution/leave! (mut walk) ")
+          (number! (mut b) n)
+          (push-str! (mut b)
+                     " (.index id))) (let [occurrence (resolution/occurrence! (mut (.result walk)) ")
+          (number! (mut b) n)
+          (push-str! (mut b) " (.index id) parent field item)] ")
+          (if (.sum? node)
+              (do
+                (push-str! (mut b) "(match row ")
+                (for [v 0 (len (.variants node))]
+                  (indexed! (mut b) "(N" n "V")
+                  (number! (mut b) v)
+                  (push-str! (mut b) " [")
+                  (for [f 0 (len (.fields (elem (field node variants) v)))]
+                    (indexed! (mut b) "f" f " "))
+                  (push-str! (mut b) "] ")
+                  (case! (mut b) schema bindings n v)
+                  (push-str! (mut b) ")"))
+                (push-str! (mut b) ")"))
+              (do
+                (push-str! (mut b) "(let [")
+                (for [f 0 (len (.fields (elem (field node variants) 0)))]
+                  (indexed! (mut b) "f" f " (.f")
+                  (number! (mut b) f)
+                  (push-str! (mut b) " row) "))
+                (push-str! (mut b) "] ")
+                (case! (mut b) schema bindings n 0)
+                (push-str! (mut b) ")")))
+          (push-str! (mut b) "))))\n")
+          (indexed! (mut b)
+                    "(defn resolve-"
+                    n
+                    " [(a (dyn Allocator)) (store (ptr Store)) (id N")
+          (number! (mut b) n)
+          (push-str! (mut b)
+                     "Id) (globals (ptr (ArrayList (slice u8))))] (-> (Result resolution/Resolution resolution/ResolveError)) (let [(mut walk) (resolution/walk-new a ")
+          (number! (mut b) (len (.nodes schema)))
+          (push-str! (mut b)
+                     ")] (defer (resolution/walk-free! (mut walk))) (let [answer (block :done (for name (load globals) (match (get (.globals walk) name) (Some [_] (break :done (Err [i64 resolution/ResolveError] (resolution/DuplicateGlobal name)))) (None [] (let [id (resolution/declare! (mut (.result walk)) (- 0 1) (- 0 1) name)] (set! (mut (.globals walk)) name id))))) (let [(mut context) (scope-global (field (mut walk) globals))] (resolve-walk-")
+          (number! (mut b) n)
+          (push-str! (mut b)
+                     " store (mut walk) id (mut context) (- 0 1) (- 0 1) (- 0 1))))] (match answer (Ok [_] (Ok (.result walk))) (Err [e] (resolution/release! (mut (.result walk))) (Err e))))))\n"))))
+    (str (load b))))
