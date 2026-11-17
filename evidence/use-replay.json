@@ -1,0 +1,25 @@
+{
+  "scope": "Use-tier selected target, macro provenance and ambiguity-owner replay. No full source resolver, diagnostic text or route publication claim.",
+  "graphs": 25,
+  "results": 2564,
+  "reference_sha256": "52cdfc3fe6ce5c147a7a3fedc170df06b4c123e0fd2a0ad4db0abf5fc64d5c5e",
+  "driver_sha256": "5aca23eb518de4562a57964418a2db98139912314c2d3fc448afc119614d58e4",
+  "implementation_sha256": {
+    "seed/types.coil": "e398f5cb019e3eea3339700ba5b3685b119421eb30ac5a2045c8835d5d9a6ce9",
+    "seed/scope.coil": "c7be3143d3e955ecd8c05ea3c7ffb4b8b6d9981a223fc5de55507aa89f35e71f",
+    "seed/resolution.coil": "b080dca9f1a7b3848105faf4e2369a3272911fe8ab22a0e23f75e23d112521c6",
+    "seed/source.coil": "090c81a0015f5a4941deb45e3dc8ff582b33cd4da97296cde4e3454979dad640",
+    "seed/sequence.coil": "bdcac1aac27c0ed59c3020705e0583ff28f8b553c115f8e9d4211d7d59976120",
+    "seed/refer_runtime.coil": "fa9405d1a24895cc2835b424648c85a7bd29c513151d3718e9caddbd0d368b33",
+    "seed/selection_runtime.coil": "f2f7608f324e3ae5e313c5bbb1dfa3d0fc418445ea23f95b4f987b51c64a8507",
+    "seed/namespace.coil": "21dd43fee30210f1ed2d865d07424b202175eaaaa30fecc48704428a702f5bbf",
+    "seed/search_runtime.coil": "82f18d2a79fc3086cd35695bcab238c83470334db03292b9abc35c7cbf145b71",
+    "seed/generated/name_forms.coil": "cb3bf67118ba57f029ae806fe39d36410d0eeb1a0e87cf7839f5e87fe40a0382",
+    "seed/generated/export_search.coil": "0958122e80f6ba9f2ff587e2760da4da371fafca3c73e633b8a4ba55b5ed663b"
+  },
+  "configurations_passed": [
+    "default",
+    "debug-checks",
+    "release"
+  ]
+}

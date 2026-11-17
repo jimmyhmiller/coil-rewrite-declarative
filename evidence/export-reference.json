@@ -29,7 +29,7 @@
     "space-exported": "ba4ec70bc0d3dbcf31e6f9dc4a33f3e143f39b482e1c56101cb6f486d95e67d2"
   },
   "driver_sha256": "6223d884f13c230518f44613ea8fb1c46d1e9c261c5ded2371140928a713c38d",
-  "capture_script_sha256": "65fab48f7d1603ad3a6179ed587577ec8c75d1f5a9e3871b3560552b00f7635c",
+  "capture_script_sha256": "6d97d36b8156913986bca0176a0a9d02dc50779c805f2e8200093f058e634df3",
   "configurations": [
     "default",
     "debug-checks",

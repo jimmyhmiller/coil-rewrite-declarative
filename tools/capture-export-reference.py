@@ -89,8 +89,8 @@ HEADER = '''(module reference.main)
 '''
 
 
-def fixture(graphs, helpers):
-    body = [HEADER, '\n'.join(helpers.values()), '(defn main [] (-> i64)']
+def fixture(graphs, helpers, *, header=HEADER, after_graph=None, import_value="(ModImports :reexports edges)"):
+    body = [header, '\n'.join(helpers.values()), '(defn main [] (-> i64)']
     for graph in graphs:
         body.append('''(let [(mut arena) (zeroed ScratchArena) initialized (init (mut arena) (malloc-allocator))
             a (allocator (mut arena)) (mut imports) (avec-new [ImpEntry] a) (mut exports) (avec-new [ExpEntry] a)
@@ -113,7 +113,7 @@ def fixture(graphs, helpers):
                 for old, new in e['renames']:
                     body.append(f'(push! renamed (Rename :from {q(old)} :to {q(new)}))')
                 body.append(f'(push! (mut edges) (Use :target {q(e["target"])} :spec {"(UAll)" if e["all"] else "(UNames selected)"} :exclude excluded :renames renamed)))')
-            body.append(f'(push! (mut imports) (ImpEntry :name {q(mod["name"])} :imp (ModImports :reexports edges) :edit 0)))')
+            body.append(f'(push! (mut imports) (ImpEntry :name {q(mod["name"])} :imp {import_value} :edit 0)))')
             if mod['exports'] is not None:
                 body.append('(let [(mut public) (ArrayList::new [(slice u8)] a)]')
                 for name in mod['exports']:
@@ -121,6 +121,8 @@ def fixture(graphs, helpers):
                 body.append(f'(push! (mut exports) (ExpEntry :name {q(mod["name"])} :names public :forms (ArrayList::new [Sexp] a) :edit 0)))')
         for owner, name, depth in graph['queries']:
             body.append(f'(println "{{}}" (answer (space-exported (mut imports) (mut space) (mut exports) {q(owner)} {q(name)} a {depth})))')
+        if after_graph is not None:
+            body.extend(after_graph(graph))
         body.append(')')
     body.append('0)')
     return '\n'.join(body)

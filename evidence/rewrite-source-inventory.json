@@ -9,8 +9,8 @@
     },
     "authored-seed-and-runtime": {
       "files": 43,
-      "bytes": 503201,
-      "physical_lines": 9059
+      "bytes": 503822,
+      "physical_lines": 9061
     },
     "generated-language-toolchain": {
       "files": 9,
@@ -38,9 +38,9 @@
       "physical_lines": 2869
     },
     "rewrite-build-and-validation-tools": {
-      "files": 23,
-      "bytes": 145481,
-      "physical_lines": 2372
+      "files": 25,
+      "bytes": 160356,
+      "physical_lines": 2621
     },
     "rewrite-tests-and-fixtures": {
       "files": 62,
@@ -122,9 +122,9 @@
     {
       "path": "seed/README.md",
       "category": "authored-seed-and-runtime",
-      "sha256": "965d3f131db26e7fe30d802d4064751fabb7c4997a72cbfceb0187035a2386a4",
-      "bytes": 110022,
-      "physical_lines": 661
+      "sha256": "c8aea2267139f2ce169eff1491ca9a75d4cadbb19795a1c3cab5b5299e90b49e",
+      "bytes": 110643,
+      "physical_lines": 663
     },
     {
       "path": "seed/alpha.coil",
@@ -927,9 +927,9 @@
     {
       "path": "tools/capture-export-reference.py",
       "category": "rewrite-build-and-validation-tools",
-      "sha256": "65fab48f7d1603ad3a6179ed587577ec8c75d1f5a9e3871b3560552b00f7635c",
-      "bytes": 10097,
-      "physical_lines": 174
+      "sha256": "6d97d36b8156913986bca0176a0a9d02dc50779c805f2e8200093f058e634df3",
+      "bytes": 10244,
+      "physical_lines": 176
     },
     {
       "path": "tools/capture-refer-reference.py",
@@ -937,6 +937,13 @@
       "sha256": "e19ccf984e928a796cef0b492c076ab67f2feaec0aad061bfb3eeab4ffd1c60c",
       "bytes": 7148,
       "physical_lines": 136
+    },
+    {
+      "path": "tools/capture-use-reference.py",
+      "category": "rewrite-build-and-validation-tools",
+      "sha256": "93a611919d601788cccf27aa394e2887cc69c5f50ed355783a3b9661f4426c50",
+      "bytes": 8636,
+      "physical_lines": 140
     },
     {
       "path": "tools/check-backend.py",
@@ -1004,9 +1011,9 @@
     {
       "path": "tools/check-seed.py",
       "category": "rewrite-build-and-validation-tools",
-      "sha256": "e7b4682a4f7cacf074b1a2efcefccee21ecdd9b98d2d90e9b36e9978501ef674",
-      "bytes": 29093,
-      "physical_lines": 427
+      "sha256": "b2e67a2cbb55255cb66e835972237d3e9d33d01c9bb7b898804cd1592c5a69d3",
+      "bytes": 29165,
+      "physical_lines": 428
     },
     {
       "path": "tools/check-selection.py",
@@ -1021,6 +1028,13 @@
       "sha256": "41ed2a48039ea727fb25ef3b822bc95f9f63a24542cead5b867a2313a28a216f",
       "bytes": 3469,
       "physical_lines": 51
+    },
+    {
+      "path": "tools/check-use.py",
+      "category": "rewrite-build-and-validation-tools",
+      "sha256": "ac262c016412a8fd3a10d88d9d2198c1cd2b3cafb68b3eced677d3adce969fa9",
+      "bytes": 6020,
+      "physical_lines": 106
     },
     {
       "path": "tools/check-walk.py",
