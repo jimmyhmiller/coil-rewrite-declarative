@@ -7,7 +7,7 @@
 (use "rewrite.modules")
 (use "rewrite.check")
 (use "rewrite.command-tools")
-(usage "usage: rewrite check|run [file.coil]\n       rewrite build [file.coil] -o <output>\n       rewrite emit-obj <file.coil> -o <output>\n")
+(usage "usage: rewrite check|run [file.coil]\n       rewrite build [file.coil] [-o <output>]\n       rewrite emit-obj <file.coil> -o <output>\n")
 
 (input-path package-entry allocator
   (let [manifest (project/parse-manifest allocator
@@ -53,8 +53,9 @@
 
 (source-command "build" path
   (default-input (package-entry allocator))
-  (output "-o" destination)
+  (optional-output "-o" requested)
   (include check-source)
+  (phase destination source-output allocator sources path (= argc 2) requested)
   (include compile-object)
   (phase executable staged-output destination)
   (phase linked link-executable allocator sources temporary-object executable)

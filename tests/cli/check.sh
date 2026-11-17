@@ -666,3 +666,22 @@ mkdir -p ws/members/app ws/members/lib
         grep -F 'bad.coil' diagnostic >/dev/null
     done
 )
+
+mkdir -p default-output/src
+(
+    cd default-output
+    echo '(defn main [] (-> i64) 0)' > 'src/multi.part.coil'
+    for compiler in coil ../rewrite; do
+        "$compiler" build 'src/multi.part.coil'
+        ./build/debug/multi.part
+        rm build/debug/multi.part
+    done
+    printf '%s\n' '[package]' 'name = "named-app"' 'entry = "src/multi.part.coil"' > Coil.toml
+    for compiler in coil ../rewrite; do
+        "$compiler" build
+        ./build/debug/named-app
+        "$compiler" build src/multi.part.coil
+        ./build/debug/multi.part
+        rm build/debug/named-app build/debug/multi.part
+    done
+)

@@ -86,19 +86,22 @@
                   default? (primitive/code-eq (get input 0) `default-input)
                   option-index (if default? 4 3)
                   opt (get rule option-index)
-                  output? (primitive/code-eq (get opt 0) `output)
+                  optional? (primitive/code-eq (get opt 0) `optional-output)
+                  output? (or optional? (primitive/code-eq (get opt 0) `output))
                   first-stage (+ option-index (if output? 1 0))
-                  implicit? (if output? `(= ~argc 4) `(= ~argc 2))
-                  explicit? (if output? `(= ~argc 5) `(= ~argc 3))
+                  implicit? (cond optional? `(or (= ~argc 2) (= ~argc 4))
+                                  output? `(= ~argc 4) :else `(= ~argc 2))
+                  explicit? (cond optional? `(or (= ~argc 3) (= ~argc 5))
+                                  output? `(= ~argc 5) :else `(= ~argc 3))
                   count-test (if default? `(or ~implicit? ~explicit?) explicit?)
+                  has-output? `(>= ~argc 4)
+                  last-arg `(coil.str.from-cstr (load (index ~argv (- (cast i64 ~argc) 1))))
                   argc-test
                     (if output?
                         `(and ~count-test
-                              (= (coil.str.from-cstr (load (index ~argv
-                                                                  (- (cast i64
-                                                                           ~argc)
-                                                                     2))))
-                                 ~(get opt 1)))
+                              (or ~(if optional? `(not ~has-output?) `false)
+                                  (= (coil.str.from-cstr (load (index ~argv (- (cast i64 ~argc) 2))))
+                                     ~(get opt 1))))
                         count-test)]
               `(if (and ~argc-test
                         (= (coil.str.from-cstr (load (index ~argv 1)))
@@ -117,10 +120,7 @@
                                                         1)]
                      ~(if output?
                           `(let [~(get opt 2)
-                                   (coil.str.from-cstr (load (index ~argv
-                                                                    (- (cast i64
-                                                                             ~argc)
-                                                                       1))))]
+                                   ~(if optional? `(if ~has-output? (Some ~last-arg) (None [(slice u8)])) last-arg)]
                              ~(stages expanded
                                       first-stage
                                       path

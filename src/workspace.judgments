@@ -1,3 +1,4 @@
+(use "coil.slice")
 (use "coil.alloc")
 (use "rewrite.command-tools")
 (use "rewrite.modules")
@@ -29,16 +30,32 @@
             (when (!= (child-status (execute a self ["check" (get (load paths) i)])) 0) (return-from :status 1)))
           (return-from :status 0)))
       (when (= command "run") (return-from :status (child-status (execute a self ["run" entry]))))
-      (let [destination (match output
-                    (Some [path] path)
-                    (_ (let [build (coil.path.path-join a dir "build") debug (coil.path.path-join a build "debug")]
-                         (for path [build debug]
-                           (let [name (coil.str.to-cstr a path)]
-                             (unless (or (coil.project.dir? name) (= (coil.fs.make-dir name 493) (: 0 i32)))
-                               (ps (coil.io.stderr) (coil.text.sconcat3 a "cannot create directory " path "\n"))
-                               (return-from :status 1))))
-                         (coil.path.path-join a debug (.name m)))))]
-        (child-status (execute a self ["build" entry "-o" destination]))))))
+      (match (build-output a dir (.name m) output)
+        (Ok [destination] (child-status (execute a self ["build" entry "-o" destination])))
+        (Err [problem] (child-status (Err problem)))))))
+
+(derive build-output [(a (dyn coil.alloc.Allocator)) (dir (slice u8)) (name (slice u8))
+                      (output (Option (slice u8)))] (slice u8)
+  (cases output ((Some [destination]) (conclude destination)) (_))
+  (with build (coil.path.path-join a dir "build")
+    (with debug (coil.path.path-join a build "debug")
+      (each-index i 2
+        (with path (if (= i 0) build debug)
+          (with cpath (coil.str.to-cstr a path)
+            (when (not (coil.project.dir? cpath))
+              (perform (coil.fs.make-dir cpath 493))
+              (when (not (coil.project.dir? cpath)) (fail (coil.text.sconcat a "cannot create directory " path)))))))
+      (conclude (coil.path.path-join a debug name)))))
+
+(derive source-output [(a (dyn coil.alloc.Allocator)) (sources (ptr Sources)) (path (slice u8))
+                       (package? bool) (requested (Option (slice u8)))] (slice u8)
+  (with base (coil.path.basename path)
+    (with stem (if (coil.project.d-ends-with? base ".coil") (subslice base 0 (- (len base) 5)) base)
+      (with name (if package?
+                     (match (.manifest sources) (Some [m] (if (> (len (.name m)) 0) (.name m) stem)) (_ stem))
+                     stem)
+        (obtain destination (build-output a "." name requested) (conclude destination))))))
+
 
 (value workspace-command [(a (dyn coil.alloc.Allocator)) (self (slice u8)) (command (slice u8))
                           (output (Option (slice u8)))] (Option i64)
