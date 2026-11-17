@@ -9,8 +9,8 @@
     },
     "authored-seed-and-runtime": {
       "files": 41,
-      "bytes": 489838,
-      "physical_lines": 8832
+      "bytes": 490519,
+      "physical_lines": 8834
     },
     "generated-language-toolchain": {
       "files": 9,
@@ -38,9 +38,9 @@
       "physical_lines": 2869
     },
     "rewrite-build-and-validation-tools": {
-      "files": 20,
-      "bytes": 126032,
-      "physical_lines": 2032
+      "files": 22,
+      "bytes": 141555,
+      "physical_lines": 2312
     },
     "rewrite-tests-and-fixtures": {
       "files": 61,
@@ -122,9 +122,9 @@
     {
       "path": "seed/README.md",
       "category": "authored-seed-and-runtime",
-      "sha256": "ddc333822fe1aa949682c0bdab1898e2a37726a4bf8dd527e4d09eb78ea79243",
-      "bytes": 106680,
-      "physical_lines": 641
+      "sha256": "74b85c1793c83496c96791573c5df157d3eb60ca735f756c8538659b9169e6ca",
+      "bytes": 107361,
+      "physical_lines": 643
     },
     {
       "path": "seed/alpha.coil",
@@ -904,6 +904,13 @@
       "physical_lines": 132
     },
     {
+      "path": "tools/capture-export-reference.py",
+      "category": "rewrite-build-and-validation-tools",
+      "sha256": "65fab48f7d1603ad3a6179ed587577ec8c75d1f5a9e3871b3560552b00f7635c",
+      "bytes": 10097,
+      "physical_lines": 174
+    },
+    {
       "path": "tools/capture-refer-reference.py",
       "category": "rewrite-build-and-validation-tools",
       "sha256": "e19ccf984e928a796cef0b492c076ab67f2feaec0aad061bfb3eeab4ffd1c60c",
@@ -939,6 +946,13 @@
       "physical_lines": 50
     },
     {
+      "path": "tools/check-export.py",
+      "category": "rewrite-build-and-validation-tools",
+      "sha256": "5134d9f9afa2c5205715b89376cc973497293017c8d153d8f086a184b3ade3f9",
+      "bytes": 5351,
+      "physical_lines": 105
+    },
+    {
       "path": "tools/check-lowering.py",
       "category": "rewrite-build-and-validation-tools",
       "sha256": "c9320aa78a6a6f5fa52e94939bd705e764bcba2de615b8860047e1651083f971",
@@ -969,9 +983,9 @@
     {
       "path": "tools/check-seed.py",
       "category": "rewrite-build-and-validation-tools",
-      "sha256": "fab29865ca69eeaad1e7cefd52bb542951dc3a9cca259e885609f4eea82f106a",
-      "bytes": 28849,
-      "physical_lines": 424
+      "sha256": "b9a3f9387f12b7bdd2de1ff13692a27a244243e95710e5269b247ffa560b6d59",
+      "bytes": 28924,
+      "physical_lines": 425
     },
     {
       "path": "tools/check-syntax-views.py",

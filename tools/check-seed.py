@@ -422,3 +422,4 @@ subprocess.run(['python3', 'tools/check-walk.py'], cwd=ROOT, check=True)
 subprocess.run(['python3', 'tools/check-refer.py'], cwd=ROOT, check=True)
 
 subprocess.run(['python3', 'tools/check-search.py'], cwd=ROOT, check=True)
+subprocess.run(['python3', 'tools/check-export.py'], cwd=ROOT, check=True)
