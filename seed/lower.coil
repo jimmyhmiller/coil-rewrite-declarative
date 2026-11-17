@@ -20,9 +20,11 @@
           (break :found i))))
     (- 0 1)))
 
-(defn child! [(b (mut StrBuf)) (node i64) (field i64)] (-> void)
+(defn child! [(b (mut StrBuf)) (node i64) (field i64) (with-store? bool)]
+  (-> void)
   (push-str! (mut b) "(lower-worker-")
   (number! (mut b) node)
+  (when with-store? (push-str! (mut b) " store"))
   (push-str! (mut b) " rows f")
   (number! (mut b) field)
   (push-str! (mut b) " function context)"))
@@ -89,11 +91,17 @@
         (for [i 1 (+ arity 1)]
           (let [field (sexp-nth expression i)
                 index
-                  (field-number v
-                                field
-                                (cond constant? "Int"
-                                      boolean? "Bool"
-                                      :else (.name n)))]
+                  (if (and call?
+                           (> i 1)
+                           (sexp-list? field)
+                           (= (sexp-count field) 2)
+                           (sexp-sym-is (sexp-nth field 0) "spread"))
+                      (recursive-field n v (sexp-nth field 1) true)
+                      (field-number v
+                                    field
+                                    (cond constant? "Int"
+                                          boolean? "Bool"
+                                          :else (.name n))))]
             (when (< index 0)
               (break
                 :done
@@ -117,7 +125,8 @@
                   (number! (mut b) (get fields 0))
                   (when boolean? (push-str! (mut b) " 1 0)"))
                   (push-str! (mut b) ")"))
-              identity? (child! (mut b) ni (get fields 0))
+              identity?
+                (child! (mut b) ni (get fields 0) (recursive-sequence? n))
               lookup?
                 (do
                   (push-str! (mut b) "(match (value-lookup context f")
@@ -148,7 +157,7 @@
                     (push-str! (mut b) "value")
                     (number! (mut b) i)
                     (push-str! (mut b) " ")
-                    (child! (mut b) ni (get fields i))
+                    (child! (mut b) ni (get fields i) (recursive-sequence? n))
                     (push-str! (mut b) " "))
                   (for [i 0 count]
                     (push-str! (mut b) "(mut scope")
@@ -167,27 +176,47 @@
                     (push-str! (mut b) ")) "))
                   (push-str! (mut b) "] (lower-worker-")
                   (number! (mut b) ni)
+                  (when (recursive-sequence? n) (push-str! (mut b) " store"))
                   (push-str! (mut b) " rows f")
                   (number! (mut b) (get fields (- arity 1)))
                   (push-str! (mut b) " function (mut scope)))"))
               call?
                 (do
                   (push-str! (mut b) "(let [callee ")
-                  (child! (mut b) ni (get fields 0))
+                  (child! (mut b) ni (get fields 0) (recursive-sequence? n))
                   (push-str! (mut b)
                              " (mut args) (ArrayList::new [u32] (malloc-allocator)) (mut flags) (ArrayList::new [u32] (malloc-allocator)) (mut results) (ArrayList::new [u8] (malloc-allocator))] (defer (free! (mut args))) (defer (free! (mut flags))) (defer (free! (mut results))) ")
                   (for [i 1 arity]
-                    (push-str! (mut b) "(push! (mut args) ")
-                    (child! (mut b) ni (get fields i))
-                    (push-str! (mut b) ") (push! (mut flags) 0) "))
+                    (if (sexp-list? (sexp-nth expression (+ i 1)))
+                        (let [slot (get fields i)]
+                          (push-str! (mut b)
+                                     "(let [(mut items) (ArrayList::new [N")
+                          (number! (mut b) ni)
+                          (push-str! (mut b)
+                                     "Id] (malloc-allocator))] (defer (free! (mut items))) (match (sequence-materialize-")
+                          (number! (mut b) ni)
+                          (push-str! (mut b) " (malloc-allocator) store f")
+                          (number! (mut b) slot)
+                          (push-str! (mut b)
+                                     " (mut items)) (Ok [_]) (Err [_] (panic \"invalid checked argument list\"))) (for item items (push! (mut args) (lower-worker-")
+                          (number! (mut b) ni)
+                          (push-str! (mut b)
+                                     " store rows item function context)) (push! (mut flags) 0))) "))
+                        (do
+                          (push-str! (mut b) "(push! (mut args) ")
+                          (child! (mut b)
+                                  ni
+                                  (get fields i)
+                                  (recursive-sequence? n))
+                          (push-str! (mut b) ") (push! (mut flags) 0) "))))
                   (push-str! (mut b)
                              "(push! (mut results) (cast u8 cop/T-I64)) (let [value (cir/val function callee) direct (and (= (cast i64 (.op value)) cop/OP-SYM) (= (.imm2 value) 0))] (cir/call! function (if direct (cast u32 (.imm value)) (cir/none)) (if direct (cir/none) callee) (mut args) (mut flags) (mut results) false)))"))
               binary?
                 (do
                   (push-str! (mut b) "(let [left ")
-                  (child! (mut b) ni (get fields 0))
+                  (child! (mut b) ni (get fields 0) (recursive-sequence? n))
                   (push-str! (mut b) " right ")
-                  (child! (mut b) ni (get fields 1))
+                  (child! (mut b) ni (get fields 1) (recursive-sequence? n))
                   (push-str! (mut b) "] (cir/op2! function ")
                   (push-str! (mut b)
                              (if (= predicate "") binary-op "cop/OP-ICMP"))
@@ -197,13 +226,13 @@
               :else
                 (do
                   (push-str! (mut b) "(let [condition ")
-                  (child! (mut b) ni (get fields 0))
+                  (child! (mut b) ni (get fields 0) (recursive-sequence? n))
                   (push-str! (mut b)
                              " yes (cir/new-block! function) no (cir/new-block! function) join (cir/new-block! function) result (cir/new-var! function cop/T-I64)] (cir/condbr! function condition yes no) (cir/set-block! function yes) (cir/def-var! function result ")
-                  (child! (mut b) ni (get fields 1))
+                  (child! (mut b) ni (get fields 1) (recursive-sequence? n))
                   (push-str! (mut b)
                              ") (cir/br! function join) (cir/set-block! function no) (cir/def-var! function result ")
-                  (child! (mut b) ni (get fields 2))
+                  (child! (mut b) ni (get fields 2) (recursive-sequence? n))
                   (push-str! (mut b)
                              ") (cir/br! function join) (cir/set-block! function join) (cir/use-var! function result))")))
         (push-str! (mut b) ")\n")
@@ -229,7 +258,10 @@
         (push-str! (mut b)
                    "(import \"native.cir\" :as cir)\n(import \"native.cir-ops\" :as cop)\n(defn lower-worker-")
         (number! (mut b) ni)
-        (push-str! (mut b) " [(rows (ptr (ArrayList N")
+        (push-str! (mut b)
+                   (if (recursive-sequence? n)
+                       " [(store (ptr Store)) (rows (ptr (ArrayList N"
+                       " [(rows (ptr (ArrayList N"))
         (number! (mut b) ni)
         (push-str! (mut b) "Row))) (id N")
         (number! (mut b) ni)
@@ -260,12 +292,16 @@
         (push-str! (mut b) "))))\n")
         (push-str! (mut b) "(defn lower-")
         (number! (mut b) ni)
-        (push-str! (mut b) " [(rows (ptr (ArrayList N")
+        (push-str! (mut b)
+                   (if (recursive-sequence? n)
+                       " [(store (ptr Store)) (rows (ptr (ArrayList N"
+                       " [(rows (ptr (ArrayList N"))
         (number! (mut b) ni)
         (push-str! (mut b) "Row))) (id N")
         (number! (mut b) ni)
         (push-str! (mut b)
                    "Id) (function (ptr cir/Func))] (-> u32) (let [(mut context) (zeroed (Scope ValueBinding))] (lower-worker-")
         (number! (mut b) ni)
+        (when (recursive-sequence? n) (push-str! (mut b) " store"))
         (push-str! (mut b) " rows id function (mut context))))\n")
         (Ok (str (load b)))))))

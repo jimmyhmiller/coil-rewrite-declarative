@@ -1,4 +1,4 @@
-;;; Generated from languages/protocol.schema by tools/gen-schema.py. Do not edit.
+;;; Generated from languages/protocol.schema. Bootstrap grammar for the Coil reader.
 (module rewrite.protocolforms)
 (import "rewrite.types" :as types)
 (import "coil.result" :use *)

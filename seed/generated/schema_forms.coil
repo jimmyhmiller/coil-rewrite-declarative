@@ -1,4 +1,4 @@
-;;; Generated from languages/schema.schema by tools/gen-schema.py. Do not edit.
+;;; Generated from languages/schema.schema. Bootstrap grammar for the Coil reader.
 (module rewrite.schemaforms)
 (import "rewrite.types" :as types)
 (import "coil.result" :use *)

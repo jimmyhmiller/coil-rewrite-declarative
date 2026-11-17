@@ -1,0 +1,5 @@
+(module rewrite.entry)
+(import "rewrite.corecompiler" :as compiler)
+
+(defn main [(argc i32) (argv (ptr (ptr i8)))] (-> i64)
+  (compiler/main argc argv))

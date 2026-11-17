@@ -22,6 +22,27 @@
 
 (defstruct Schema [(nodes (ArrayList Node))])
 
+(defn recursive-sequence? [(node (ptr Node))] (-> bool)
+  (block :found
+    (for variant (.variants node)
+      (for field (.fields variant)
+        (when (and (.many? field) (= (.type-name field) (.name node)))
+          (break :found true))))
+    false))
+
+(defn recursive-field [(node (ptr Node))
+                       (variant (ptr Variant))
+                       (name (ptr Sexp))
+                       (many? bool)] (-> i64)
+  (block :found
+    (for [i 0 (len (.fields variant))]
+      (let [f (elem (field variant fields) i)]
+        (when (and (= (.many? f) many?)
+                   (= (.type-name f) (.name node))
+                   (sexp-sym-is name (.name f)))
+          (break :found i))))
+    -1))
+
 (defn problem [(at (ptr Sexp)) (message (slice u8))] (-> Diag)
   (Diag
     :lo (.lo at)

@@ -15,7 +15,7 @@ The compiler must be built by composing these language programs into a working s
 
 ## Running the compiler
 
-Build the command with `python3 tools/build-compiler.py`, then run:
+Build the command with `coil build -o build/coil-rewrite`, then run:
 
 ```
 build/coil-rewrite run tests/compiler/integer-functions.coil entry 41
@@ -23,6 +23,10 @@ build/coil-rewrite run tests/compiler/integer-functions.coil entry 41
 
 The result is `84`. `frontend/core.schema` declares the current expression grammar, lexical binding, type judgments, lowering, function program and source command. The bootstrap translates those declarations into executable Coil; guest source is parsed, checked and compiled directly to native code by the resulting binary. It does not invoke the old compiler on guest input.
 
-Current support is limited to functions with zero or more `i64` parameters and an `i64` result, integer/boolean expressions, addition/subtraction/multiplication, signed integer comparisons, `if`, single-binding `let`, unary source calls (including direct and mutual recursion), forward function references and explicit function pointers. This is an executable integration point, not full Coil compatibility. Next expand function signatures and expressions in this same path, then connect modules, types and expansion. Standalone object/executable output, full diagnostics and self-hosting remain unfinished.
+Current support is limited to functions with zero or more `i64` parameters and an `i64` result, integer/boolean expressions, addition/subtraction/multiplication, signed integer comparisons, `if`, single-binding `let`, direct and indirect calls with ordered arguments (including direct and mutual recursion), forward function references and explicit function pointers. This is an executable integration point, not full Coil compatibility. Next expand function signatures and expressions in this same path, then connect modules, types and expansion. Standalone object/executable output, full diagnostics and self-hosting remain unfinished.
 
 The command accepts one integer per declared parameter. For example, `build/coil-rewrite run tests/compiler/integer-functions.coil weighted 1 2 3` returns `123`, and selecting `forty-two` with no arguments returns `42`.
+
+The root Coil.toml maps each compiler language source to its module and registers rewrite.reader for .schema, .protocol and .search. Coil invokes the reader during import. The reader uses Coil's expansion allocator, parses the source, compiles its declarations, and returns module forms through code-read. The five grammar snapshots in seed/generated bootstrap the reader itself.
+
+Run `coil run tests/reader-build.coil --debug-checks` to import all three language extensions and execute native code produced by the resulting compiler.

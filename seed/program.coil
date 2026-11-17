@@ -14,7 +14,7 @@
 (import "coil.result" :use *)
 (import "coil.str" :use *)
 
-(def program-phases
+(defn program-phases [] (-> (slice u8))
   "(phases\n  (input declarations Declarations)\n  (phase emit (needs (checked CheckedProgram)) (makes (image NativeImage)))\n  (phase hosts (needs (globals GlobalEnvironment)) (makes (all-globals GlobalEnvironment)))\n  (phase check (needs (all-globals GlobalEnvironment)) (makes (checked CheckedProgram)))\n  (phase register (needs (declarations Declarations)) (makes (globals GlobalEnvironment))))")
 
 (defn emit-history! [(b (mut StrBuf)) (declaration i64)] (-> void)
@@ -82,7 +82,7 @@
           (mut declaration) (- 0 1)
           (mut b) (StrBuf::new a)
           order
-            (match (phase/schedule a program-phases 0)
+            (match (phase/schedule a (program-phases) 0)
               (Err [d] (break :done (Err d)))
               (Ok [order] order))]
       (for [i 0 (len (.nodes s))]
@@ -224,7 +224,10 @@
                            "(let [(mut frames) (ArrayList::new [(Scope TypeBinding)] (malloc-allocator)) (mut local) context] (defer (free! (mut frames))) (reserve! (mut frames) (len (.parameters declaration))) (for name (.parameters declaration) (push! (mut frames) (scope-bind local name (TypeBinding :type 1 :category \"value\"))) (set! local (elem (mut frames) (- (len frames) 1)))) (judge-worker-"
                            "(let [(mut local) (scope-bind context (.parameter declaration) (TypeBinding :type 1 :category \"value\"))] (judge-worker-"))
             (number! (mut b) expression)
-            (push-str! (mut b) " (mut type-store) (field store rows")
+            (push-str! (mut b)
+                       (if (recursive-sequence? expr)
+                           " (mut type-store) store (field store rows"
+                           " (mut type-store) (field store rows"))
             (number! (mut b) expression)
             (push-str! (mut b) ") (.body declaration) (len (.rows")
             (number! (mut b) expression)
@@ -239,7 +242,10 @@
                            "(let [(mut frames) (ArrayList::new [(Scope ValueBinding)] (malloc-allocator)) (mut local) context] (defer (free! (mut frames))) (reserve! (mut frames) (len (.parameters declaration))) (for name (.parameters declaration) (push! (mut frames) (scope-bind local name (LocalValue (cir/arg! function cop/T-I64 false)))) (set! local (elem (mut frames) (- (len frames) 1)))) (lower-worker-"
                            "(let [(mut local) (scope-bind context (.parameter declaration) (LocalValue (cir/arg! function cop/T-I64 false)))] (lower-worker-"))
             (number! (mut b) expression)
-            (push-str! (mut b) " (field store rows")
+            (push-str! (mut b)
+                       (if (recursive-sequence? expr)
+                           " store (field store rows"
+                           " (field store rows"))
             (number! (mut b) expression)
             (push-str! (mut b)
                        (if many?

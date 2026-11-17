@@ -1,4 +1,4 @@
-;;; Generated from languages/search.schema by tools/gen-schema.py. Do not edit.
+;;; Generated from languages/search.schema. Bootstrap grammar for the Coil reader.
 (module rewrite.searchforms)
 (import "rewrite.types" :as types)
 (import "coil.result" :use *)

@@ -1,4 +1,24 @@
 [package]
 name = "rewrite"
-entry = "tests/schema.coil"
-source-roots = ["seed", "tests"]
+entry = "compiler-entry.coil"
+source-roots = ["seed", "runtime", "compiler", "vendor/coil/src/compiler/declarative", "vendor/coil/src/compiler/native", "vendor/coil/src/declarative/tests"]
+
+[readers]
+".schema" = "rewrite.reader"
+".search" = "rewrite.reader"
+".protocol" = "rewrite.reader"
+
+[modules]
+"rewrite.corecompiler" = "compiler/frontend/core.schema"
+"rewrite.deriveforms" = "compiler/expansion/derive.schema"
+"rewrite.typesyntax" = "compiler/frontend/types.schema"
+"rewrite.nameforms" = "compiler/resolution/names.schema"
+"rewrite.codeforms" = "compiler/syntax/code.schema"
+"rewrite.admissionprotocol" = "compiler/expansion/admission.protocol"
+"rewrite.beforeprotocol" = "compiler/expansion/before_expand.protocol"
+"rewrite.deriveprotocol" = "compiler/expansion/derive_registration.protocol"
+"rewrite.headprotocol" = "compiler/expansion/macro_head.protocol"
+"rewrite.requestprotocol" = "compiler/expansion/requests.protocol"
+"rewrite.stageprotocol" = "compiler/expansion/staging.protocol"
+"rewrite.resolveprotocol" = "compiler/resolution/lookup.protocol"
+"rewrite.exportsearch" = "compiler/resolution/exports.search"

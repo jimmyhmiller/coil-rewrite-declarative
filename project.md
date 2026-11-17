@@ -1,5 +1,5 @@
-# coil-rewrite-declarative
+# Coil compiler rewrite
 
-A language-first rewrite of the whole Coil compiler. Compiler semantics, language implementations, and execution plans become programs in purpose-built languages; a small Coil seed starts the bootstrap. Preserve the existing declarative native backend.
+The compiler is authored in the custom languages under `compiler/`. The Coil package registers readers for schema, protocol and search modules. Build and test instructions are in [README.md](README.md). The retained native backend lives under `vendor/coil/`.
 
-The implementation plan is [PLAN.md](PLAN.md). Status: executable seed DSLs derive schema storage, readers, concrete type judgments, scalar lowering, and unary function program compilation through the retained native backend. The seed uses a schema parser generated from its own DSLs, with an isolated regeneration check. Full Coil compatibility and self-hosting remain unimplemented. Project notebook: `coil-rewrite-declarative`; detailed plan: `coil-rewrite-declarative-plan`.
+The compiler currently runs integer programs with functions, lexical bindings, conditionals and native calls. Module loading, full macro expansion, full type checking and self-hosting remain incomplete. The project notebook is `coil-rewrite-declarative`.

@@ -1,0 +1,50 @@
+(module rewrite.readercheck)
+(import "rewrite.corecompiler" :as compiler)
+(import "rewrite.typesyntax" :as annotations)
+(import "rewrite.exportsearch" :as exports)
+(import "rewrite.resolveprotocol" :as lookup)
+(import "rewrite.admissionprotocol" :as admission)
+(import "rewrite.stageprotocol" :as staging)
+(import "rewrite.beforeprotocol" :as before)
+(import "rewrite.requestprotocol" :as requests)
+(import "rewrite.deriveprotocol" :as derive)
+(import "rewrite.headprotocol" :as head)
+(import "rewrite.codeforms" :as syntax)
+(import "rewrite.deriveforms" :as derives)
+(import "rewrite.nameforms" :as names)
+(import "coil.alloc" :use *)
+(import "coil.result" :use *)
+(import "coil.scratch" :use [ScratchArena])
+(import "coil.arraylist" :use *)
+(import "rewrite.native" :as native)
+(import "declarative.rt.jit" :as jit)
+(import "coil.cc" :as cc)
+(import "coil.primitive" :as primitive)
+
+(defn main [] (-> i64)
+  (block
+    :done
+      (let [(mut arena) (zeroed ScratchArena)
+            initialized (init (mut arena) (malloc-allocator))
+            a (allocator (mut arena))
+            (mut store) (compiler/store-new a)
+            source (include-str "compiler/integer-functions.coil")]
+        (defer (close! (mut arena)))
+        (defer (compiler/store-free! (mut store)))
+        (match (compiler/compile-source a
+                                        (mut store)
+                                        "integer-functions.coil"
+                                        source
+                                        1)
+          (Err [_] (panic "reader-built compiler rejected fixture"))
+          (Ok [image]
+              (let [loaded (native/load-image a image)]
+                (defer (jit/unload! loaded))
+                (for [i 0 (len (.names image))]
+                  (when (= (get (.names image) i) "composed")
+                    (let [run
+                            (primitive/cast (fnptr (cc/C) [i64] i64)
+                                            (jit/address-of loaded i))]
+                      (assert (= (run 1) 551))
+                      (break :done 0))))
+                (panic "missing composed function")))))))

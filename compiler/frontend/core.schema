@@ -10,7 +10,7 @@
   (Greater (left Expr) (right Expr))
   (GreaterEqual (left Expr) (right Expr))
   (Choose (condition Expr) (yes Expr) (no Expr))
-  (Variable (name Text)) (Let (name Text) (value Expr) (body Expr)) (Call (callee Expr) (argument Expr)) (AddressOf (function Expr)))
+  (Variable (name Text)) (Let (name Text) (value Expr) (body Expr)) (Call (callee Expr) (arguments (many Expr))) (AddressOf (function Expr)))
 (bindings Expr (Variable (reference name)) (Let (scope body name)))
 (judgment Expr (Integer Int) (Boolean Bool)
   (Add Int (left Int) (right Int))
@@ -25,8 +25,8 @@
 
   (Choose ?result (condition Bool) (yes ?result) (no ?result))
   (Variable (lookup)) (Let ?body (value ?value) (body ?body (with ?value)))
-  (Call ?result (callee (in [value function] (Fn [?argument] ?result))) (argument ?argument))
-  (AddressOf (Fn [?argument] ?result) (function (in [function] (Fn [?argument] ?result)))))
+  (Call (apply callee arguments [value function]))
+  (AddressOf ?signature (function (in [function] ?signature))))
 (lower Expr (Integer (const value)) (Boolean (bool value))
   (Add (add left right))
   (Subtract (sub left right))
@@ -38,7 +38,7 @@
   (Greater (sgt left right))
   (GreaterEqual (sge left right))
   (Choose (if condition yes no))
-  (Variable (name)) (Let (let value body)) (Call (call callee argument)) (AddressOf (identity function)))
+  (Variable (name)) (Let (let value body)) (Call (call callee (spread arguments))) (AddressOf (identity function)))
 
 (node Parameter (name Text))
 (syntax Parameter (Parameter (list (symbol name) "i64")))
@@ -60,7 +60,7 @@
   (Choose (list "if" (ref condition) (ref yes) (ref no)))
   (Let (list "let" (vector (symbol name) (ref value)) (ref body)))
   (AddressOf (list "fnptr-of" (ref function)))
-  (Call (list (ref callee) (ref argument))))
+  (Call (list (ref callee) (rest arguments))))
 (syntax Function
   (Function (list "defn" (symbol name) (vector (rest parameters)) (list "->" "i64") (ref body))))
 
