@@ -1,3 +1,4 @@
+(use "rewrite.modules")
 (use "rewrite.declarations")
 
 (use "coil.amap")
@@ -44,7 +45,7 @@
            type "unsupported type"))
 
 (derive synthesize
-  [(signatures (coil.hashmap.HashMap (slice u8) (ptr coil.reader.Sexp)))
+  [(signatures rewrite.modules.Lookup)
    (checked (mut Checked))
    (locals (coil.amap.AMap (slice u8) i64)) (expr (ptr coil.reader.Sexp))
    (expected Expectation)] (slice u8)
@@ -190,7 +191,7 @@
           (obtain t (check-expression signatures (mut checked) locals expanded expected) (conclude t)))
         (_))
       (require (not (contains? locals (coil.reader.sexp-sym operator))) operator "local value is not callable")
-      (cases (get signatures (coil.reader.sexp-sym operator))
+      (cases (rewrite.modules.find-function signatures (coil.reader.sexp-sym operator))
         ((None [])
           (cases (rewrite.control.expand-call (.alc locals) expr (coil.reader.sexp-sym operator))
             ((Some [expanded])
@@ -234,7 +235,7 @@
     (reject expr "no enclosing loop matches this jump")))
 
 (derive check-operator
-  [(signatures (coil.hashmap.HashMap (slice u8) (ptr coil.reader.Sexp)))
+  [(signatures rewrite.modules.Lookup)
    (checked (mut Checked)) (locals (coil.amap.AMap (slice u8) i64))
    (expr (ptr coil.reader.Sexp)) (op rewrite.operators.Operator)] (slice u8)
   (with left (coil.reader.sexp-nth expr 1)
@@ -256,7 +257,7 @@
         (conclude (if (rewrite.operators.boolean-result? op) "bool" t))))))
 
 (derive check-cell
-  [(signatures (coil.hashmap.HashMap (slice u8) (ptr coil.reader.Sexp)))
+  [(signatures rewrite.modules.Lookup)
    (checked (mut Checked)) (locals (coil.amap.AMap (slice u8) i64))
    (name (ptr coil.reader.Sexp))] (slice u8)
   (obtain t (check-expression signatures (mut checked) locals name (Infer))
@@ -267,7 +268,7 @@
       (_ (reject name "expected a mutable binding")))))
 
 (judgment check-write
-  [(signatures (coil.hashmap.HashMap (slice u8) (ptr coil.reader.Sexp)))
+  [(signatures rewrite.modules.Lookup)
    (checked (mut Checked)) (locals (coil.amap.AMap (slice u8) i64))
    (name (ptr coil.reader.Sexp)) (value (ptr coil.reader.Sexp))]
   (obtain t (check-cell signatures (mut checked) locals name)
@@ -282,7 +283,7 @@
         (record (.on-exit checked) (.node-id site) actions)))))
 
 (derive check-body-item
-  [(signatures (coil.hashmap.HashMap (slice u8) (ptr coil.reader.Sexp)))
+  [(signatures rewrite.modules.Lookup)
    (checked (mut Checked)) (locals (coil.amap.AMap (slice u8) i64))
    (item (ptr coil.reader.Sexp)) (last? bool) (expected Expectation)] (slice u8)
   (cases (cleanup-form item)
@@ -299,7 +300,7 @@
   (cases (application item)
     ((Apply [head])
       (with name (coil.reader.sexp-sym head)
-        (when (not (or (contains? locals name) (contains? signatures name)))
+        (when (not (or (contains? locals name) (match (rewrite.modules.find-function signatures name) (Some [_] true) (_ false))))
           (cases (rewrite.control.expand-call (.alc locals) item name)
             ((Some [expanded])
               (record (.expanded checked) (.node-id item) expanded)
@@ -311,7 +312,7 @@
   (obtain t (check-expression signatures (mut checked) locals item expected) (conclude t)))
 
 (derive check-body
-  [(signatures (coil.hashmap.HashMap (slice u8) (ptr coil.reader.Sexp)))
+  [(signatures rewrite.modules.Lookup)
    (checked (mut Checked)) (locals (coil.amap.AMap (slice u8) i64))
    (expr (ptr coil.reader.Sexp)) (start i64) (expected Expectation)] (slice u8)
   (with depth (len (.active-cleanups checked))
@@ -326,7 +327,7 @@
       (conclude (load result)))))
 
 (derive check-expression
-  [(signatures (coil.hashmap.HashMap (slice u8) (ptr coil.reader.Sexp)))
+  [(signatures rewrite.modules.Lookup)
    (checked (mut Checked))
    (locals (coil.amap.AMap (slice u8) i64)) (expr (ptr coil.reader.Sexp))
    (expected Expectation)] (slice u8)
@@ -353,8 +354,7 @@
 
 (derive check-functions
   [(allocator (dyn coil.alloc.Allocator))
-   (signatures (coil.hashmap.HashMap (slice u8) (ptr coil.reader.Sexp)))
-   (forms (ptr (coil.arraylist.ArrayList coil.reader.Sexp)))] Checked
+   (unit (ptr rewrite.modules.SourceUnit))] Checked
   (with (mut checked) (Checked :active-cleanups (coil.arraylist.ArrayList::new [(ptr coil.reader.Sexp)] allocator)
                                :barrier 0 :guards (coil.hashmap.HashMap::new-scalar [i64 bool] allocator)
                                :on-exit (coil.hashmap.HashMap::new-scalar [i64 (coil.arraylist.ArrayList (ptr coil.reader.Sexp))] allocator)
@@ -365,7 +365,7 @@
                                :references (coil.hashmap.HashMap::new-scalar [i64 i64] allocator)
                                :cells (coil.hashmap.HashMap::new-scalar [i64 bool] allocator)
                                :operators (coil.hashmap.HashMap::new-scalar [i64 rewrite.operators.Operator] allocator))
-    (each-form form forms
+    (each-form form (.declarations unit)
       (cases (ordinary-function form)
         ((Function [_ _ parameters result])
           (require (or (> (coil.reader.sexp-count form) 4) (coil.reader.sexp-sym-is result "void"))
@@ -377,7 +377,7 @@
                   (record (.types checked) (.node-id name) (coil.reader.sexp-sym type))
                   (record locals (coil.reader.sexp-sym name) (.node-id name)))
                 (_ (reject param "invalid parameter"))))
-            (prove (check-body signatures (mut checked) locals form 4
+            (prove (check-body (rewrite.modules.lookup-for unit form) (mut checked) locals form 4
                      (if (coil.reader.sexp-sym-is result "void") (Discard)
                          (Expect (coil.reader.sexp-sym result)))))))
         (_ (reject form "unsupported declaration"))))
