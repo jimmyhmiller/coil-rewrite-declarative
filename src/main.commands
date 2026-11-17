@@ -2,6 +2,7 @@
 (use "coil.fs" :as fs)
 (use "coil.text" :as text)
 (use "rewrite.native")
+(use "rewrite.modules")
 (use "rewrite.signatures")
 (use "rewrite.check")
 (use "rewrite.command-tools")
@@ -22,14 +23,16 @@
           entry))))
 
 (pipeline check-source
-  (read-forms forms)
-  (phase signatures collect-signatures allocator forms)
-  (phase valid check-signatures allocator forms)
-  (phase checked check-functions allocator signatures forms))
+  (read-forms parsed)
+  (phase unit read-unit allocator parsed)
+  (phase locals collect-signatures allocator (.declarations unit))
+  (phase signatures unit-signatures allocator unit locals)
+  (phase valid check-signatures allocator (.declarations unit))
+  (phase checked check-functions allocator signatures (.declarations unit)))
 
 (pipeline compile-object
   (phase temporary-object temporary "unit.o")
-  (phase emitted emit-object allocator signatures checked forms temporary-object))
+  (phase emitted emit-object allocator signatures checked unit temporary-object))
 
 (source-command "check" path
   (default-input (package-entry allocator))
@@ -40,7 +43,7 @@
   (output "-o" destination)
   (include check-source)
   (phase object staged-output destination)
-  (phase emitted emit-object allocator signatures checked forms object)
+  (phase emitted emit-object allocator signatures checked unit object)
   (phase published publish allocator object destination)
   (exit 0))
 

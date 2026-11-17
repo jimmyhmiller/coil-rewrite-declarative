@@ -250,3 +250,8 @@ mkdir -p package/src
         done
     done
 )
+run_both 42 '(module demo.math) (defn main [] (-> i64) (+ (answer) (demo.math.answer) (demo.math/answer))) (defn answer [] (-> i64) 14)'
+compare 1 '(module demo.math) (defn main [] (-> i64) (other/answer)) (defn answer [] (-> i64) 1)'
+compare 1 '(module demo.math) (defn main [] (-> i64) (demo.math/main))'
+compare 1 '(module demo.math) (defn answer [] (-> i64) 1) (defn demo.math.answer [] (-> i64) 2)'
+compare 1 '(module "demo.math") (defn main [] (-> i64) 1)'

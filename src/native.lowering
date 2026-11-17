@@ -9,6 +9,7 @@
 (use "declarative.backend.nodes" ir)
 (use "rewrite.nodes" nodes)
 (use "rewrite.check" checker)
+(use "rewrite.modules" modules)
 (use "rewrite.operators" ops)
 (use "rewrite.declarations" syntax)
 (use "rewrite.host" host)
@@ -17,7 +18,7 @@
   [(backs (al/ArrayList i32)) (exits (al/ArrayList i32)) (values (al/ArrayList i32))])
 
 (context Frame
-  [(loops (hm/HashMap i64 (ptr LoopEdges))) (a (dyn Allocator)) (g graph/Graph) (control i32)
+  [(namespace (slice u8)) (loops (hm/HashMap i64 (ptr LoopEdges))) (a (dyn Allocator)) (g graph/Graph) (control i32)
    (checked checker/Checked)
    (locals (hm/HashMap i64 i32))])
 
@@ -195,7 +196,8 @@
               (need value (lower-expression (mut f) (mut im) signatures arg) (< (.control f) 0))
               (perform (push! (mut args) value))
               (yield 0))
-            (bind symbol (image/symbol! (mut im) (sexp-sym name)))
+            (need canonical (modules/definition-name (.a f) (.namespace f) (sexp-sym name)))
+            (bind symbol (image/symbol! (mut im) canonical))
             (bind call-node (nodes/invoke (mut (.g f)) (.control f) (cast u64 symbol) (slice args)))
             (perform (set! (.control f) call-node))
             (yield (Ok (if (= expected ir/T-CTRL) call-node
@@ -262,10 +264,10 @@
 
 (translate lower-function
   [(a (dyn Allocator)) (im (mut image/Image))
-   (signatures (hm/HashMap (slice u8) (ptr Sexp))) (checked checker/Checked) (form (ptr Sexp))] (Result i64 Diag)
+   (signatures (hm/HashMap (slice u8) (ptr Sexp))) (checked checker/Checked) (namespace (slice u8)) (form (ptr Sexp))] (Result i64 Diag)
   (on (ordinary-function form) (Function [_ name parameters result])
     (need rep (machine-type (sexp-sym result) result))
-    (bind (mut f) (Frame :loops (hm/HashMap::new-scalar [i64 (ptr LoopEdges)] a) :a a :checked checked :g (graph/create a) :control 0
+    (bind (mut f) (Frame :namespace namespace :loops (hm/HashMap::new-scalar [i64 (ptr LoopEdges)] a) :a a :checked checked :g (graph/create a) :control 0
                          :locals (hm/HashMap::new-scalar [i64 i32] a)))
     (perform (set! (.control f) (nodes/start (mut (.g f)))))
     (walk position param parameters 0
@@ -275,19 +277,20 @@
     (perform (when (and (>= (.control f) 0) (!= rep ir/T-CTRL))
                (nodes/finish (mut (.g f)) (.control f) value)))
     (perform (when (and (>= (.control f) 0) (= rep ir/T-CTRL)) (nodes/finish-void (mut (.g f)) (.control f))))
+    (need canonical (modules/definition-name a namespace (sexp-sym name)))
     (choose
-      (on (host/append-graph! a (mut im) (image/symbol! (mut im) (sexp-sym name)) (.g f))
+      (on (host/append-graph! a (mut im) (image/symbol! (mut im) canonical) (.g f))
           (Err [message]) (yield (Err (mk-diag (.lo form) (.hi form) message))))
       (otherwise (yield (Ok 0)))))
   (otherwise (yield (Err (mk-diag (.lo form) (.hi form) "unsupported native declaration")))))
 
 (translate emit-object
   [(a (dyn Allocator)) (signatures (hm/HashMap (slice u8) (ptr Sexp)))
-   (checked checker/Checked) (forms (ptr (al/ArrayList Sexp))) (output (slice u8))] (Result i64 Diag)
+   (checked checker/Checked) (unit modules/SourceUnit) (output (slice u8))] (Result i64 Diag)
   (otherwise
     (bind (mut im) (image/create a))
-    (visit form forms
-      (need _ (lower-function a (mut im) signatures checked form))
+    (visit form (.declarations unit)
+      (need _ (lower-function a (mut im) signatures checked (.namespace unit) form))
       (yield 0))
     (bind bytes (host/object-bytes a im))
     (choose

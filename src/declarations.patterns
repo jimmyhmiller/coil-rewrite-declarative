@@ -34,3 +34,6 @@
 (recognize next-iteration? (list "continue" ...))
 (recognize named-block? (list "block*" _ ...))
 (extract cleanup-form CleanupForm Guard NoGuard (list "defer*" (capture cleanup _)))
+(extract module-header ModuleHeader NamedModule NoModule
+  (list "module" (capture name symbol) ...))
+(recognize module-form? (list "module" ...))
