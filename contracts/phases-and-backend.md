@@ -23,3 +23,9 @@ The optimized module path uses module-create, module-add!, module-count!, compil
 src/compiler/backend/codegen_native.coil currently provides that layer together with native_module.coil. It lowers Program functions to CIR and builds Mach-O/ELF objects. Do not retain its frontend Program dependency as a permanent bridge: the new lowering must construct CIR from the new typed representation. Preserve the backend's authored sources, generated snapshot and provenance at one revision.
 
 Before the first native slice: inspect Func construction and block/phi contracts, assembler symbol/relocation ownership, integer/bool representation, function result ABI, and object finalization. The first fixture should include a branch merge and a direct call so a constant-return program cannot conceal missing control flow or ABI work.
+
+## Executable prototype contracts
+
+`seed/phase.coil` now validates and schedules finite single-assignment artifact plans. `seed/program.coil` declares `Declarations -> GlobalEnvironment -> CheckedProgram -> NativeImage`; `seed/main.coil` declares the table/API generation dependencies of the language toolchain itself. The latter has independent producers joining before program generation. Both consume the same planner.
+
+These are executable prototype boundaries, not a replacement specification for the original frontend protocol traced above. Nominal representation agreement is checked; handler implementations and ownership remain trusted. In particular, staged expansion cannot be treated as a cycle in this static graph and simply rejected: its intentional fixpoints need a distinct protocol with convergence and invalidation semantics. Reader lifetime and introduced-definition tests remain required before extending this mechanism to metaprograms.

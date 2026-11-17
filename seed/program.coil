@@ -4,11 +4,15 @@
 (import "rewrite.lower" :use [field-number])
 (import "rewrite.emit" :use [number!])
 (import "rewrite.index" :use [index-name!])
+(import "rewrite.phase" :as phase)
 (import "coil.alloc" :use *)
 (import "coil.arraylist" :use *)
 (import "coil.reader" :use *)
 (import "coil.result" :use *)
 (import "coil.str" :use *)
+
+(def program-phases
+  "(phases\n  (input declarations Declarations)\n  (phase emit (needs (checked CheckedProgram)) (makes (image NativeImage)))\n  (phase check (needs (globals GlobalEnvironment)) (makes (checked CheckedProgram)))\n  (phase register (needs (declarations Declarations)) (makes (globals GlobalEnvironment))))")
 
 (defn compile-one [(a (dyn Allocator)) (s (ptr Schema)) (form (ptr Sexp))]
   (-> (Result (slice u8) Diag))
@@ -26,7 +30,11 @@
                         "program currently supports unary Int -> Int signatures"))))
     (let [(mut expression) (- 0 1)
           (mut declaration) (- 0 1)
-          (mut b) (StrBuf::new a)]
+          (mut b) (StrBuf::new a)
+          order
+            (match (phase/schedule a program-phases 0)
+              (Err [d] (break :done (Err d)))
+              (Ok [order] order))]
       (for [i 0 (len (.nodes s))]
         (let [n (elem (field s nodes) i)]
           (when (sexp-sym-is (sexp-nth form 1) (.name n)) (set! expression i))
@@ -101,5 +109,22 @@
                      "(defn compile-program [(a (dyn Allocator)) (store (ptr Store)) (ids (ptr (ArrayList N")
           (number! (mut b) declaration)
           (push-str! (mut b)
-                     "Id)))] (-> (Result image/Image ProgramError)) (block :done (let [declarations (match (program-functions a store ids) (Err [error] (break :done (Err error))) (Ok [items] (box! a (ArrayList ProgramFunction) items))) (mut type-store) (types/create a) signature (match (types/function (mut type-store) 1 1) (Ok [id] id) (Err [_] (panic \"cannot construct program signature\"))) (mut im) (image/create a) (mut global-types) (HashMap::new [(slice u8) i64] a (keystr/keyops)) (mut global-values) (HashMap::new [(slice u8) ValueBinding] a (keystr/keyops)) (mut context) (scope-global (mut global-types)) (mut values) (scope-global (mut global-values))] (defer (types/release! (mut type-store))) (defer (free! (mut global-types))) (defer (free! (mut global-values))) (for [i 0 (len (load declarations))] (let [d (get (load declarations) i)] (image/symbol! (mut im) (.name d)) (set! (mut global-types) (.name d) signature) (set! (mut global-values) (.name d) (GlobalSymbol (cast u32 i))))) (for [i 0 (len (load declarations))] (let [d (get (load declarations) i) result (program-check (mut type-store) store d (mut context))] (match result (Typed [ty] (unless (= ty 1) (break :done (Err (WrongReturn (.name d) ty))))) (_ (break :done (Err (InvalidBody (.name d) result))))))) (for [i 0 (len (load declarations))] (let [d (get (load declarations) i) (mut function) (cir/Func::new)] (cir/set-block! (mut function) (cir/new-block! (mut function))) (cir/ret1! (mut function) (program-lower store d (mut function) (mut values))) (cir/finish! (mut function)) (native/emit! a (mut im) (mut function) i) (cir/func-free! (mut function)))) (Ok im))))\n")
+                     "Id)))] (-> (Result image/Image ProgramError)) (block :done (let [declarations (match (program-functions a store ids) (Err [error] (break :done (Err error))) (Ok [items] (box! a (ArrayList ProgramFunction) items))) (mut type-store) (types/create a) signature (match (types/function (mut type-store) 1 1) (Ok [id] id) (Err [_] (panic \"cannot construct program signature\"))) (mut im) (image/create a) (mut global-types) (HashMap::new [(slice u8) i64] a (keystr/keyops)) (mut global-values) (HashMap::new [(slice u8) ValueBinding] a (keystr/keyops)) (mut context) (scope-global (mut global-types)) (mut values) (scope-global (mut global-values))] (defer (types/release! (mut type-store))) (defer (free! (mut global-types))) (defer (free! (mut global-values))) ")
+          (for [step 0 (len order)]
+            (let [name (get order step)]
+              (cond (= name "register")
+                      (push-str! (mut b)
+                                 "(for [i 0 (len (load declarations))] (let [d (get (load declarations) i)] (image/symbol! (mut im) (.name d)) (set! (mut global-types) (.name d) signature) (set! (mut global-values) (.name d) (GlobalSymbol (cast u32 i))))) ")
+                    (= name "check")
+                      (push-str! (mut b)
+                                 "(for [i 0 (len (load declarations))] (let [d (get (load declarations) i) result (program-check (mut type-store) store d (mut context))] (match result (Typed [ty] (unless (= ty 1) (break :done (Err (WrongReturn (.name d) ty))))) (_ (break :done (Err (InvalidBody (.name d) result))))))) ")
+                    (= name "emit")
+                      (push-str! (mut b)
+                                 "(for [i 0 (len (load declarations))] (let [d (get (load declarations) i) (mut function) (cir/Func::new)] (cir/set-block! (mut function) (cir/new-block! (mut function))) (cir/ret1! (mut function) (program-lower store d (mut function) (mut values))) (cir/finish! (mut function)) (native/emit! a (mut im) (mut function) i) (cir/func-free! (mut function)))) ")
+                    :else
+                      (break
+                        :done
+                          (Err (problem form
+                                        "unknown program phase implementation"))))))
+          (push-str! (mut b) "(Ok im))))\n")
           (Ok (str (load b))))))))

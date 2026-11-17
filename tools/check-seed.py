@@ -8,6 +8,7 @@ import shutil
 ROOT = Path(__file__).resolve().parents[1]
 (ROOT / 'build').mkdir(exist_ok=True)
 for flags in [[], ['--debug-checks'], ['--release']]:
+    subprocess.run(['coil', 'run', 'tests/phases.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/types.coil', *flags], cwd=ROOT, check=True)
 subprocess.run(['coil', 'build', 'seed/main.coil', '-o', 'build/schema-seed'], cwd=ROOT, check=True)
 source = (ROOT / 'tests/schemas/expressions.schema').read_bytes()

@@ -164,3 +164,27 @@ Checking and lowering now share `rewrite.scope/Scope[V]`, a small handwritten ru
 Generated judgments use `Scope[i64]` for canonical type IDs. Generated lowering uses `Scope[ValueBinding]`: `LocalValue` carries a CIR value, while `GlobalSymbol` carries an image symbol identity. A global lookup creates a CIR symbol at the use site. Global identities may be shared by every function; CIR values are function-local and are never stored in the shared global map. References in different branches are materialized in their respective blocks, avoiding accidental reuse of a value that does not dominate both branches.
 
 Program compilation creates the two global maps once, borrows their roots for all bodies, and frees them after emission. It no longer builds a linked global context or emits all global symbols into every function. The native suite checks zero/used symbol counts with 2,000 globals, local/global shadowing and outer initializer lookup, and a 129-function forward-call program in all three host configurations. This establishes the removal of the repeated global setup, not a whole-compiler speedup: retained `image/symbol!` still performs a linear name scan per registration, and source-name resolution inside local scopes still walks lexical frames. Module indexing and stable binding identities remain required.
+
+The seed also has an artifact-prerequisite language:
+
+```
+(phases
+  (input declarations Declarations)
+  (phase emit
+    (needs (checked CheckedProgram))
+    (makes (image NativeImage)))
+  (phase check
+    (needs (globals GlobalEnvironment))
+    (makes (checked CheckedProgram)))
+  (phase register
+    (needs (declarations Declarations))
+    (makes (globals GlobalEnvironment))))
+```
+
+A phase names required artifacts and their nominal representations, and one or more produced artifacts. Every artifact has exactly one source: an input or a phase. `rewrite.phase/schedule` resolves forward references, rejects missing or duplicate producers and representation disagreements, and derives a deterministic serial order. A dependency cycle is an error; no partial schedule is returned. Independent phases enter the ready queue in declaration order, and newly ready consumers follow their producer's edge order. All phases run; there is no output pruning. Resolving names uses hash indexes, followed by a linear traversal of the phase/edge graph.
+
+The program compiler uses this contract to order its registration, all-body checking, and emission fragments at generation time. Its contract deliberately lists emission first; the derived output still checks every body before emission. The seed compiler itself is a second client: table definitions feed reader/index/judgment/lowering generation, and those outputs join before program generation. This replaces fixed scheduling in those two clients; their phase implementations remain Coil code or generated Coil fragments. The schema parser is still a prerequisite outside the seed-generation plan.
+
+Representation names are checked nominal labels, not proofs that a phase implementation fulfills its contract. Stage implementations and their mapping to artifact storage remain trusted and handwritten; consumers reject unknown stage implementations. These plans describe finite single-assignment artifacts. They do not model mutation, capabilities, effects, failure recovery, dynamic discovery, expansion fixpoints, invalidation, cache identity, or typed artifact ownership. Those require further language mechanisms before this can represent Coil's full frontend protocol. Independent side effects must not be hidden in phases and assumed to be ordered merely by a ready-queue tie break.
+
+Planner storage belongs to the supplied arena, including failed plans, and returned phase names borrow the contract text. `tests/phases.coil` checks reverse-declared dependencies, independent roots joining with multiple prerequisite edges, input-only plans, malformed contracts, absent/multiple producers, representation mismatch, duplicate phases, and self/mutual cycles. It runs in debug, debug-checks, and release as part of `tools/check-seed.py`; the native suite checks the generated program client.

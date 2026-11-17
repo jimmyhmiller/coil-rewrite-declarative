@@ -1,0 +1,68 @@
+(module rewrite.tests.phases)
+(import "rewrite.phase" :as phase)
+(import "coil.alloc" :use *)
+(import "coil.arraylist" :use *)
+(import "coil.result" :use *)
+(import "coil.reader" :use *)
+
+(defn succeeds [(text (slice u8)) (expected (slice (slice u8)))] (-> bool)
+  (let [arena (arena-new 1048576)
+        result
+          (match (phase/schedule (arena-view arena) text 17)
+            (Err [_] false)
+            (Ok [order]
+                (block :done
+                  (unless (= (len order) (len expected)) (break :done false))
+                  (for [i 0 (len order)]
+                    (unless (= (get order i) (get expected i))
+                      (break :done false)))
+                  true)))]
+    (arena-release! arena)
+    result))
+
+(defn rejects [(text (slice u8)) (message (slice u8))] (-> bool)
+  (let [arena (arena-new 1048576)
+        result
+          (match (phase/schedule (arena-view arena) text 19)
+            (Ok [_] false)
+            (Err [d]
+                 (and (= (.source d) 19)
+                      (= (.msg d) message)
+                      (>= (.lo d) 0)
+                      (<= (.hi d) (len text)))))]
+    (arena-release! arena)
+    result))
+
+(defn main [] (-> i64)
+  (if (and (succeeds "(phases (input forms Forms) (phase emit (needs (checked Checked)) (makes (image Image))) (phase check (needs (forms Forms)) (makes (checked Checked))))"
+                     ["check" "emit"])
+           ; Independent roots converge at a join. Two artifacts from the same producer
+           ; are separate prerequisite edges and must both discharge exactly once.
+           (succeeds "(phases (phase join (needs (left A) (right B) (extra C)) (makes (done D))) (phase right (needs) (makes (right B))) (phase left (needs) (makes (left A) (extra C))))"
+                     ["right" "left" "join"])
+           (succeeds "(phases (input x X))" [])
+           (rejects "(phases (phase p (needs (x X)) (makes (out O))))"
+                    "phase requires an artifact with no producer")
+           (rejects "(phases (input x Raw) (phase p (needs (x Checked)) (makes (out O))))"
+                    "phase artifact representation mismatch")
+           (rejects "(phases (input x X) (phase p (needs) (makes (x X))))"
+                    "artifact has multiple producers")
+           (rejects "(phases (phase p (needs) (makes (x X))) (phase p (needs) (makes (y Y))))"
+                    "duplicate phase")
+           (rejects "(phases (phase a (needs (y Y)) (makes (x X))) (phase b (needs (x X)) (makes (y Y))))"
+                    "cyclic phase prerequisites")
+           (rejects "(phases (phase a (needs (x X)) (makes (x X))))"
+                    "cyclic phase prerequisites")
+           (rejects "(phases (phase p (needs) (makes)))"
+                    "phase requires needs and nonempty makes clauses")
+           (rejects "(phases (phase p (needs x) (makes (y Y))))"
+                    "expected (artifact Representation) requirement")
+           (rejects "(phases (phase p (needs) (makes x)))"
+                    "expected (artifact Representation) product")
+           (rejects "(phases (phase p (needs) (makes (x 1))))"
+                    "artifact name and representation must be symbols")
+           (rejects "(phases (input x))" "expected (input name Representation)")
+           (rejects "(phases 12)" "expected input or phase")
+           (rejects "(phases) (phases)" "expected one phases form"))
+      0
+      1))
