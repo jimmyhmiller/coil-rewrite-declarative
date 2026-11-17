@@ -1,0 +1,112 @@
+(module rewrite.testderiveregistry)
+(import "rewrite.deriveregistry" :as registry)
+(import "coil.alloc" :use *)
+(import "coil.arraylist" :use *)
+(import "coil.str" :use *)
+(import "coil.result" :use *)
+(import "coil.debug-allocator" :use [DebugAllocator])
+(import "coil.cc" :as cc)
+(import "coil.primitive" :as primitive)
+
+(defstruct Context [(available? bool) (calls i64)])
+
+(defn lookup :cc (cc/C) [(c (ptr Context))
+                         (name (slice u8))
+                         (module (Option (slice u8)))]
+  (-> (Result (Option (slice u8)) bool))
+  (set! (.calls c) (+ (.calls c) 1))
+  (Ok (if (.available? c) (Some name) (None))))
+
+(defn check [(a (dyn Allocator))] (-> void)
+  (let [(mut r) (registry/create a)
+        (mut c) (Context :available? false :calls 0)
+        (mut resolver)
+          (registry/Resolver [Context bool]
+                             :context
+                             (primitive/cast (ptr Context) (mut c))
+                             :lookup
+                             (primitive/fnptr-of lookup))]
+    (defer (registry/release! (mut r)))
+    (for [i 0 2000]
+      (let [(mut name) (StrBuf::new a)]
+        (push-str! (mut name) "trait")
+        (push-i64! (mut name) i)
+        (match (registry/put! (mut r)
+                              (mut resolver)
+                              (str name)
+                              (str name)
+                              ""
+                              (Some (str name)))
+          (Err [_] (panic "pending insert"))
+          (Ok [index] (unless (= index i) (panic "insertion identity"))))
+        (free! (mut name))))
+    (unless (and (= (len (.pending r)) 2000) (= (.calls c) 2000))
+      (panic "pending population"))
+    (match (registry/settle! (mut r) (mut resolver))
+      (Err [_] (panic "unavailable settlement failed"))
+      (Ok [_]))
+    (unless (= (.calls c) 4000) (panic "pending revisit"))
+    (set! (.available? c) true)
+    (match (registry/finish! (mut r) (mut resolver))
+      (Err [_] (panic "settlement"))
+      (Ok [_]))
+    (unless (and (= (len (.pending r)) 0) (= (.calls c) 6000))
+      (panic "settled queue"))
+    (match (registry/finish! (mut r) (mut resolver))
+      (Err [_] (panic "settled finish"))
+      (Ok [_]))
+    (unless (= (.calls c) 6000) (panic "settled rows revisited"))
+    (match (registry/lookup (mut r) "trait1999")
+      (None [] (panic "lost settled name"))
+      (Some [row]
+            (unless (and (= (.f0 row) "trait1999")
+                         (= (.f1 row) "trait1999")
+                         (= (.f3 row) "trait1999")
+                         (= (.f4 row) "trait1999"))
+              (panic "lost pending ownership"))))
+    (registry/reset! (mut r))
+    (unless (and (= (len (.entries r)) 0) (= (len (.pending r)) 0))
+      (panic "reset entries"))
+    (match (registry/lookup (mut r) "trait1999")
+      (None [])
+      (_ (panic "reset index")))
+    (for [i 0 2000]
+      (let [(mut name) (StrBuf::new a)]
+        (push-str! (mut name) "known")
+        (push-i64! (mut name) i)
+        (match (registry/put! (mut r)
+                              (mut resolver)
+                              (str name)
+                              ""
+                              (str name)
+                              (Some (str name)))
+          (Err [_] (panic "settled insert"))
+          (Ok [_]))
+        (free! (mut name))))
+    (unless (= (len (.pending r)) 0) (panic "known rows queued"))
+    (match (registry/lookup (mut r) "known1999")
+      (None [] (panic "lost known name"))
+      (Some [row]
+            (unless (and (= (.f0 row) "known1999")
+                         (= (.f2 row) "known1999")
+                         (= (.f3 row) "known1999")
+                         (= (.f4 row) "known1999"))
+              (panic "lost settled ownership"))))
+    (match (registry/put! (mut r)
+                          (mut resolver)
+                          "known1999"
+                          "different"
+                          ""
+                          (None))
+      (Ok [_] (panic "duplicate accepted"))
+      (Err [_]))
+    (unless (= (len (.entries r)) 2000) (panic "failed insertion appended"))
+    (registry/reset! (mut r))
+    (registry/reset! (mut r))))
+
+(defn main [] (-> i64)
+  (let [debug (DebugAllocator::new (malloc-allocator))]
+    (check (DebugAllocator::view debug))
+    (unless (= (DebugAllocator::deinit! debug) 0) (panic "registry leak")))
+  (println "derive registry: 2000 pending and 2000 settled entries, ownership, reset and pending-only revisits passed")
+  0)

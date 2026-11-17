@@ -1,0 +1,3 @@
+(module rewrite.deriveforms)
+; An empty trait is pending; the original spelling and owner survive settlement.
+(node Derivation (trait Text) (struct-arm Text) (sum-arm Text) (owner Text) (spelled Text))

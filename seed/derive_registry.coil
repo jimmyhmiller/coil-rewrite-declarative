@@ -1,0 +1,187 @@
+;;; Owned derive registrations, with ordered pending settlement and indexed duplicates.
+(module rewrite.deriveregistry)
+(import "rewrite.deriveforms" :as forms)
+(import "rewrite.deriveprotocol" :as policy)
+(import "rewrite.source" :as source)
+(import "coil.alloc" :use [Allocator])
+(import "coil.arraylist" :use *)
+(import "coil.hashmap" :use [HashMap])
+(import "coil.str" :use [keyops-borrowed])
+(import "coil.result" :use *)
+(import "coil.cc" :as cc)
+(import "coil.primitive" :as primitive)
+
+(defstruct Registry
+  [(allocator (dyn Allocator))
+   (strings source/Sources)
+   (entries (ArrayList forms/N0Row))
+   (settled (HashMap (slice u8) i64))
+   (pending (ArrayList i64))])
+
+(defsum Error [E]
+  (Resolution [(error E)])
+  (Duplicate [(previous forms/N0Row)]))
+
+(defsum Failure [E]
+  (Transition [(error (policy/Failure (Error E)))])
+  (Unresolved [(entry forms/N0Row)]))
+
+(defstruct Resolver [C E]
+  [(context (ptr C))
+   (lookup (fnptr (cc/C)
+                  [(ptr C) (slice u8) (Option (slice u8))]
+                  (Result (Option (slice u8)) E)))])
+
+(defstruct Context [C E]
+  [(registry (ptr Registry))
+   (resolver (ptr (Resolver C E)))
+   (entry forms/N0Row)
+   (module (Option (slice u8)))
+   (index i64)])
+
+(defn create [(a (dyn Allocator))] (-> Registry)
+  (Registry
+    :allocator a
+    :strings (source/create a)
+    :entries (ArrayList::new [forms/N0Row] a)
+    :settled (HashMap::new [(slice u8) i64] a (keyops-borrowed))
+    :pending (ArrayList::new [i64] a)))
+
+(defn release! [(r (mut Registry))] (-> void)
+  (free! (mut (.entries r)))
+  (free! (mut (.settled r)))
+  (free! (mut (.pending r)))
+  (source/release! (mut (.strings r))))
+
+;;; Reset invalidates all borrowed records and failures; indexes begin anew.
+(defn reset! [(r (mut Registry))] (-> void)
+  (let [a (.allocator r)] (release! (mut r)) (set! r (create a))))
+
+(defn lookup [(r (ptr Registry)) (trait (slice u8))] (-> (Option forms/N0Row))
+  (match (get (.settled r) trait)
+    (None [] (None))
+    (Some [index] (Some (get (.entries r) index)))))
+
+(defn resolve :cc (cc/C) [C E] [(c (ptr (Context C E)))]
+  (-> (Result policy/Event (Error E)))
+  (let [resolver (.resolver c)
+        callback (.lookup resolver)]
+    (match (callback (.context resolver) (.f4 (.entry c)) (.module c))
+      (Err [e] (Err (Resolution [E] e)))
+      (Ok [answer]
+          (let [name (match answer (None [] "") (Some [name] name))]
+            (set! (.f0 (.entry c)) name)
+            (Ok (if (= name "") (policy/Event-Missing) (policy/Event-Found))))))))
+
+(defn unique :cc (cc/C) [C E] [(c (ptr (Context C E)))]
+  (-> (Result policy/Event (Error E)))
+  (match (lookup (.registry c) (.f0 (.entry c)))
+    (None [] (Ok (policy/Event-Clear)))
+    (Some [previous] (Err (Duplicate [E] previous)))))
+
+(defn publish :cc (cc/C) [C E] [(c (ptr (Context C E)))]
+  (-> (Result policy/Event (Error E)))
+  (let [r (.registry c)
+        pool (field r strings)]
+    (if (< (.index c) 0)
+        (let [row (.entry c)
+              owned
+                (forms/N0Row
+                  :f0 (source/intern! pool (.f0 row))
+                  :f1 (source/intern! pool (.f1 row))
+                  :f2 (source/intern! pool (.f2 row))
+                  :f3 (source/intern! pool (.f3 row))
+                  :f4 (source/intern! pool (.f4 row)))
+              index (len (.entries r))]
+          (push! (field r entries) owned)
+          (set! (.index c) index)
+          (if (= (.f0 owned) "")
+              (push! (field r pending) index)
+              (set! (field r settled) (.f0 owned) index)))
+        (unless (= (.f0 (.entry c)) "")
+          (let [name (source/intern! pool (.f0 (.entry c)))
+                entry (elem (field r entries) (.index c))]
+            (set! (.f0 entry) name)
+            (set! (field r settled) name (.index c)))))
+    (Ok (policy/Event-Done))))
+
+(defn run! [C E] [(c (ptr (Context C E)))] (-> (Result i64 (Failure E)))
+  (let [(mut handlers)
+          (policy/Handlers [(Context C E) (Error E)]
+                           :step-resolve
+                           (primitive/fnptr-of resolve [C E])
+                           :step-unique
+                           (primitive/fnptr-of unique [C E])
+                           :step-publish
+                           (primitive/fnptr-of publish [C E]))]
+    (match (policy/run c (mut handlers))
+      (Ok [_] (Ok (.index c)))
+      (Err [e] (Err (Transition [E] e))))))
+
+;;; Resolver text is copied before returning. Callback errors retain their own
+;;; lifetime contract. Callbacks must not mutate/reenter this registry.
+(defn put! [C E] [(r (ptr Registry))
+                  (resolver (ptr (Resolver C E)))
+                  (spelled (slice u8))
+                  (struct-arm (slice u8))
+                  (sum-arm (slice u8))
+                  (module (Option (slice u8)))] (-> (Result i64 (Failure E)))
+  (let [(mut c)
+          (Context [C E]
+                   :registry
+                   r
+                   :resolver
+                   resolver
+                   :entry
+                   (forms/N0Row
+                     :f0 ""
+                     :f1 struct-arm
+                     :f2 sum-arm
+                     :f3 (match module (None [] "") (Some [name] name))
+                     :f4 spelled)
+                   :module
+                   module
+                   :index
+                   -1)]
+    (run! (mut c))))
+
+;;; Only pending rows are visited, in insertion order. Earlier successful updates
+;;; survive a later failure. Queue compaction retains the failed and later rows.
+(defn settle! [C E] [(r (ptr Registry)) (resolver (ptr (Resolver C E)))]
+  (-> (Result bool (Failure E)))
+  (let [(mut next) (ArrayList::new [i64] (.allocator r))
+        (mut error) (None [(Failure E)])]
+    (for index (.pending r)
+      (match error
+        (Some [_] (push! (mut next) index))
+        (None []
+              (let [row (get (.entries r) index)
+                    (mut c)
+                      (Context [C E]
+                               :registry
+                               r
+                               :resolver
+                               resolver
+                               :entry
+                               row
+                               :module
+                               (if (= (.f3 row) "") (None) (Some (.f3 row)))
+                               :index
+                               index)]
+                (match (run! (mut c))
+                  (Err [e] (set! error (Some e)) (push! (mut next) index))
+                  (Ok [_]
+                      (when (= (.f0 (get (.entries r) index)) "")
+                        (push! (mut next) index))))))))
+    (free! (field r pending))
+    (set! (.pending r) next)
+    (match error (Some [e] (Err e)) (None [] (Ok true)))))
+
+(defn finish! [C E] [(r (ptr Registry)) (resolver (ptr (Resolver C E)))]
+  (-> (Result bool (Failure E)))
+  (match (settle! r resolver)
+    (Err [e] (Err e))
+    (Ok [_]
+        (if (= (len (.pending r)) 0)
+            (Ok true)
+            (Err (Unresolved [E] (get (.entries r) (get (.pending r) 0))))))))

@@ -10,6 +10,16 @@
       "output": "seed/generated/schema_forms.coil",
       "generated_sha256": "c412311c65dd22fb8d36568e3aa142c0f3ac3d95464f55f11ec1e9c4beae8f1d"
     },
+    "languages/derive.schema": {
+      "specification_sha256": "61063d440a5733b4771fcafdfe38346659398cd0ef0dfaabaa6e07db19613529",
+      "output": "seed/generated/derive_forms.coil",
+      "generated_sha256": "c643bfd0eaaa76dd477767e275c5bcef24a410862f1b0fd04b3656c3a2df026a"
+    },
+    "languages/derive_registration.protocol": {
+      "specification_sha256": "ab23a7d56e5f4768a7d91ccb2b4acec5c282ff1f25c317624ea8f78de59d48db",
+      "output": "seed/generated/derive_protocol.coil",
+      "generated_sha256": "5f9b8d74216ad035504bf46bd659b5b5579fea5dd20c67ff0f402a326d4dd023"
+    },
     "languages/pair_selection.schema": {
       "specification_sha256": "cea7197d8dd3d5752d8eea847ffcf741ef5e67118a840c24fb9219fcff75ec41",
       "output": "seed/generated/pair_forms.coil",
@@ -41,9 +51,9 @@
       "generated_sha256": "eac976d9bfd51328ab51804f38952ba3f0119367541ebc188b3329bec3ecfe20"
     },
     "languages/code.schema": {
-      "specification_sha256": "dee9eb81ca0f6d0acadee08c64244ef8941b32a64f8214461c463e85a8c37635",
+      "specification_sha256": "d81ca4815193c79c9add692a397a4cf40e1c28b8e5d1598bc68cfe8f2f544afb",
       "output": "seed/generated/code_forms.coil",
-      "generated_sha256": "e652554cfdaa277cd05574a485de956595dba272e4c3fbc973c78a19b5bd0b0c"
+      "generated_sha256": "c4fffd7ae94eccec9e75daf5aedd60b396bb01e08a3ac63915e09ee7a138041f"
     },
     "languages/protocol.schema": {
       "specification_sha256": "caa7c02e0c62ecbdac779b53b561be3636d912e875718323facd6035f5cae608",
@@ -72,11 +82,15 @@
     "seed/binding.coil": "fbf0c4c2c7cc44569e950741419458a49d616c6380e9314b76afcefdbf5f8d98",
     "seed/code.coil": "b8bfa5bcb447bf12f86f22a6c575f29e49290c3a858eb07e9c07394df259ae5e",
     "seed/context_policy.coil": "a61a1c9d52c4329e5a7402b905e60c498098daedd384aff21d0daaa7a181d6c7",
+    "seed/derive_registration.coil": "6a6ea5cb49987b9fb959f897cae57c1eca2c5086e26cdd2e944f9e14decebb32",
+    "seed/derive_registry.coil": "15340af75c7e6fe592f481a50250a083d456418098dfd63da694f189b80ccb19",
     "seed/emit.coil": "5a3d9a6e35ffe9975c77eb398b9a6e145db15a91b451bc5df5b6ea123a9df9c2",
     "seed/equality.coil": "6e9545f47e1f6f2e8a8a0dabaafccfd6df2fbe7ea2d404371063717d7d7c7555",
     "seed/equality_runtime.coil": "677953a98f75ce17eba81be80da3133d56da5387413e15679ba218c10e462039",
     "seed/generated/before_protocol.coil": "d4c501ee6b518eeea2ffd0f2a4a97a616e9b1975e419a4456ffdf3be9acc84d5",
-    "seed/generated/code_forms.coil": "e652554cfdaa277cd05574a485de956595dba272e4c3fbc973c78a19b5bd0b0c",
+    "seed/generated/code_forms.coil": "c4fffd7ae94eccec9e75daf5aedd60b396bb01e08a3ac63915e09ee7a138041f",
+    "seed/generated/derive_forms.coil": "c643bfd0eaaa76dd477767e275c5bcef24a410862f1b0fd04b3656c3a2df026a",
+    "seed/generated/derive_protocol.coil": "5f9b8d74216ad035504bf46bd659b5b5579fea5dd20c67ff0f402a326d4dd023",
     "seed/generated/export_search.coil": "0958122e80f6ba9f2ff587e2760da4da371fafca3c73e633b8a4ba55b5ed663b",
     "seed/generated/head_protocol.coil": "228d6003128bf3b5c17d08f06fd1ab01c96f13dd7bcd23a62acd41e126febbef",
     "seed/generated/name_forms.coil": "eac976d9bfd51328ab51804f38952ba3f0119367541ebc188b3329bec3ecfe20",

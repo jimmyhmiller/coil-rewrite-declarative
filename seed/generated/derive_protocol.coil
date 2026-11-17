@@ -1,0 +1,11 @@
+;;; Generated from languages/derive_registration.protocol by tools/gen-schema.py. Do not edit.
+(module rewrite.deriveprotocol)
+(import "coil.result" :use *)
+(import "coil.cc" :as cc)
+(defsum Event (Event-Found)(Event-Missing)(Event-Clear)(Event-Done))
+(defn state-name [(state i64)] (-> (slice u8)) (block :done (when (= state 1) (break :done "complete"))(when (= state 2) (break :done "resolve"))(when (= state 3) (break :done "unique"))(when (= state 4) (break :done "publish"))"<unknown>"))
+(defn budget-name [(budget i64)] (-> (slice u8)) (block :done "<unknown>"))
+(defn event-name [(event Event)] (-> (slice u8)) (match event (Event-Found [] "Found")(Event-Missing [] "Missing")(Event-Clear [] "Clear")(Event-Done [] "Done")))
+(defsum Failure [E] (HandlerError [(state i64) (error E)]) (UnexpectedEvent [(state i64) (event Event)]) (Exhausted [(budget i64) (limit i64)]))
+(defstruct Handlers [C E] [(step-resolve (fnptr (cc/C) [(ptr C)] (Result Event E)))(step-unique (fnptr (cc/C) [(ptr C)] (Result Event E)))(step-publish (fnptr (cc/C) [(ptr C)] (Result Event E)))])
+(defn run [C E] [(context (ptr C)) (handlers (ptr (Handlers C E)))] (-> (Result bool (Failure E))) (block :done (let [(mut state) 2] (loop (when (= state 1) (break :done (Ok true))) (cond (= state 2) (let [step (.step-resolve handlers) event (match (step context) (Ok [event] event) (Err [e] (break :done (Err (HandlerError [E] state e)))))] (match event (Event-Found [] (set! state 3))(Event-Missing [] (set! state 4))(_ (break :done (Err (UnexpectedEvent [E] state event)))))) (= state 3) (let [step (.step-unique handlers) event (match (step context) (Ok [event] event) (Err [e] (break :done (Err (HandlerError [E] state e)))))] (match event (Event-Clear [] (set! state 4))(_ (break :done (Err (UnexpectedEvent [E] state event)))))) (= state 4) (let [step (.step-publish handlers) event (match (step context) (Ok [event] event) (Err [e] (break :done (Err (HandlerError [E] state e)))))] (match event (Event-Done [] (set! state 1))(_ (break :done (Err (UnexpectedEvent [E] state event)))))) :else (panic "invalid generated protocol state"))) (Ok true))))

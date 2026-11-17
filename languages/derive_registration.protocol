@@ -1,0 +1,7 @@
+(module rewrite.deriveprotocol)
+(protocol
+  (start resolve)
+  (finish complete)
+  (state resolve (on Found unique) (on Missing publish))
+  (state unique (on Clear publish))
+  (state publish (on Done complete)))

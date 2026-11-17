@@ -66,3 +66,8 @@
 
 ; Keep the selected syntax occurrence and its hygiene, not just its spelling.
 (pair-selection derive-arms (start 2) (key keyword) (value symbol) (choose last))
+
+(node DeriveDeclaration (trait Text) (arguments (many Syntax)))
+(syntax DeriveDeclaration
+  :expect "register-derive: expected (register-derive Trait :struct FN :sum FN)"
+  (DeriveDeclaration (list "register-derive" (symbol trait) (rest arguments))))

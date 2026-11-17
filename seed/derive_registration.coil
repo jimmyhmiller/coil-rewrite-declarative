@@ -1,0 +1,84 @@
+;;; Derive surface admission over generated syntax views and pair selection.
+(module rewrite.deriveregistration)
+(import "rewrite.deriveregistry" :as registry)
+(import "rewrite.codeforms" :as forms)
+(import "coil.alloc" :use [Allocator])
+(import "coil.arraylist" :use *)
+(import "coil.reader" :use *)
+(import "coil.result" :use *)
+(import "coil.cc" :as cc)
+
+(defsum Error [E]
+  (InvalidTrait)
+  (MissingArm)
+  (NoArms)
+  (Macro [(error E)])
+  (Registry [(error (registry/Failure E))]))
+
+(defstruct Macros [C E]
+  [(context (ptr C))
+   (resolve (fnptr (cc/C)
+                   [(ptr C) Sexp (Option (slice u8))]
+                   (Result (Option (slice u8)) E)))])
+
+;;; A one-item registration-shaped list is not recognized by the reference.
+(defn recognizes? [(form (ptr Sexp))] (-> bool)
+  (and (sexp-list? form)
+       (>= (sexp-count form) 2)
+       (sexp-sym-is (sexp-nth form 0) "register-derive")))
+
+(defn arm [C E] [(macros (ptr (Macros C E)))
+                 (node (Option Sexp))
+                 (module (Option (slice u8)))]
+  (-> (Result (Option (slice u8)) E))
+  (match node
+    (None [] (Ok (Some "")))
+    (Some [node]
+          (let [resolve (.resolve macros)]
+            (resolve (.context macros) node module)))))
+
+;;; Invoke only for recognized forms. Callback names must survive this call;
+;;; successful registry insertion copies them. Scratch syntax-view allocations
+;;; use the caller's scratch allocator. Input syntax itself is never retained.
+(defn register! [C E] [(a (dyn Allocator))
+                       (r (ptr registry/Registry))
+                       (traits (ptr (registry/Resolver C E)))
+                       (macros (ptr (Macros C E)))
+                       (form (ptr Sexp))
+                       (module (Option (slice u8)))]
+  (-> (Result i64 (Error E)))
+  (block :done
+    (match (forms/view-6 a form)
+      (Err [_] (break :done (Err (InvalidTrait [E]))))
+      (Ok [view]
+          (match view
+            (None [] (break :done (Err (InvalidTrait [E]))))
+            (Some [_]))))
+    (let [struct-result
+            (arm macros (forms/select-pair-derive-arms form "struct") module)
+          sum-result
+            (arm macros (forms/select-pair-derive-arms form "sum") module)
+          struct-arm
+            (match struct-result
+              (Err [e] (break :done (Err (Macro [E] e))))
+              (Ok [value] value))
+          sum-arm
+            (match sum-result
+              (Err [e] (break :done (Err (Macro [E] e))))
+              (Ok [value] value))]
+      (match struct-arm
+        (None [] (Err (MissingArm [E])))
+        (Some [s]
+              (match sum-arm
+                (None [] (Err (MissingArm [E])))
+                (Some [u]
+                      (if (and (= s "") (= u ""))
+                          (Err (NoArms [E]))
+                          (match (registry/put! r
+                                                traits
+                                                (sexp-sym (sexp-nth form 1))
+                                                s
+                                                u
+                                                module)
+                            (Ok [index] (Ok index))
+                            (Err [e] (Err (Registry [E] e))))))))))))
