@@ -67,3 +67,8 @@ Alpha copying is the first transformation that consumes resolution identities. I
 
 
 The newer [expansion protocol trace](expansion-protocol.md) distinguishes before-expand staging, macro-tower progress, one-shot after-expand transforms, semantic fixpoints and reader lifetime capabilities. Its selected fixtures are executed only by the reference compiler and recorded separately from rewrite parity.
+
+
+## Explicit host linkage
+
+The initial program language now declares unary i64 host signatures. The generated compiler registers these globals before checking any body; callback addresses enter only when loading an image. `native/load-image-with` validates name bindings and symbol-table shape before executable allocation, with no process-global symbol lookup. Callback lifetimes remain the embedding caller's responsibility. Distinct live images can bind one name to different addresses. This supplies a narrow native-runtime boundary for staged operations; it does not supply syntax values, semantic-model state or phase scheduling.

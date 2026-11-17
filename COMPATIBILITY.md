@@ -109,3 +109,9 @@ This is a standalone shape-preserving operation, not general map hygiene. Freshn
 ## Expansion reference contracts
 
 `tools/capture-expansion-reference.py` captures existing staged-chain, early-macro, transform-introduced import/definition, guest-module reader, cross-target reader and reflective-reader behavior. The report identifies reference revision, compiler binary and input hashes, and stores exit/output assertions plus raw-output hashes. These checks currently execute only the reference compiler. They establish concrete targets for staged expansion and reader lifetime work; they are not passing rewrite parity entries. Source-observed phase policies and untested boundaries are distinguished in `contracts/expansion-protocol.md`.
+
+## Explicit host-function linkage checkpoint
+
+Program declarations can name unary Int-to-Int host functions. Their signatures participate in normal global checking, direct calls and explicit function pointers. Names cannot collide with program definitions. Runtime bindings use typed unary C callbacks; the checked loader rejects missing, duplicate, unknown, null and already-defined imports before executable mapping. Tests cover native calls and independent bindings in two simultaneously live images, plus invalid source declarations and callback types, in three configurations.
+
+This adds a runtime call boundary for later compile-time operations, not the staged protocol itself. Code values/ownership, context-carrying callbacks, cumulative stage declarations and guest-language resumption are still unimplemented. Symbol validation does not verify arbitrary machine-code images. General FFI and additional ABIs remain incomplete.

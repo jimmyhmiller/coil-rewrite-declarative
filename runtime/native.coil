@@ -33,6 +33,66 @@
                          isa/ALIGN)))
 
 (defn load-image [(a (dyn Allocator)) (im image/Image)] (-> jit/Loaded)
-  (let [(mut outside) (ArrayList::new [u64] a)]
-    (for [i 0 (len (.names im))] (push! (mut outside) 0))
-    (jit/load-image im outside (fnptr-of isa/patch))))
+  (let [(mut imports) (ArrayList::new [HostFunction] a)]
+    (defer (free! (mut imports)))
+    (match (load-image-with a im (mut imports))
+      (Ok [loaded] loaded)
+      (Err [_] (panic "native image has unresolved or malformed symbols")))))
+
+(import "coil.hashmap" :use [HashMap])
+(import "coil.str" :as str)
+(import "coil.result" :use *)
+(import "coil.primitive" :as primitive)
+(import "coil.cc" :as cc)
+
+;;; The initial scalar ABI is explicit; other signatures need distinct contracts.
+(defstruct HostFunction [(name (slice u8)) (function (fnptr (cc/C) [i64] i64))])
+
+(defsum LinkError
+  (MalformedSymbols)
+  (DuplicateImport [(name (slice u8))])
+  (UnknownImport [(name (slice u8))])
+  (DefinedImport [(name (slice u8))])
+  (NullImport [(name (slice u8))])
+  (MissingImport [(name (slice u8))]))
+
+;;; Validate every outside symbol before allocating executable memory. Callbacks
+;;; must stay valid until the loaded image is unloaded. This does not confer any
+;;; implicit filesystem, process or semantic-model capability on generated code.
+(defn load-image-with [(a (dyn Allocator))
+                       (im image/Image)
+                       (imports (ptr (ArrayList HostFunction)))]
+  (-> (Result jit/Loaded LinkError))
+  (block :done
+    (unless (and (= (len (.names im)) (len (.defined im)))
+                 (= (len (.names im)) (len (.in-data im))))
+      (break :done (Err (MalformedSymbols))))
+    (let [(mut symbols) (HashMap::new [(slice u8) i64] a (str/keyops-borrowed))
+          (mut outside) (ArrayList::new [u64] a)]
+      (defer (free! (mut symbols)))
+      (defer (free! (mut outside)))
+      (for [i 0 (len (.names im))]
+        (let [name (get (.names im) i)]
+          (match (get symbols name)
+            (Some [_] (break :done (Err (MalformedSymbols))))
+            (None []))
+          (set! (mut symbols) name i)
+          (push! (mut outside) 0)))
+      (for host (load imports)
+        (let [name (.name host)
+              i
+                (match (get symbols name)
+                  (Some [i] i)
+                  (None [] (break :done (Err (UnknownImport name)))))
+              address
+                (primitive/cast u64 (primitive/cast (ptr i8) (.function host)))]
+          (when (>= (get (.defined im) i) 0)
+            (break :done (Err (DefinedImport name))))
+          (when (!= (get outside i) 0)
+            (break :done (Err (DuplicateImport name))))
+          (when (= address 0) (break :done (Err (NullImport name))))
+          (set! (mut outside) i address)))
+      (for [i 0 (len (.names im))]
+        (when (and (< (get (.defined im) i) 0) (= (get outside i) 0))
+          (break :done (Err (MissingImport (get (.names im) i))))))
+      (Ok (jit/load-image im outside (fnptr-of isa/patch))))))

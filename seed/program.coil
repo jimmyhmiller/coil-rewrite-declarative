@@ -5,6 +5,8 @@
 (import "rewrite.emit" :use [number!])
 (import "rewrite.index" :use [index-name!])
 (import "rewrite.phase" :as phase)
+(import "rewrite.readers" :use [quoted!])
+(import "coil.hashmap" :use [HashMap])
 (import "coil.alloc" :use *)
 (import "coil.arraylist" :use *)
 (import "coil.reader" :use *)
@@ -12,12 +14,12 @@
 (import "coil.str" :use *)
 
 (def program-phases
-  "(phases\n  (input declarations Declarations)\n  (phase emit (needs (checked CheckedProgram)) (makes (image NativeImage)))\n  (phase check (needs (globals GlobalEnvironment)) (makes (checked CheckedProgram)))\n  (phase register (needs (declarations Declarations)) (makes (globals GlobalEnvironment))))")
+  "(phases\n  (input declarations Declarations)\n  (phase emit (needs (checked CheckedProgram)) (makes (image NativeImage)))\n  (phase hosts (needs (globals GlobalEnvironment)) (makes (all-globals GlobalEnvironment)))\n  (phase check (needs (all-globals GlobalEnvironment)) (makes (checked CheckedProgram)))\n  (phase register (needs (declarations Declarations)) (makes (globals GlobalEnvironment))))")
 
 (defn compile-one [(a (dyn Allocator)) (s (ptr Schema)) (form (ptr Sexp))]
   (-> (Result (slice u8) Diag))
   (block :done
-    (unless (= (sexp-count form) 8)
+    (unless (>= (sexp-count form) 8)
       (break
         :done
           (Err (problem form
@@ -28,6 +30,24 @@
         :done
           (Err (problem form
                         "program currently supports unary Int -> Int signatures"))))
+    (let [(mut names) (HashMap::new [(slice u8) bool] a (keyops))]
+      (defer (free! (mut names)))
+      (for [i 8 (sexp-count form)]
+        (let [host (sexp-nth form i)]
+          (unless (and (sexp-list? host)
+                       (= (sexp-count host) 4)
+                       (sexp-sym-is (sexp-nth host 0) "host")
+                       (sexp-sym? (sexp-nth host 1))
+                       (sexp-sym-is (sexp-nth host 2) "Int")
+                       (sexp-sym-is (sexp-nth host 3) "Int"))
+            (break :done (Err (problem host "expected (host name Int Int)"))))
+          (let [name (sexp-sym (sexp-nth host 1))]
+            (match (get names name)
+              (Some [_]
+                    (break
+                      :done (Err (problem host "duplicate host declaration"))))
+              (None []))
+            (set! (mut names) name true)))))
     (let [(mut expression) (- 0 1)
           (mut declaration) (- 0 1)
           (mut b) (StrBuf::new a)
@@ -115,6 +135,13 @@
               (cond (= name "register")
                       (push-str! (mut b)
                                  "(for [i 0 (len (load declarations))] (let [d (get (load declarations) i)] (image/symbol! (mut im) (.name d)) (set! (mut global-types) (.name d) (TypeBinding :type signature :category \"function\")) (set! (mut global-values) (.name d) (GlobalSymbol (cast u32 i))))) ")
+                    (= name "hosts")
+                      (for [i 8 (sexp-count form)]
+                        (push-str! (mut b) "(let [name ")
+                        (quoted! (mut b)
+                                 (sexp-sym (sexp-nth (sexp-nth form i) 1)))
+                        (push-str! (mut b)
+                                   "] (match (get global-types name) (Some [_] (break :done (Err (DuplicateFunction name)))) (None [])) (let [symbol (image/symbol! (mut im) name)] (set! (mut global-types) name (TypeBinding :type signature :category \"function\")) (set! (mut global-values) name (GlobalSymbol (cast u32 symbol))))) "))
                     (= name "check")
                       (push-str! (mut b)
                                  "(for [i 0 (len (load declarations))] (let [d (get (load declarations) i) result (program-check (mut type-store) store d (mut context))] (match result (Typed [ty] (unless (= ty 1) (break :done (Err (WrongReturn (.name d) ty))))) (_ (break :done (Err (InvalidBody (.name d) result))))))) ")

@@ -379,3 +379,24 @@ Aliased Stores, failed input resolution, missing origins and source-document con
 The alpha fixture checks reserved-global collisions, repeated shared references, declaration/occurrence correspondence, independent storage after input teardown, and failure variants. The native suite alpha-renames its 40 seeded closed-expression cases before checking, lowering and execution against the same expected values. Both suites run debug/debug-checks/release.
 
 This is a shape-preserving binding-aware operation derived from the binding DSL, not a general hygienic macro or substitution language. General maps, introduced declarations, insertion under new scopes, module identities and persistent freshness still need explicit binding transport. Typing/lowering still use Text contexts. Copy traversal uses the host stack and indexed sequence access, like the current resolver; no compile-time/memory improvement is claimed, and expanded occurrences can use more memory than the input DAG.
+
+
+## Declared host functions
+
+A program may append explicit host declarations:
+
+```text
+(program Expr Function name parameter body Int Int
+  (host increment Int Int)
+  (host double Int Int))
+```
+
+Each declaration introduces a global function designator with the same unary Int-to-Int signature supported by the current program language. Calls and explicit function-pointer conversion use the existing typing/lowering rules. Duplicate host declarations are seed errors; collisions with program definitions return `DuplicateFunction` before emission. Parameter and lexical shadowing still follow ordinary binding rules. Host symbols follow program definitions in the image, preserving existing function symbol IDs. Declared hosts remain required even when unused; there is no import pruning yet.
+
+`rewrite.native/HostFunction` contains a name and a typed C function pointer `(fnptr (cc/C) [i64] i64)`. Supply a list to `native/load-image-with`, which returns `Result jit/Loaded native/LinkError`. The loader indexes the image's symbol names, validates symbol-table lengths/uniqueness and every supplied binding, and only then maps executable code. Missing, duplicate, unknown, null and locally defined import bindings are errors. This is symbol-linkage validation, not a complete verifier for arbitrary image bytes or relocation arrays.
+
+Callback addresses are supplied explicitly for each loaded image. They are never resolved through process-global symbol lookup, and must remain valid until that image is unloaded. Two live loads can bind the same imported name differently. Generated code has the capabilities of the callbacks provided by its caller; no effect model, Code store or semantic-query context is implied by this API. The no-import `native/load-image` convenience wrapper now uses the checked path and panics on unresolved/malformed symbols; callers needing recoverable diagnostics use `load-image-with`.
+
+The native suite checks direct and indirect calls, source/host name collisions, invalid host declarations, typed callback rejection, missing/duplicate/unknown/local/null bindings and independent linkage of simultaneously live images in debug/debug-checks/release. The generated program calls a host helper through an ordinary source helper and an explicit function pointer, producing the expected native result.
+
+This is a prerequisite for explicit compile-time runtime operations. Only unary i64 C callbacks are supported; it is not general FFI or Code-valued staging. Multi-argument/aggregate ABI contracts, syntax ownership, stage declarations, retained semantic capabilities and language resumption remain outstanding. No fallback to the reference compiler is involved in executing these generated programs.

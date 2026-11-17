@@ -117,3 +117,6 @@ Milestone 2 remains incomplete: full Coil surface syntax and early metaprogrammi
 
 
 The reference expansion protocols are now traced in `contracts/expansion-protocol.md`, with a reproducible selected-fixture runner and `evidence/expansion-reference.json`. Preserve the distinct policies and model-availability boundaries when adding dynamic scheduling. The next staged slice must return guest syntax, resume its language, and call an earlier phase helper from a later increment, while keeping phase helpers out of runtime output. These are reference-only checks; no rewrite expansion parity is established yet.
+
+
+An explicit host-function boundary is now implemented as a prerequisite for that staged slice. The program DSL declares unary Int-to-Int host signatures; typed C callbacks are linked per image after checked name resolution. Native tests cover direct/indirect calls and simultaneously live images with different bindings. The remaining next step is an owned Code representation and explicit invocation context, followed by cumulative phase declarations and language resumption. Do not treat scalar callbacks as an implementation of the Code or semantic-query APIs.
