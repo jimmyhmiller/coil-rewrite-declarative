@@ -5,7 +5,9 @@
 (import "rewrite.stageprotocol" :as protocol)
 (import "rewrite.rounds" :as rounds)
 (import "rewrite.stage" :as stage)
-(import "coil.str" :use [StrBuf])
+(import "rewrite.requests" :as requests)
+(import "coil.hashmap" :use [HashMap])
+(import "coil.str" :use [StrBuf keyops-borrowed])
 (import "rewrite.code" :as code)
 (import "rewrite.codeforms" :as forms)
 (import "rewrite.syntaxreader" :as projection)
@@ -203,18 +205,55 @@
 
 (defn invoke :cc (cc/C) [(context (ptr Expansion))]
   (-> (Result protocol/Event StageFailure))
-  (let [im
+  (let [a (.allocator context)
+        im
           (match (.image context)
             (Some [im] im)
-            (None [] (panic "installed image")))]
-    (set! (.pending-root context)
-          (execute (.allocator context)
-                   im
-                   (if (= (.stage context) 0) 1 2)
-                   (.current context)
-                   (.root context)
-                   (.pending context))))
-  (Ok (protocol/Event-Returned)))
+            (None [] (panic "installed image")))
+        (mut markers) (HashMap::new [(slice u8) bool] a (keyops-borrowed))
+        (mut entries) (HashMap::new [(slice u8) bool] a (keyops-borrowed))
+        (mut items) (ArrayList::new [Sexp] a)
+        argument
+          (match (projection/project a (.current context) (.root context))
+            (Ok [form] form)
+            (Err [_] (panic "request argument")))]
+    (defer (free! (mut markers)))
+    (defer (free! (mut entries)))
+    (defer (free! (mut items)))
+    (for marker (.markers context) (set! (mut markers) marker true))
+    (for name (.names im) (set! (mut entries) name true))
+    (push! (mut items) (mk-sexp (KSym "phase-request") 0 0))
+    (push! (mut items)
+           (mk-sexp (KSym (if (= (.stage context) 0) "phase-a" "phase-b")) 0 0))
+    (push! (mut items) argument)
+    (let [(mut request) (mk-sexp (KList (box! a (ArrayList Sexp) items)) 0 0)
+          call
+            (match (requests/inspect a
+                                     (mut request)
+                                     (None)
+                                     (mut markers)
+                                     (mut entries))
+              (Ok [decision]
+                  (match decision
+                    (requests/Request [call] call)
+                    (_ (panic "request not selected"))))
+              (Err [_] (panic "request rejected")))
+          (mut entry) (- 0 1)]
+      (unless (= (- (sexp-count (.source (.arguments call)))
+                    (.start (.arguments call)))
+                 1)
+        (panic "fixture expects one raw Code argument"))
+      (for [i 0 (len (.names im))]
+        (when (= (get (.names im) i) (.entry call)) (set! entry i)))
+      (when (< entry 0) (panic "validated entry missing"))
+      (set! (.pending-root context)
+            (execute a
+                     im
+                     entry
+                     (.current context)
+                     (.root context)
+                     (.pending context))))
+    (Ok (protocol/Event-Returned))))
 
 (defn round-effect :cc (cc/C) [(context (ptr Expansion))
                                (input (ptr rounds/Generation))

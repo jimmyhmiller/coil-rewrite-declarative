@@ -1,0 +1,194 @@
+(module rewrite.testrequests)
+(import "rewrite.requests" :as requests)
+(import "coil.alloc" :use *)
+(import "coil.scratch" :use [ScratchArena])
+(import "coil.reader" :use *)
+(import "coil.arraylist" :use *)
+(import "coil.hashmap" :use [HashMap])
+(import "coil.str" :use [keyops-borrowed])
+(import "coil.result" :use *)
+
+(defn check [(a (dyn Allocator))
+             (markers (ptr (HashMap (slice u8) bool)))
+             (entries (ptr (HashMap (slice u8) bool)))
+             (text (slice u8))
+             (module (Option (slice u8)))
+             (expected (slice u8))
+             (error i64)
+             (argc i64)] (-> void)
+  (let [input
+          (match (read-all a text 77)
+            (Ok [input] input)
+            (Err [_] (panic "fixture source")))]
+    (match (requests/find-first a (elem input 0) module markers entries)
+      (Err [e]
+           (match e
+             (requests/MissingEntry [at]
+                                    (unless (and (= error 1)
+                                                 (= (.source at) 77))
+                                      (panic "arity error")))
+             (requests/EntryKind [at]
+                                 (unless (and (= error 2) (= (.source at) 77))
+                                   (panic "kind error")))
+             (requests/Unavailable [at raw name]
+                                   (unless (and (= error 3)
+                                                (= name expected)
+                                                (= (.source at) 77))
+                                     (panic "lookup error")))))
+      (Ok [call]
+          (unless (= error 0) (panic "expected request error"))
+          (match call
+            (None [] (unless (= expected "") (panic "request missing")))
+            (Some [call]
+                  (unless (and (= (.entry call) expected)
+                               (.rest? (.arguments call))
+                               (= (- (sexp-count (.source (.arguments call)))
+                                     (.start (.arguments call)))
+                                  argc))
+                    (panic "request result"))))))))
+
+(defn main [] (-> i64)
+  (let [(mut scratch) (zeroed ScratchArena)
+        initialized (init (mut scratch) (malloc-allocator))
+        a (allocator (mut scratch))
+        (mut markers) (HashMap::new [(slice u8) bool] a (keyops-borrowed))
+        (mut entries) (HashMap::new [(slice u8) bool] a (keyops-borrowed))]
+    (defer (close! (mut scratch)))
+    (set! (mut markers) "request" true)
+    (set! (mut markers) "path" true)
+    (set! (mut markers) "quote" true)
+    (set! (mut entries) "known" true)
+    (set! (mut entries) "md.local" true)
+    (set! (mut entries) "remote.entry" true)
+    (set! (mut entries) ".known" true)
+    (check a (mut markers) (mut entries) "(request known)" (None) "known" 0 0)
+    (check a
+           (mut markers)
+           (mut entries)
+           "(request \"known\" 42)"
+           (None)
+           "known"
+           0
+           1)
+    (check a
+           (mut markers)
+           (mut entries)
+           "(request local)"
+           (Some "md")
+           "md.local"
+           0
+           0)
+    (check a
+           (mut markers)
+           (mut entries)
+           "(request remote.entry)"
+           (Some "md")
+           "remote.entry"
+           0
+           0)
+    (check a
+           (mut markers)
+           (mut entries)
+           "(request known)"
+           (Some "")
+           ".known"
+           0
+           0)
+    (check a
+           (mut markers)
+           (mut entries)
+           "(request known)"
+           (Some "md")
+           "md.known"
+           3
+           0)
+    (check a (mut markers) (mut entries) "(ordinary known)" (None) "" 0 0)
+    (check a (mut markers) (mut entries) "(request)" (None) "" 1 0)
+    (check a (mut markers) (mut entries) "(request :known)" (None) "" 2 0)
+    (check a (mut markers) (mut entries) "(request c\"known\")" (None) "" 2 0)
+    (check a (mut markers) (mut entries) "(request 42)" (None) "" 2 0)
+    (check a (mut markers) (mut entries) "(request absent)" (None) "absent" 3 0)
+    (check a
+           (mut markers)
+           (mut entries)
+           "(request known (request absent))"
+           (None)
+           "known"
+           0
+           1)
+    (check a
+           (mut markers)
+           (mut entries)
+           "(outer (request known) (request remote.entry))"
+           (None)
+           "known"
+           0
+           0)
+    (check a
+           (mut markers)
+           (mut entries)
+           "(quote (request absent))"
+           (None)
+           ""
+           0
+           0)
+    (check a
+           (mut markers)
+           (mut entries)
+           "[quote (request known)]"
+           (None)
+           "known"
+           0
+           0)
+    (check a (mut markers) (mut entries) "[request absent]" (None) "" 0 0)
+    (check a
+           (mut markers)
+           (mut entries)
+           "(defn f [(path absent)] (-> (path absent)) (request known))"
+           (None)
+           "known"
+           0
+           0)
+    (check a
+           (mut markers)
+           (mut entries)
+           "(defn f :cc (path absent) [(path absent)] (-> (path absent)) (request known))"
+           (None)
+           "known"
+           0
+           0)
+    (check a
+           (mut markers)
+           (mut entries)
+           "(defn* f [(path absent)] (-> x) (request known))"
+           (None)
+           "known"
+           0
+           0)
+    (check a
+           (mut markers)
+           (mut entries)
+           "(declare f [(path absent)] (-> x))"
+           (None)
+           ""
+           0
+           0)
+    (check a
+           (mut markers)
+           (mut entries)
+           "[defn f (path absent) (path absent) (request known)]"
+           (None)
+           "known"
+           0
+           0)
+    (set! (mut markers) "defn" true)
+    (check a
+           (mut markers)
+           (mut entries)
+           "(defn known (request absent))"
+           (None)
+           "known"
+           0
+           1)
+    (println "declared request discovery: markers, quote/signature boundaries, entry qualification, raw arguments and outermost order passed")
+    0))

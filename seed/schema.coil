@@ -244,7 +244,8 @@
         (for [i 0 (len (load forms))]
           (unless (and (sexp-list? (elem forms i))
                        (> (sexp-count (elem forms i)) 0)
-                       (or (sexp-sym-is (sexp-nth (elem forms i) 0) "module")
+                       (or (sexp-sym-is (sexp-nth (elem forms i) 0) "walk")
+                           (sexp-sym-is (sexp-nth (elem forms i) 0) "module")
                            (sexp-sym-is (sexp-nth (elem forms i) 0)
                                         "context-policy")
                            (sexp-sym-is (sexp-nth (elem forms i) 0) "equality")

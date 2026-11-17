@@ -1,0 +1,123 @@
+;;; Classify and discover explicit requests using declared syntax and walk policy.
+;;; Reader forms are borrowed; names and temporary views use the caller's arena.
+(module rewrite.requests)
+(import "rewrite.codeforms" :as forms)
+(import "rewrite.source" :as source)
+(import "coil.alloc" :use [Allocator])
+(import "coil.arraylist" :use *)
+(import "coil.hashmap" :use [HashMap])
+(import "coil.str" :use [StrBuf])
+(import "coil.reader" :use *)
+(import "coil.result" :use *)
+
+(defstruct Call
+  [(entry (slice u8)) (site (ptr Sexp)) (arguments forms/SyntaxCapture)])
+
+(defsum Decision (Keep) (Children [(start i64)]) (Request [(call Call)]))
+
+(defsum Error
+  (MissingEntry [(at source/Origin)])
+  (EntryKind [(at source/Origin)])
+  (Unavailable [(at source/Origin) (raw (slice u8)) (entry (slice u8))]))
+
+(defn contains? [(names (ptr (HashMap (slice u8) bool))) (name (slice u8))]
+  (-> bool)
+  (match (get (load names) name) (Some [_] true) (None [] false)))
+
+(defn qualify [(a (dyn Allocator))
+               (raw (slice u8))
+               (module (Option (slice u8)))]
+  (-> (slice u8))
+  (let [(mut b) (StrBuf::new a)
+        (mut dotted?) false]
+    (for c raw (when (= c 46) (set! dotted? true)))
+    (unless dotted?
+      (match module
+        (None [])
+        (Some [name] (push-str! (mut b) name) (push-str! (mut b) "."))))
+    (push-str! (mut b) raw)
+    (str (load b))))
+
+(defn inspect [(a (dyn Allocator))
+               (form (ptr Sexp))
+               (module (Option (slice u8)))
+               (markers (ptr (HashMap (slice u8) bool)))
+               (entries (ptr (HashMap (slice u8) bool)))]
+  (-> (Result Decision Error))
+  (block
+    :done
+      (let [start
+              (match (forms/walk-stage-requests form)
+                (forms/KeepSyntax [] (break :done (Ok (Keep))))
+                (forms/VisitChildren [start] start))
+            marker?
+              (and (sexp-list? form)
+                   (> (sexp-count form) 0)
+                   (sexp-sym? (sexp-nth form 0))
+                   (contains? markers (sexp-sym (sexp-nth form 0))))]
+        (unless marker? (break :done (Ok (Children start))))
+        (let [request
+                (match (forms/view-5 a form)
+                  (Ok [v]
+                      (match v
+                        (Some [v] v)
+                        (None []
+                              (break
+                                :done (Err (MissingEntry (source/origin form)))))))
+                  (Err [_]
+                       (break :done (Err (MissingEntry (source/origin form))))))
+              entry-form (.source (get (.captures request) 1))
+              entry
+                (match (forms/view-4 a entry-form)
+                  (Ok [v]
+                      (match v
+                        (Some [v] v)
+                        (None []
+                              (break
+                                :done (Err (EntryKind (source/origin form)))))))
+                  (Err [_] (break :done (Err (EntryKind (source/origin form))))))
+              capture (.source (get (.captures entry) 0))
+              raw
+                (if (= (.variant entry) 0)
+                    (sexp-sym capture)
+                    (sexp-str capture))
+              name (qualify a raw module)]
+          (unless (contains? entries name)
+            (break :done (Err (Unavailable (source/origin form) raw name))))
+          (Ok (Request (Call
+                         :entry name
+                         :site form
+                         :arguments (get (.captures request) 2))))))))
+
+;;; Find the first request in left-to-right, outermost-first order. Its arguments
+;;; remain raw syntax. Quote and declaration-prefix policy is generated. This
+;;; does not execute a call or recursively expand a call's future result.
+;;; Input must be a valid acyclic reader tree/DAG (owned projection checks this).
+(defn find-first [(a (dyn Allocator))
+                  (root (ptr Sexp))
+                  (module (Option (slice u8)))
+                  (markers (ptr (HashMap (slice u8) bool)))
+                  (entries (ptr (HashMap (slice u8) bool)))]
+  (-> (Result (Option Call) Error))
+  (let [(mut pending) (ArrayList::new [(ptr Sexp)] a)]
+    (defer (free! (mut pending)))
+    (push! (mut pending) root)
+    (block :done
+      (while (> (len pending) 0)
+        (let [form
+                (match (pop! (mut pending))
+                  (Some [form] form)
+                  (None [] (panic "request worklist")))]
+          (match (inspect a form module markers entries)
+            (Err [e] (break :done (Err e)))
+            (Ok [decision]
+                (match decision
+                  (Keep [])
+                  (Request [call] (break :done (Ok (Some call))))
+                  (Children [start]
+                            (let [count (sexp-count form)]
+                              (when (< start count)
+                                (for [i 0 (- count start)]
+                                  (push! (mut pending)
+                                         (sexp-nth form (- (- count 1) i))))))))))))
+      (Ok (None)))))

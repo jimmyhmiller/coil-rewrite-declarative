@@ -44,3 +44,14 @@
 (syntax StageDeclaration
   :expect "stage: expected (stage MARKER FORM...), with a symbol marker"
   (StageDeclaration (list "stage" (symbol marker) (rest body))))
+
+(sum StageEntry (SymbolEntry (name Text)) (StringEntry (name Text)))
+(syntax StageEntry (SymbolEntry (symbol name)) (StringEntry (text name)))
+(node StageRequest (marker Text) (entry StageEntry) (arguments (many Syntax)))
+(syntax StageRequest
+  (StageRequest (list (symbol marker) (ref entry) (rest arguments))))
+(walk stage-requests
+  (opaque-list "quote")
+  (prefix "defn" 4 (keyword 2 "cc" 6))
+  (prefix "defn*" 4 (keyword 2 "cc" 6))
+  (prefix "declare" 4 (keyword 2 "cc" 6)))
