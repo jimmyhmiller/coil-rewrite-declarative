@@ -327,3 +327,12 @@ The shared syntax compiler now supports bounded suffix captures, ignored suffixe
 `tools/capture-type-reference.py` captures 113 real `dump-ast` inputs (76 accepted) under the installed compiler's recorded identity. `tools/check-type-syntax.py` replays acceptance through the generated written grammar in default/checked/release, with allocation checks. AST shape tests verify nested function signatures, pointer capture cardinality, generic constant arguments and owned spelling after reader teardown. Views retain the original scoped reader occurrences for future semantic elaboration.
 
 This is a written grammar, not canonical type equality. Name/pack interpretation, target-dependent primitive sizes, hygienic lexical naming, source-site side effects and exact diagnostic reproduction remain required. The struct/sum declaration callback still rejects unsupported declarations in its limited test fixture. Next derive canonical elaboration rules and declaration parsing from these written views; never reconstruct hygienic identity from owned spelling alone.
+
+
+## Retained identifier context
+
+Written type rows now retain raw spelling, signed hygiene scope and definition module through a typed `identifier` syntax capture. This is lossless for the context read by the reference's `lexical-name` helper and allows schema-to-schema elaboration to operate after reader teardown. It does not retain every reader metadata field or establish exact source-site reconstruction for identifiers nested inside a parent row. Borrowed views continue to expose the original occurrences.
+
+Capture and lexical identity allocation remain separate. `lexical/write!` shares the existing macro-head spelling mechanism: raw at scope zero, `$scopeN@MODULE$NAME` at positive scope, and a fresh `$datumN$NAME` for each negative-scope elaboration. Reusing an owned row must not cache the latter across distinct lexical occurrences. Type elaboration must classify built-ins, pack spellings and explicitly raw struct/dynamic names before requesting lexical identity, matching the reference parser's order. The production macro-head path uses the shared helper; combined route/head replay remains the integration oracle.
+
+Independent identifier tests verify generated field ordering, borrowed views, transformed ownership after poisoned source pools, no fresh IDs during capture, and fresh IDs during repeated negative-scope elaboration. Full canonical type conversion and declaration admission remain future work.

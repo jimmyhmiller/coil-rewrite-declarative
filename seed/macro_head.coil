@@ -1,6 +1,7 @@
 ;;; Scoped macro-head lookup. The result owns generated lexical spelling storage.
 (module rewrite.macrohead)
 (import "rewrite.code" :as code)
+(import "rewrite.lexical" :as lexical)
 (import "rewrite.codeforms" :as forms)
 (import "rewrite.namespace" :as namespace)
 (import "rewrite.routingfacts" :as facts)
@@ -11,7 +12,7 @@
 (import "coil.arraylist" :use *)
 (import "coil.result" :use *)
 (import "coil.str" :use *)
-(import "coil.reader" :use [next-node-id Sexp KSym hmod-name])
+(import "coil.reader" :use [Sexp KSym hmod-name])
 (import "coil.cc" :as cc)
 (import "coil.primitive" :as primitive)
 
@@ -96,17 +97,7 @@
                     (if (= (len module) 0) (None) (Some module))
                     (.fallback c)))
           (when (= scope 0) (break :done (Ok (policy/Event-Raw))))
-          (if (< scope 0)
-              (do
-                (push-str! (mut (.lexical c)) "$datum")
-                (push-i64! (mut (.lexical c)) (next-node-id)))
-              (do
-                (push-str! (mut (.lexical c)) "$scope")
-                (push-i64! (mut (.lexical c)) scope)
-                (push-str! (mut (.lexical c)) "@")
-                (push-str! (mut (.lexical c)) module)))
-          (push-str! (mut (.lexical c)) "$")
-          (push-str! (mut (.lexical c)) name)
+          (lexical/write! (mut (.lexical c)) name scope module)
           (Ok (policy/Event-Scoped))))))
 
 (defn lookup! [(c (ptr Context)) (spelling (slice u8))] (-> (Result bool Error))

@@ -135,7 +135,7 @@ def main():
         expected.extend(g['answers'][:count])
         expected.extend(v for answer in g['answers'][count:] for v in [answer,answer])
     driver=fixture(graphs)
-    runtime=['types','scope','resolution','source','sequence','refer_runtime','selection_runtime','namespace','search_runtime','routing','routing_facts','macro_head','code','equality_runtime','source_routes','observed_resolution']
+    runtime=['types','scope','resolution','source','sequence','refer_runtime','selection_runtime','namespace','search_runtime','routing','routing_facts','lexical','macro_head','code','equality_runtime','source_routes','observed_resolution']
     generated=['name_forms','export_search','resolve_protocol','head_protocol','code_forms']
     inputs=[ROOT/f'seed/{n}.coil' for n in runtime]+[ROOT/f'seed/generated/{n}.coil' for n in generated]
     with tempfile.TemporaryDirectory(prefix='rewrite-routing-') as directory:

@@ -47,7 +47,7 @@
             (push-str! (mut b) "(sexp-")
             (push-str! (mut b)
                        (cond (= mode "float-bits") "float"
-                             (= mode "symbol") "sym"
+                             (or (= mode "symbol") (= mode "identifier")) "sym"
                              (= mode "keyword") "kw"
                              (= mode "text") "str"
                              (= mode "vector") "vec"
@@ -63,6 +63,54 @@
   (push-str! (mut b) " ")
   (quoted! (mut b) message)
   (push-str! (mut b) ")))) "))
+
+;;; Capture spelling and lexical context from the same symbol occurrence.
+(defn identifier! [(b (mut StrBuf))
+                   (v (ptr Variant))
+                   (pattern (ptr Sexp))
+                   (path (slice u8))
+                   (captures (mut (ArrayList Capture)))] (-> (Result i64 Diag))
+  (block :done
+    (unless (= (sexp-count pattern) 4)
+      (break
+        :done
+          (Err (problem pattern "expected (identifier spelling scope module)"))))
+    (push-str! (mut b) "(unless (sexp-sym? ")
+    (push-str! (mut b) path)
+    (push-str! (mut b) ")")
+    (guard-end! (mut b) path "expected identifier")
+    (for [slot 1 4]
+      (let [name (sexp-nth pattern slot)
+            (mut field) (- 0 1)]
+        (unless (sexp-sym? name)
+          (break
+            :done (Err (problem name "identifier capture requires field names"))))
+        (for [i 0 (len (.fields v))]
+          (when (= (sexp-sym name) (.name (elem (field v fields) i)))
+            (set! field i)))
+        (when (< field 0)
+          (break :done (Err (problem name "unknown identifier field"))))
+        (let [f (elem (field v fields) field)]
+          (unless (and (not (.many? f))
+                       (= (.type-name f) (if (= slot 2) "Int" "Text")))
+            (break
+              :done
+                (Err (problem name "identifier fields require Text Int Text")))))
+        (for capture (load captures)
+          (when (= (.field capture) field)
+            (break
+              :done (Err (problem name "syntax field captured more than once")))))
+        (push! (mut captures)
+               (Capture
+                 :field field
+                 :mode
+                   (cond (= slot 1) "symbol"
+                         (= slot 2) "hygiene"
+                         :else "definition-module")
+                 :path path
+                 :start 0
+                 :limit (- 0 1)))))
+    (Ok 0)))
 
 (defn pattern! [(a (dyn Allocator))
                 (b (mut StrBuf))
@@ -86,6 +134,8 @@
                  (sexp-sym? (sexp-nth pattern 0)))
       (break :done (Err (problem pattern "expected a syntax pattern"))))
     (let [mode (sexp-sym (sexp-nth pattern 0))]
+      (when (= mode "identifier")
+        (break :done (identifier! (mut b) v pattern path (mut captures))))
       (when (= mode "skip-rest")
         (unless (= (sexp-count pattern) 1)
           (break :done (Err (problem pattern "skip-rest takes no arguments"))))
@@ -228,6 +278,7 @@
                      (= mode "bool")
                      (= mode "text")
                      (= mode "symbol")
+                     (= mode "identifier")
                      (= mode "keyword")
                      (= mode "list")
                      (= mode "vector")))
@@ -247,8 +298,10 @@
 
 ;;; Dispatch commits before field parsing, so a broader earlier root shadows later roots.
 (defn shadows? [(earlier (ptr Sexp)) (later (ptr Sexp))] (-> bool)
-  (let [a (sexp-sym (sexp-nth earlier 0))
-        b (sexp-sym (sexp-nth later 0))]
+  (let [raw-a (sexp-sym (sexp-nth earlier 0))
+        raw-b (sexp-sym (sexp-nth later 0))
+        a (if (= raw-a "identifier") "symbol" raw-a)
+        b (if (= raw-b "identifier") "symbol" raw-b)]
     (cond (and (= a "symbol") (= b "bool")) true
           (!= a b) false
           (= a "list")
@@ -425,24 +478,31 @@
                         (when (or (= mode "cstring")
                                   (= mode "text")
                                   (= mode "symbol")
-                                  (= mode "keyword"))
+                                  (= mode "keyword")
+                                  (= mode "definition-module"))
                           (push-str! (mut b) "(store-text! (mut store) "))
                         (push-str! (mut b)
                                    (cond (= mode "float-bits")
                                            "(syntax-float-bits "
                                          (= mode "cstring") "(syntax-cstring "
                                          (= mode "int") "(sexp-int "
+                                         (= mode "hygiene") "(.hyg "
+                                         (= mode "definition-module")
+                                           "(hmod-name (.hmod "
                                          (= mode "text") "(sexp-str "
                                          (= mode "symbol") "(sexp-sym "
                                          (= mode "keyword") "(sexp-kw "
                                          :else "(sexp-sym-is "))
                         (push-str! (mut b) path)
+                        (when (= mode "definition-module")
+                          (push-str! (mut b) ")"))
                         (when (= mode "bool") (push-str! (mut b) " \"true\""))
                         (push-str! (mut b)
                                    (if (or (= mode "cstring")
                                            (= mode "text")
                                            (= mode "symbol")
-                                           (= mode "keyword"))
+                                           (= mode "keyword")
+                                           (= mode "definition-module"))
                                        ")) "
                                        ") "))))))
               (push-str! (mut b) "id (append-")

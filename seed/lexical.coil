@@ -1,0 +1,24 @@
+;;; Lexical spelling from retained syntax context. The caller owns the buffer.
+(module rewrite.lexical)
+(import "coil.reader" :use [next-node-id])
+(import "coil.str" :use [StrBuf])
+
+;;; Append one identity. Positive scopes are stable; negative scopes allocate a
+;;; distinct poison identity per occurrence. Capture alone must not call this:
+;;; built-in types and explicitly raw names are classified before elaboration.
+(defn write! [(output (mut StrBuf))
+              (name (slice u8))
+              (scope i64)
+              (module (slice u8))] (-> void)
+  (unless (= scope 0)
+    (if (< scope 0)
+        (do
+          (push-str! (mut output) "$datum")
+          (push-i64! (mut output) (next-node-id)))
+        (do
+          (push-str! (mut output) "$scope")
+          (push-i64! (mut output) scope)
+          (push-str! (mut output) "@")
+          (push-str! (mut output) module)))
+    (push-str! (mut output) "$"))
+  (push-str! (mut output) name))

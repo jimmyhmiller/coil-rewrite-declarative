@@ -1,32 +1,32 @@
 (module rewrite.typesyntax)
-; Written forms only. Views retain borrowed identifier occurrences for lexical
-; elaboration; owned surface rows preserve spelling, not hygienic identities.
+; Written forms retain raw spelling, scope and definition module.
+; Canonical elaboration decides when a lexical identity is required.
 (sum Constant
   (Integer (value Int))
   (Keyword (value Text))
   (Boolean (value Bool))
-  (Reference (name Text)))
+  (Reference (name Text) (scope Int) (module Text)))
 (syntax Constant :expect "expected integer, keyword, boolean or constant name"
   (Integer (int value))
   (Keyword (keyword value))
   (Boolean (bool value))
-  (Reference (symbol name)))
+  (Reference (identifier name scope module)))
 
-(sum Length (Fixed (value Int)) (Parameter (name Text)))
+(sum Length (Fixed (value Int)) (Parameter (name Text) (scope Int) (module Text)))
 (syntax Length :expect "expected non-negative integer or length parameter"
   (Fixed (int value :min 0))
-  (Parameter (symbol name)))
+  (Parameter (identifier name scope module)))
 
-(sum Convention (Named (name Text)) (Value (name Text)))
+(sum Convention (Named (name Text) (scope Int) (module Text)) (Value (name Text) (scope Int) (module Text)))
 (syntax Convention :expect "expected convention name or (convention value)"
-  (Named (symbol name))
-  (Value (list (symbol name))))
+  (Named (identifier name scope module))
+  (Value (list (identifier name scope module))))
 
 (sum WrittenType
   (Integer (value Int))
   (Keyword (value Text))
   (Boolean (value Bool))
-  (Name (name Text))
+  (Name (name Text) (scope Int) (module Text))
   (Constant (value Constant))
   (Mask (width Width))
   (Mutable (element WrittenType))
@@ -35,15 +35,15 @@
   (Array (element WrittenType) (length Length))
   (Slice (element WrittenType))
   (Vector (element WrittenType) (width Width))
-  (Struct (name Text))
-  (Dynamic (name Text))
+  (Struct (name Text) (scope Int) (module Text))
+  (Dynamic (name Text) (scope Int) (module Text))
   (Function (convention Convention) (parameters (many WrittenType)) (result WrittenType))
-  (Application (name Text) (arguments (many WrittenType))))
+  (Application (name Text) (scope Int) (module Text) (arguments (many WrittenType))))
 (syntax WrittenType :expect "expected type"
   (Integer (int value))
   (Keyword (keyword value))
   (Boolean (bool value))
-  (Name (symbol name))
+  (Name (identifier name scope module))
   (Constant (list "const" (ref value)))
   (Mask (list "mask" (ref width) (skip-rest)))
   (Mutable (list "mut" (ref element) (skip-rest)))
@@ -52,12 +52,12 @@
   (Array (list "array" (ref element) (ref length) (skip-rest)))
   (Slice (list "slice" (ref element) (skip-rest)))
   (Vector (list "vec" (ref element) (ref width) (skip-rest)))
-  (Struct (list "struct" (symbol name) (skip-rest)))
-  (Dynamic (list "dyn" (symbol name) (skip-rest)))
+  (Struct (list "struct" (identifier name scope module) (skip-rest)))
+  (Dynamic (list "dyn" (identifier name scope module) (skip-rest)))
   (Function (list "fnptr" (ref convention) (vector (rest parameters)) (ref result) (skip-rest)))
-  (Application (list (symbol name) (rest arguments))))
+  (Application (list (identifier name scope module) (rest arguments))))
 
-(sum Width (Fixed (value Int)) (Parameter (name Text)))
+(sum Width (Fixed (value Int)) (Parameter (name Text) (scope Int) (module Text)))
 (syntax Width :expect "expected positive integer or width parameter"
   (Fixed (int value :min 1))
-  (Parameter (symbol name)))
+  (Parameter (identifier name scope module)))

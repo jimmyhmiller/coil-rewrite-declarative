@@ -17,8 +17,8 @@
     "seed/resolution.coil": "b080dca9f1a7b3848105faf4e2369a3272911fe8ab22a0e23f75e23d112521c6",
     "seed/source.coil": "090c81a0015f5a4941deb45e3dc8ff582b33cd4da97296cde4e3454979dad640",
     "seed/sequence.coil": "bdcac1aac27c0ed59c3020705e0583ff28f8b553c115f8e9d4211d7d59976120",
-    "seed/generated/type_syntax.coil": "edd38ec45da39be0c71dfa87cbfcd4125c36f5d1a14b3e86b4a113c0ac310ac2",
+    "seed/generated/type_syntax.coil": "c0304bab3a4802388849fca7fef0ad9adf4add177a9599d69b95048bc74ed0ad",
     "tools/check-type-syntax.py": "778a08353aefc3dcac2c962387c83909cfe552eab37c5363a48ec04a02423ff6",
-    "languages/type_syntax.schema": "da3b45f4e9c16c73ed7a4da64ac7e0100708b9fb7a5ac260d4c15700dc4f96e5"
+    "languages/type_syntax.schema": "d8e1784ded5ca073ae16bdae5c0c70b1bf23c4483cef78dc21d48fa0ddf08c67"
   }
 }

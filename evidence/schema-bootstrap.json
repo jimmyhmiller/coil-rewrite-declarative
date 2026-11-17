@@ -11,9 +11,9 @@
       "generated_sha256": "60a0e8012e8bb39f13d59fc726576af9b55e84e89b2869ac7f83e105528f20c7"
     },
     "languages/type_syntax.schema": {
-      "specification_sha256": "da3b45f4e9c16c73ed7a4da64ac7e0100708b9fb7a5ac260d4c15700dc4f96e5",
+      "specification_sha256": "d8e1784ded5ca073ae16bdae5c0c70b1bf23c4483cef78dc21d48fa0ddf08c67",
       "output": "seed/generated/type_syntax.coil",
-      "generated_sha256": "edd38ec45da39be0c71dfa87cbfcd4125c36f5d1a14b3e86b4a113c0ac310ac2"
+      "generated_sha256": "c0304bab3a4802388849fca7fef0ad9adf4add177a9599d69b95048bc74ed0ad"
     },
     "languages/admission.protocol": {
       "specification_sha256": "30662b1929e4acd973691e8971d0ef79dc2cda697974ca59fccbaf285b621c23",
@@ -115,12 +115,13 @@
     "seed/generated/schema_forms.coil": "60a0e8012e8bb39f13d59fc726576af9b55e84e89b2869ac7f83e105528f20c7",
     "seed/generated/search_forms.coil": "6a50d8dcc2fd5cf36552ea6b325676e4dd0bfbb50862657545a34d80d99d22fa",
     "seed/generated/stage_protocol.coil": "ca788092370b54bd3eb92a85bf82138945fbc0f0a23a429c488871e7ccdc431a",
-    "seed/generated/type_syntax.coil": "edd38ec45da39be0c71dfa87cbfcd4125c36f5d1a14b3e86b4a113c0ac310ac2",
+    "seed/generated/type_syntax.coil": "c0304bab3a4802388849fca7fef0ad9adf4add177a9599d69b95048bc74ed0ad",
     "seed/index.coil": "071ce0d6f87d28036b19158a770c5324bdef1d46278e4326fcb5730e31337a31",
     "seed/invocation.coil": "8b7b4742f9b1cc740672b0b3d37deb257f634a656483eb23991d881b9428aeca",
     "seed/judgment.coil": "5c89d13c8af1532e8cfbb5d5808cdbf0d58de0989d354bac8762c2cbde2aa504",
+    "seed/lexical.coil": "0c5f048886da8ba0147b8530c86375f94ec9814a6ea9736b4563ceea57e3d2a6",
     "seed/lower.coil": "2421bc11672e988aef991f081125c869b563d1b762239229fa8bf39bd10e59cb",
-    "seed/macro_head.coil": "17eca613ba8ce006612b2e3ab6fa243d4bc6f3c4422041b08d222fc5c67b0db1",
+    "seed/macro_head.coil": "a404b7fd3938b3042357238ec5dfbe04f7a6d5229d354aec4921d1d89641f4c1",
     "seed/main.coil": "15046ede3111d5fd37a21d8b23baf0a2ea638c82c3d6b74cce5781a03acd887b",
     "seed/namespace.coil": "01dbd2ef2fa2a9a0fc5ae3faa7f44198f3c4f17840ea8f2e43de7c732f62b601",
     "seed/observed_resolution.coil": "0e49198ba546a8658307588e3a99ddabad8488db3f772a5013254727006d5a69",
@@ -151,7 +152,7 @@
     "seed/source_routes.coil": "a600f5f6f4fdf525eedbf2867249cb38fbd7054f59bd91790c77000f024cc97e",
     "seed/stage.coil": "1fcb4327d2f3d40d4977d9dd9e8c164fe058662cd835ac88bc934f3c316895bf",
     "seed/staged_requests.coil": "579dbf97f8721516a56b4b8a8355a5777cefc168a8b3a10aef470e7eadd180c5",
-    "seed/syntax.coil": "3e7b016a515f11790e0015185fa0531175b2985d6369ad6e6958e5dad0c41d59",
+    "seed/syntax.coil": "0617ebaa20436c776c2dd794dc5082d89641f019b8df9a936f8590c752a394ee",
     "seed/syntax_reader.coil": "6587c342a96d6752096dd1fc3bb28047ea751b8c6866ed415bfcc0b21022f8ec",
     "seed/trait_declarations.coil": "04f408228dde1e5512dce4f6911e7ee4c3c421eed7144105b90c6d16c4ef92aa",
     "seed/transform.coil": "8675e3994ca56a2802a2243f7ba83bd17d1e224352e221f1a1f8c68bd78989bd",

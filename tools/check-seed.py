@@ -425,6 +425,7 @@ subprocess.run(['python3', 'tools/check-context-policy.py'], cwd=ROOT, check=Tru
 
 subprocess.run(['python3', 'tools/check-syntax-views.py'], cwd=ROOT, check=True)
 subprocess.run(['python3', 'tools/check-syntax-tails.py'], cwd=ROOT, check=True)
+subprocess.run(['python3', 'tools/check-identifiers.py'], cwd=ROOT, check=True)
 subprocess.run(['python3', 'tools/check-type-syntax.py'], cwd=ROOT, check=True)
 
 subprocess.run(['python3', 'tools/check-walk.py'], cwd=ROOT, check=True)

@@ -6,6 +6,8 @@
 (import "coil.result" :use *)
 (import "coil.scratch" :use [ScratchArena])
 (import "coil.debug-allocator" :use [DebugAllocator])
+(import "coil.str" :use [StrBuf])
+(import "coil.primitive" :as primitive)
 
 (defn input! [(a (dyn Allocator)) (store (ptr forms/Store))] (-> forms/N3Id)
   (let [(mut scratch) (zeroed ScratchArena)
@@ -18,22 +20,36 @@
             (Ok [v] v)
             (Err [_] (panic "source")))
         form (elem input 0)
-        pointer (sexp-nth (sexp-nth form 2) 0)]
+        pointer (sexp-nth (sexp-nth form 2) 0)
+        (mut module-text) (StrBuf::new sa)]
     (defer (close! (mut scratch)))
-    (set! (.hyg (sexp-nth pointer 1)) 31)
-    (let [view
-            (match (forms/view-3 sa pointer)
-              (Ok [v] (match v (Some [v] v) (_ (panic "pointer view absent"))))
-              (_ (panic "pointer view")))
-          capture (get (.captures view) 0)]
-      (unless (and (= (.variant view) 8)
-                   (.rest? capture)
-                   (= (.count capture) 1)
-                   (= (.hyg (sexp-nth (.source capture) (.start capture))) 31))
-        (panic "bounded view lost original occurrence")))
-    (match (forms/surface-3 store form)
-      (Ok [id] id)
-      (Err [_] (panic "type parse")))))
+    (push-str! (mut module-text) "definition.module")
+    (let [(mut module) (HygModule :name (str module-text))]
+      (set! (.hmod (sexp-nth pointer 1))
+            (primitive/cast (ptr HygModule) (mut module)))
+      (set! (.hmod (sexp-nth (sexp-nth form 1) 0))
+            (primitive/cast (ptr HygModule) (mut module)))
+      (set! (.hyg (sexp-nth (sexp-nth form 1) 0)) (- 0 1))
+      (set! (.hyg (sexp-nth pointer 1)) 31)
+      (let [view
+              (match (forms/view-3 sa pointer)
+                (Ok [v]
+                    (match v (Some [v] v) (_ (panic "pointer view absent"))))
+                (_ (panic "pointer view")))
+            capture (get (.captures view) 0)]
+        (unless (and (= (.variant view) 8)
+                     (.rest? capture)
+                     (= (.count capture) 1)
+                     (= (.hyg (sexp-nth (.source capture) (.start capture))) 31))
+          (panic "bounded view lost original occurrence")))
+      (let [before (next-node-id)
+            result
+              (match (forms/surface-3 store form)
+                (Ok [id] id)
+                (Err [_] (panic "type parse")))]
+        (unless (= (next-node-id) (+ before 1))
+          (panic "capture allocated lexical identity"))
+        result))))
 
 (defn check [(a (dyn Allocator))] (-> void)
   (let [(mut store) (forms/store-new a)
@@ -43,8 +59,10 @@
     (match (get (.rows3 store) (.index root))
       (forms/N3V14 [convention parameters result]
                    (match (get (.rows2 store) (.index convention))
-                     (forms/N2V1 [name]
-                                 (unless (= name "cc/C")
+                     (forms/N2V1 [name scope module]
+                                 (unless (and (= name "cc/C")
+                                              (= scope (- 0 1))
+                                              (= module "definition.module"))
                                    (panic "convention name")))
                      (_ (panic "convention kind")))
                    (unless (= (match (forms/sequence-size-3 (mut store)
@@ -75,14 +93,19 @@
                                              (_ (panic "pointee")))]
                                      (match (get (.rows3 store)
                                                  (.index element))
-                                       (forms/N3V3 [name]
-                                                   (unless (= name "T")
+                                       (forms/N3V3 [name scope module]
+                                                   (unless (and (= name "T")
+                                                                (= scope 31)
+                                                                (= module
+                                                                   "definition.module"))
                                                      (panic "owned type name")))
                                        (_ (panic "named pointee")))))
                        (_ (panic "pointer kind"))))
                    (match (get (.rows3 store) (.index result))
-                     (forms/N3V15 [name arguments]
-                                  (unless (= name "Box")
+                     (forms/N3V15 [name scope module arguments]
+                                  (unless (and (= name "Box")
+                                               (= scope 0)
+                                               (= module ""))
                                     (panic "application name"))
                                   (let [argument
                                           (match (forms/sequence-item-3 (mut store)
@@ -109,5 +132,5 @@
     (check (DebugAllocator::view debug))
     (unless (= (DebugAllocator::deinit! debug) 0)
       (panic "written type ownership leak")))
-  (println "written types: recursive structure, bounded pointer view, borrowed hygiene and owned spelling passed")
+  (println "written types: recursive structure, bounded pointer view, borrowed hygiene, owned context and deferred identity allocation passed")
   0)
