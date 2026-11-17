@@ -1,0 +1,72 @@
+(module rewrite.operator-reader)
+(import "coil.primitive" :as p)
+(import "coil.meta" :as meta)
+
+(reader-provider "rewrite.operator-reader" read-operators)
+
+;; A row describes a scalar overload and how its graph is reduced one
+;; operand at a time. Generate recognition and graph dispatch together so
+;; the chosen overload travels unchanged from checking to lowering.
+(defn read-operators [(ctx Code)] (-> Code)
+  (let [forms (p/code-read (get ctx 2) `(reader-config))
+        variants (p/code-list-new)
+        lookup (p/code-list-new)
+        emit (p/code-list-new)
+        predicates (p/code-list-new)
+        arguments (p/code-list-new)]
+    (for [i 1 (p/code-count forms)]
+      (let [row (get forms i)]
+        (when (!= (p/code-count row) 6)
+          (p/error "expected (name spelling arity domain result graph-expression)"))
+        (let [name (get row 0)
+              spelling (get row 1)
+              arity (get row 2)
+              domain (get row 3)
+              result (get row 4)
+              arity-test
+                (cond (p/code-eq arity `unary) `(= argc 1)
+                      (p/code-eq arity `binary) `(= argc 2)
+                      (p/code-eq arity `fold) `(>= argc 2)
+                      :else (do (p/error "unknown operator arity") `false))]
+          (p/code-list-push! variants `(~name))
+          (p/code-list-push! lookup `(and (= spelling ~spelling) ~arity-test))
+          (p/code-list-push! lookup `(Some (~name)))
+          (p/code-list-push! emit `(~name [] ~(get row 5)))
+          (p/code-list-push! predicates `(~name [] ~(p/code-eq result `bool)))
+          (when (not (or (p/code-eq result `bool) (p/code-eq result `same)))
+            (p/error "unknown operator result"))
+          (p/code-list-push! arguments
+                             `(~name []
+                                 ~(cond (p/code-eq domain `integer) `integer?
+                                        (p/code-eq domain `signed)
+                                          `(and integer? signed?)
+                                        (p/code-eq domain `scalar)
+                                          `(or integer? bool?)
+                                        :else
+                                          (do
+                                            (p/error "unknown operand domain")
+                                            `false)))))))
+    (p/code-read (meta/source `(do
+                                 (import "coil.str" :use *)
+                                 (import "declarative.rt.graph" :as graph)
+                                 (import "declarative.backend.nodes" :as ir)
+                                 (defsum Operator ~@(p/code-list-done variants))
+                                 (defn find-operator [(spelling (slice u8))
+                                                      (argc i64)]
+                                   (-> (Option Operator))
+                                   (cond ~@(p/code-list-done lookup) :else
+                                         (None [Operator])))
+                                 (defn boolean-result? [(op Operator)] (-> bool)
+                                   (match op ~@(p/code-list-done predicates)))
+                                 (defn accepts? [(op Operator)
+                                                 (integer? bool)
+                                                 (signed? bool)
+                                                 (bool? bool)] (-> bool)
+                                   (match op ~@(p/code-list-done arguments)))
+                                 (defn emit-operator [(op Operator)
+                                                      (g (mut graph/Graph))
+                                                      (type i32)
+                                                      (left i32)
+                                                      (right i32)] (-> i32)
+                                   (match op ~@(p/code-list-done emit)))))
+                 `(reader-config))))

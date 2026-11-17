@@ -1,11 +1,13 @@
 (use "rewrite.declarations")
 
 (use "coil.amap")
+(use "rewrite.operators")
 
 (context Checked
   [(types (coil.hashmap.HashMap i64 (slice u8)))
    (references (coil.hashmap.HashMap i64 i64))
-   (cells (coil.hashmap.HashMap i64 bool))])
+   (cells (coil.hashmap.HashMap i64 bool))
+   (operators (coil.hashmap.HashMap i64 rewrite.operators.Operator))])
 
 (domain Expectation (Infer) (Discard) (Expect [(type (slice u8))]))
 
@@ -14,6 +16,17 @@
   ("i16" -32768 32767) ("u16" 0 65535)
   ("i32" -2147483648 2147483647) ("u32" 0 4294967295)
   ("i64") ("u64") ("i128") ("u128"))
+
+(predicate contextual-number? [(expr (ptr coil.reader.Sexp))]
+  (cond (int-literal? expr) true
+        (match (sequence-expression expr) (Sequence [] true) (_ false))
+        (and (> (coil.reader.sexp-count expr) 1)
+             (contextual-number? (coil.reader.sexp-nth expr (- (coil.reader.sexp-count expr) 1))))
+        (match (local-bindings expr) (Bindings [_] true) (_ false))
+        (contextual-number? (coil.reader.sexp-nth expr (- (coil.reader.sexp-count expr) 1)))
+        :else (match (conditional expr)
+                (Branches [_ yes no] (and (contextual-number? yes) (contextual-number? no)))
+                (_ false))))
 
 (judgment check-type [(type (ptr coil.reader.Sexp))]
   (require (or (and (coil.reader.sexp-sym? type) (integer-result? (coil.reader.sexp-sym type) 0)) (coil.reader.sexp-sym-is type "bool"))
@@ -38,6 +51,20 @@
           ((Some [t]) (conclude t))
           (_ (reject expr "binding has no checked type"))))
       (_ (reject expr "unbound identifier"))))
+  (cases (type-ascription expr)
+    ((Ascribed [value type])
+      (prove (check-type type))
+      (obtain t (check-expression signatures (mut checked) locals value (Expect (coil.reader.sexp-sym type)))
+        (conclude t)))
+    (_))
+  (cases (numeric-cast expr)
+    ((Convert [type value])
+      (prove (check-type type))
+      (obtain source (check-expression signatures (mut checked) locals value (Infer))
+        (require (and (integer-result? source 0) (integer-result? (coil.reader.sexp-sym type) 0))
+                 expr "cast requires numeric operands")
+        (conclude (coil.reader.sexp-sym type))))
+    (_))
   (cases (local-bindings expr)
     ((Bindings [pairs])
       (require (= (% (coil.reader.sexp-count pairs) 2) 0) pairs "let needs binding/value pairs")
@@ -87,7 +114,7 @@
         (prove (check-expression signatures (mut checked) locals then (Discard)))
         (prove (check-expression signatures (mut checked) locals else (Discard)))
         (conclude "void"))
-      (when (and (match expected (Infer [] true) (_ false)) (int-literal? then))
+      (when (and (match expected (Infer [] true) (_ false)) (contextual-number? then))
         (obtain branch (check-expression signatures (mut checked) locals else (Infer))
           (prove (check-expression signatures (mut checked) locals then (Expect branch)))
           (conclude branch)))
@@ -99,7 +126,12 @@
     ((Apply [operator])
       (require (not (contains? locals (coil.reader.sexp-sym operator))) operator "local value is not callable")
       (cases (get signatures (coil.reader.sexp-sym operator))
-        ((None []) (reject expr "call to undefined function"))
+        ((None [])
+          (cases (rewrite.operators.find-operator (coil.reader.sexp-sym operator) (- (coil.reader.sexp-count expr) 1))
+            ((Some [op])
+              (record (.operators checked) (.node-id expr) op)
+              (obtain t (check-operator signatures (mut checked) locals expr op) (conclude t)))
+            (_ (reject expr "call to undefined function"))))
         ((Some [found])
           (cases (ordinary-function found)
             ((Function [_ _ parameters result])
@@ -113,6 +145,21 @@
               (conclude (coil.reader.sexp-sym result)))
             (_ (reject found "invalid function signature"))))))
     (_ (reject expr "unsupported expression"))))
+
+(derive check-operator
+  [(signatures (coil.hashmap.HashMap (slice u8) (ptr coil.reader.Sexp)))
+   (checked (mut Checked)) (locals (coil.amap.AMap (slice u8) i64))
+   (expr (ptr coil.reader.Sexp)) (op rewrite.operators.Operator)] (slice u8)
+  (with left (coil.reader.sexp-nth expr 1)
+    (with seed (if (and (> (coil.reader.sexp-count expr) 2) (contextual-number? left))
+                   2 1)
+      (obtain t (check-expression signatures (mut checked) locals (coil.reader.sexp-nth expr seed) (Infer))
+        (require (rewrite.operators.accepts? op (integer-result? t 0)
+                   (= (get t 0) #\i) (= t "bool")) expr "operator does not accept this operand type")
+        (each-child operand expr 1 position
+          (when (!= position seed)
+            (prove (check-expression signatures (mut checked) locals operand (Expect t)))))
+        (conclude (if (rewrite.operators.boolean-result? op) "bool" t))))))
 
 (derive check-cell
   [(signatures (coil.hashmap.HashMap (slice u8) (ptr coil.reader.Sexp)))
@@ -175,7 +222,8 @@
    (forms (ptr (coil.arraylist.ArrayList coil.reader.Sexp)))] Checked
   (with (mut checked) (Checked :types (coil.hashmap.HashMap::new-scalar [i64 (slice u8)] allocator)
                                :references (coil.hashmap.HashMap::new-scalar [i64 i64] allocator)
-                               :cells (coil.hashmap.HashMap::new-scalar [i64 bool] allocator))
+                               :cells (coil.hashmap.HashMap::new-scalar [i64 bool] allocator)
+                               :operators (coil.hashmap.HashMap::new-scalar [i64 rewrite.operators.Operator] allocator))
     (each-form form forms
       (cases (ordinary-function form)
         ((Function [_ _ parameters result])

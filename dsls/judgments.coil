@@ -121,6 +121,11 @@
                                                            (~value i64)]
                                         (-> bool)
                                         ~(intervals rule 2 key value)))
+                                 (p/code-eq tag `predicate)
+                                   `(defn ~(get rule 1)
+                                      ~(get rule 2)
+                                      (-> bool)
+                                      ~(get rule 3))
                                  (p/code-eq tag `derive)
                                    `(defn ~(get rule 1)
                                       ~(get rule 2)

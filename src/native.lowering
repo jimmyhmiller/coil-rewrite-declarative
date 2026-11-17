@@ -9,6 +9,7 @@
 (use "declarative.backend.nodes" ir)
 (use "rewrite.nodes" nodes)
 (use "rewrite.check" checker)
+(use "rewrite.operators" ops)
 (use "rewrite.declarations" syntax)
 (use "rewrite.host" host)
 
@@ -30,6 +31,13 @@
   (where (= type "bool") (yield (Ok ir/T-BOOL)))
   (otherwise (yield (Err (mk-diag-src (.source at) (.lo at) (.hi at)
                                       "type has no native representation yet")))))
+
+(translate convert-integer [(g (mut graph/Graph)) (value i32) (source i32) (target i32)] i32
+  (where (= source target) (yield value))
+  (where (= (ir/type-bits source) (ir/type-bits target)) (yield (ir/bitcast! (mut g) target value)))
+  (where (> (ir/type-bits source) (ir/type-bits target)) (yield (ir/trunc! (mut g) target value)))
+  (where (ir/type-signed? source) (yield (ir/sext! (mut g) target value)))
+  (otherwise (yield (ir/zext! (mut g) target value))))
 
 (translate lower-parameter [(f (mut Frame)) (position i64) (param (ptr Sexp))] (Result i32 Diag)
   (on (typed-parameter param) (Parameter [name type])
@@ -63,6 +71,11 @@
     (yield (write-binding (mut f) (mut im) signatures name value)))
   (on (explicit-store expr) (StoreLocal [name value])
     (yield (write-binding (mut f) (mut im) signatures name value)))
+  (on (type-ascription expr) (Ascribed [value _])
+    (yield (lower-expression (mut f) (mut im) signatures value)))
+  (on (numeric-cast expr) (Convert [_ value])
+    (need operand (lower-expression (mut f) (mut im) signatures value))
+    (yield (Ok (convert-integer (mut (.g f)) operand (graph/ty (.g f) operand) expected))))
   (on (local-bindings expr) (Bindings [pairs])
     (walk-pairs name init pairs
       (need value (lower-expression (mut f) (mut im) signatures init))
@@ -93,6 +106,17 @@
     (perform (set! (.control f) join))
     (yield (Ok (if (= expected ir/T-CTRL) join
                    (nodes/merge-values (mut (.g f)) expected join left right)))))
+  (on (get (.operators (.checked f)) (.node-id expr)) (Some [op])
+    (need left (lower-expression (mut f) (mut im) signatures (sexp-nth expr 1)))
+    (bind type (graph/ty (.g f) left))
+    (bind (mut result) left)
+    (walk position arg expr 2
+      (need right (lower-expression (mut f) (mut im) signatures arg))
+      (perform (set! result (ops/emit-operator op (mut (.g f)) type (load result) right)))
+      (yield 0))
+    (yield (Ok (if (= (sexp-count expr) 2)
+                   (ops/emit-operator op (mut (.g f)) type left left)
+                   (load result)))))
   (on (application expr) (Apply [operator])
     (choose
       (on (get signatures (sexp-sym operator)) (Some [function])

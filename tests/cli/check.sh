@@ -69,6 +69,8 @@ run_both 19 '(defn main [] (-> i64) (discard false -7) 19) (defn discard [(x boo
 cat > input.coil <<'COIL'
 (defn narrow [] (-> i8) -128)
 (defn high [] (-> u8) 255)
+(defn widenSigned [(x i8)] (-> i64) (cast i64 x))
+(defn widenUnsigned [(x u8)] (-> i64) (cast i64 x))
 (defn truth [] (-> bool) true)
 (defn lie [] (-> bool) false)
 COIL
@@ -78,9 +80,11 @@ cat > caller.c <<'C'
 #include <stdint.h>
 extern int8_t narrow(void);
 extern uint8_t high(void);
+extern int64_t widenSigned(int8_t);
+extern int64_t widenUnsigned(uint8_t);
 extern bool truth(void);
 extern bool lie(void);
-int main(void) { return narrow() != -128 || high() != 255 || !truth() || lie(); }
+int main(void) { return narrow() != -128 || high() != 255 || !truth() || lie() || widenSigned(-1) != -1 || widenUnsigned(255) != 255; }
 C
 cc caller.c scalars.o -o caller
 ./caller
@@ -130,3 +134,26 @@ run_both 0 '(defn main [] (-> i64) (let [(mut x) 6] (set! x 4)))'
 compare 1 '(defn main [] (-> i64) (let [x 1] (set! x 3)))'
 compare 1 '(defn main [] (-> i64) (let [x 1] (load x)))'
 compare 1 '(defn main [] (-> i64) (let [(mut x) 1] (set! x true)))'
+run_both 200 '(defn main [] (-> i64) (let [small (: 200 u8)] (cast i64 small)))'
+run_both 1 '(defn main [] (-> i64) (cast i64 (cast u8 257)))'
+run_both 255 '(defn main [] (-> i64) (cast i64 (cast i8 (: 255 u8))))'
+compare 1 '(defn main [] (-> i64) (: 256 u8) 1)'
+compare 1 '(defn main [] (-> i64) (: 42 bool) 1)'
+compare 1 '(defn main [] (-> i64) (cast i64 true))'
+compare 1 '(defn f [] (-> bool) (cast bool 1))'
+
+run_both 120 '(defn main [] (-> i64) (fact 5)) (defn fact [(n i64)] (-> i64) (if (<= n 1) 1 (* n (fact (- n 1)))))'
+run_both 9 '(defn main [] (-> i64) (- 20 6 5))'
+run_both 9 '(defn main [] (-> i64) (let [(mut x) 2] (+ (do (set! x 3) x) (do (set! x (* x 2)) x))))'
+run_both 11 '(defn main [] (-> i64) (if (comparisons-agree) 11 22)) (defn comparisons-agree [] (-> bool) (= (< (: -1 i8) 2) (> (: 255 u8) 2)))'
+run_both 42 '(defn main [] (-> i64) (if (!= true false) (+ 9 10 11 12) 0))'
+run_both 14 '(defn main [] (-> i64) (^ (& 15 12) (| 2 0)))'
+run_both 253 '(defn main [] (-> i64) (cast i64 (- (: 3 i8))))'
+run_both 0 '(defn main [] (-> i64) (cast i64 (+ (: 255 u8) 1)))'
+compare 0 '(defn f [] (-> i8) (+ 1 (: 3 i8)))'
+compare 1 '(defn f [] (-> i8) (+ 1 3))'
+compare 1 '(defn f [] (-> i64) (+ true false))'
+compare 1 '(defn f [] (-> i64) (< 1 2 3) 0)'
+compare 1 '(defn f [] (-> u8) (- (: 3 u8)))'
+run_both 7 '(defn main [] (-> i64) (cast i64 (+ (if true 3 4) (: 4 u8))))'
+run_both 6 '(defn main [] (-> i64) (cast i64 (+ (let [x 4] (do x 2)) (: 4 i8))))'

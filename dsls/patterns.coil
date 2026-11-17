@@ -20,32 +20,39 @@
              (> (primitive/code-count pattern) 0))
           (let [tag (get pattern 0)
                 n (primitive/code-count pattern)]
-            (if (primitive/code-eq tag `capture)
-                (if (and (= n 3) (primitive/code-sym? (get pattern 1)))
-                    (let [inner (pattern-test (get pattern 2) node)]
-                      `(~(get inner 0) ((~(get pattern 1) (ptr coil.reader.Sexp)) ~@(get inner
-                                                                                         1))
-                          (~node ~@(get inner 2))))
-                    (primitive/error "expected (capture name pattern)"))
-                (let [kind
-                        (cond (primitive/code-eq tag `list)
-                                `(coil.reader.sexp-list? ~node)
-                              (primitive/code-eq tag `vector)
-                                `(coil.reader.sexp-vec? ~node)
-                              :else
-                                (do
-                                  (primitive/error "expected list or vector pattern")
-                                  `false))
-                      rest? (primitive/code-eq (get pattern (- n 1)) `...)
-                      end (if rest? (- n 1) n)
-                      size
-                        (if rest?
-                            `(>= (coil.reader.sexp-count ~node) ~(- end 1))
-                            `(= (coil.reader.sexp-count ~node) ~(- end 1)))]
-                  (let [children (children-test pattern node 1 end)]
-                    `((and ~kind (and ~size ~(get children 0))) ~(get children
-                                                                      1)
-                        ~(get children 2))))))
+            (cond (primitive/code-eq tag `keyword)
+                    (if (and (= n 2) (primitive/code-string? (get pattern 1)))
+                        (plain-test `(and (coil.reader.sexp-kw? ~node)
+                                          (= (coil.reader.sexp-kw ~node)
+                                             ~(get pattern 1))))
+                        (primitive/error "expected (keyword spelling)"))
+                  (primitive/code-eq tag `capture)
+                    (if (and (= n 3) (primitive/code-sym? (get pattern 1)))
+                        (let [inner (pattern-test (get pattern 2) node)]
+                          `(~(get inner 0) ((~(get pattern 1) (ptr coil.reader.Sexp)) ~@(get inner
+                                                                                             1))
+                              (~node ~@(get inner 2))))
+                        (primitive/error "expected (capture name pattern)"))
+                  :else
+                    (let [kind
+                            (cond (primitive/code-eq tag `list)
+                                    `(coil.reader.sexp-list? ~node)
+                                  (primitive/code-eq tag `vector)
+                                    `(coil.reader.sexp-vec? ~node)
+                                  :else
+                                    (do
+                                      (primitive/error "expected list or vector pattern")
+                                      `false))
+                          rest? (primitive/code-eq (get pattern (- n 1)) `...)
+                          end (if rest? (- n 1) n)
+                          size
+                            (if rest?
+                                `(>= (coil.reader.sexp-count ~node) ~(- end 1))
+                                `(= (coil.reader.sexp-count ~node) ~(- end 1)))]
+                      (let [children (children-test pattern node 1 end)]
+                        `((and ~kind (and ~size ~(get children 0))) ~(get children
+                                                                          1)
+                            ~(get children 2))))))
         :else (do (primitive/error "unknown syntax pattern") `false)))
 
 (defn children-test [(pattern Code) (node Code) (i i64) (end i64)] (-> Code)
@@ -85,4 +92,7 @@
         node (primitive/datum->syntax context "node")]
     (for [i 1 (primitive/code-count forms)]
       (primitive/code-list-push! defs (rule-definition (get forms i) node)))
-    `(do (import "coil.reader" :use *) ~@(primitive/code-list-done defs))))
+    `(do
+       (import "coil.reader" :use *)
+       (import "coil.str" :use *)
+       ~@(primitive/code-list-done defs))))
