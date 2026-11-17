@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SPEC = ROOT / 'languages/schema.schema'
 OUTPUT = ROOT / 'seed/generated/schema_forms.coil'
 LANGUAGE_ARTIFACTS = [(SPEC, OUTPUT, 'rewrite.schemaforms'),
+            (ROOT/'languages/type_syntax.schema', ROOT/'seed/generated/type_syntax.coil', 'rewrite.typesyntax'),
             (ROOT/'languages/admission.protocol', ROOT/'seed/generated/admission_protocol.coil', 'rewrite.admissionprotocol'),
             (ROOT/'languages/derive.schema', ROOT/'seed/generated/derive_forms.coil', 'rewrite.deriveforms'),
             (ROOT/'languages/derive_registration.protocol', ROOT/'seed/generated/derive_protocol.coil', 'rewrite.deriveprotocol'),

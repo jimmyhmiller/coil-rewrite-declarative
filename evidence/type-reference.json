@@ -1,0 +1,692 @@
+{
+  "scope": "Real installed parse-program through dump-ast, type in a struct field; one installed executable/profile. Written grammar replay covers acceptance only, not canonical type AST, hygiene, source-site effects or exact diagnostics.",
+  "compiler_version": "coil 0.1.0 (commit dcbbfee64333, 2026-11-17)",
+  "compiler_sha256": "a0e3f4c481945e8c29607cf022283ece170299f795c79b9487af75a931a55869",
+  "reference_revision": "dcbbfee643335a2854d7b5aa0bd066f9d1a0112d",
+  "source_sha256": {
+    "src/compiler/driver.coil": "9b21009909cfe97b60d58918bd7df9558fb0fb8635fdc8e837ab85d73252e365",
+    "src/compiler/frontend/parser.coil": "daa9424368ca143d6497b3afe9e462b192c23d1a360dcbf77ed03fb6e9f75d4a",
+    "src/compiler/frontend/astdump.coil": "472456d5594b118f90885c6a71d4e36f1dbeb357debf002dbaa03b391d788ad0"
+  },
+  "capture_script_sha256": "1be4a9334ac87f036a7d0720969fb6c131b1aa6749dc5df8689832abf3bd05b4",
+  "cases": [
+    {
+      "type": "i64",
+      "source": "(defstruct TypeProbe [(value i64)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (int 64 1))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "i1",
+      "source": "(defstruct TypeProbe [(value i1)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (int 1 1))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "i65535",
+      "source": "(defstruct TypeProbe [(value i65535)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (int 65535 1))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "i65536",
+      "source": "(defstruct TypeProbe [(value i65536)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (primitive/struct? \"i65536\"))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "u0",
+      "source": "(defstruct TypeProbe [(value u0)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (primitive/struct? \"u0\"))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "i999999999999999999999999",
+      "source": "(defstruct TypeProbe [(value i999999999999999999999999)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (primitive/struct? \"i999999999999999999999999\"))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "f32",
+      "source": "(defstruct TypeProbe [(value f32)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (float 32))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "f64",
+      "source": "(defstruct TypeProbe [(value f64)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (float 64))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "bool",
+      "source": "(defstruct TypeProbe [(value bool)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" bool)]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "void",
+      "source": "(defstruct TypeProbe [(value void)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" void)]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "never",
+      "source": "(defstruct TypeProbe [(value never)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" never)]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "externref",
+      "source": "(defstruct TypeProbe [(value externref)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" externref)]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "usize",
+      "source": "(defstruct TypeProbe [(value usize)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (int 64 0))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "isize",
+      "source": "(defstruct TypeProbe [(value isize)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (int 64 1))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "Code",
+      "source": "(defstruct TypeProbe [(value Code)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" code)]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "CodeBuilder",
+      "source": "(defstruct TypeProbe [(value CodeBuilder)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" codebuilder)]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "T",
+      "source": "(defstruct TypeProbe [(value T)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (primitive/struct? \"T\"))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "T...",
+      "source": "(defstruct TypeProbe [(value T...)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (app \"$pack-var\" [(primitive/struct? \"T...\")]))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "lib.T",
+      "source": "(defstruct TypeProbe [(value lib.T)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (primitive/struct? \"lib.T\"))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "alias/T",
+      "source": "(defstruct TypeProbe [(value alias/T)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (primitive/struct? \"alias/T\"))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "λ",
+      "source": "(defstruct TypeProbe [(value λ)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (primitive/struct? \"\\xce\\xbb\"))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "true",
+      "source": "(defstruct TypeProbe [(value true)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (const true))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "false",
+      "source": "(defstruct TypeProbe [(value false)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (const false))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "0",
+      "source": "(defstruct TypeProbe [(value 0)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (const 0))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "-1",
+      "source": "(defstruct TypeProbe [(value -1)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (const -1))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": ":meters",
+      "source": "(defstruct TypeProbe [(value :meters)])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (const :meters))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "\"bad\"",
+      "source": "(defstruct TypeProbe [(value \"bad\")])\n",
+      "exit_code": 1,
+      "output": "(error@0:29:34:0 \"unsupported type: \\\"bad\\\"\")"
+    },
+    {
+      "type": "[]",
+      "source": "(defstruct TypeProbe [(value [])])\n",
+      "exit_code": 1,
+      "output": "(error@0:29:31:0 \"unsupported type: []\")"
+    },
+    {
+      "type": "()",
+      "source": "(defstruct TypeProbe [(value ())])\n",
+      "exit_code": 1,
+      "output": "(error@0:29:31:0 \"empty list\")"
+    },
+    {
+      "type": "(1 i64)",
+      "source": "(defstruct TypeProbe [(value (1 i64))])\n",
+      "exit_code": 1,
+      "output": "(error@0:30:31:0 \"expected a symbol head, got 1\")"
+    },
+    {
+      "type": "(const)",
+      "source": "(defstruct TypeProbe [(value (const))])\n",
+      "exit_code": 1,
+      "output": "(error@0:29:36:0 \"constant generic argument expects (const VALUE) with an integer, true, false, a keyword or a constant's name\")"
+    },
+    {
+      "type": "(const i64)",
+      "source": "(defstruct TypeProbe [(value (const i64))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (const i64))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(const i64 3)",
+      "source": "(defstruct TypeProbe [(value (const i64 3))])\n",
+      "exit_code": 1,
+      "output": "(error@0:29:42:0 \"constant generic argument expects (const VALUE) with an integer, true, false, a keyword or a constant's name\")"
+    },
+    {
+      "type": "(const i64 3 \"ignored\")",
+      "source": "(defstruct TypeProbe [(value (const i64 3 \"ignored\"))])\n",
+      "exit_code": 1,
+      "output": "(error@0:29:52:0 \"constant generic argument expects (const VALUE) with an integer, true, false, a keyword or a constant's name\")"
+    },
+    {
+      "type": "(mask)",
+      "source": "(defstruct TypeProbe [(value (mask))])\n",
+      "exit_code": 1,
+      "output": "(error@0:29:35:0 \"mask type: missing lane count\")"
+    },
+    {
+      "type": "(mask i64)",
+      "source": "(defstruct TypeProbe [(value (mask i64))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (vec bool i64))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(mask i64 3)",
+      "source": "(defstruct TypeProbe [(value (mask i64 3))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (vec bool i64))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(mask i64 3 \"ignored\")",
+      "source": "(defstruct TypeProbe [(value (mask i64 3 \"ignored\"))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (vec bool i64))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(mut)",
+      "source": "(defstruct TypeProbe [(value (mut))])\n",
+      "exit_code": 1,
+      "output": "(error@0:29:34:0 \"mut: expects (mut TYPE)\")"
+    },
+    {
+      "type": "(mut i64)",
+      "source": "(defstruct TypeProbe [(value (mut i64))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (ref 1 (int 64 1)))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(mut i64 3)",
+      "source": "(defstruct TypeProbe [(value (mut i64 3))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (ref 1 (int 64 1)))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(mut i64 3 \"ignored\")",
+      "source": "(defstruct TypeProbe [(value (mut i64 3 \"ignored\"))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (ref 1 (int 64 1)))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(ref)",
+      "source": "(defstruct TypeProbe [(value (ref))])\n",
+      "exit_code": 1,
+      "output": "(error@0:29:34:0 \"ref: expects (ref TYPE)\")"
+    },
+    {
+      "type": "(ref i64)",
+      "source": "(defstruct TypeProbe [(value (ref i64))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (ref 0 (int 64 1)))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(ref i64 3)",
+      "source": "(defstruct TypeProbe [(value (ref i64 3))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (ref 0 (int 64 1)))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(ref i64 3 \"ignored\")",
+      "source": "(defstruct TypeProbe [(value (ref i64 3 \"ignored\"))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (ref 0 (int 64 1)))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(ptr)",
+      "source": "(defstruct TypeProbe [(value (ptr))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (ptr (int 64 1)))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(ptr i64)",
+      "source": "(defstruct TypeProbe [(value (ptr i64))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (ptr (int 64 1)))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(ptr i64 3)",
+      "source": "(defstruct TypeProbe [(value (ptr i64 3))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (ptr (int 64 1)))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(ptr i64 3 \"ignored\")",
+      "source": "(defstruct TypeProbe [(value (ptr i64 3 \"ignored\"))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (ptr (int 64 1)))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(array)",
+      "source": "(defstruct TypeProbe [(value (array))])\n",
+      "exit_code": 1,
+      "output": "(error@0:29:36:0 \"array type: missing element type\")"
+    },
+    {
+      "type": "(array i64)",
+      "source": "(defstruct TypeProbe [(value (array i64))])\n",
+      "exit_code": 1,
+      "output": "(error@0:29:40:0 \"array type: missing length; write (array T N) with N a non-negative integer, an integer constant or an integer value parameter\")"
+    },
+    {
+      "type": "(array i64 3)",
+      "source": "(defstruct TypeProbe [(value (array i64 3))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (array (int 64 1) 3))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(array i64 3 \"ignored\")",
+      "source": "(defstruct TypeProbe [(value (array i64 3 \"ignored\"))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (array (int 64 1) 3))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(slice)",
+      "source": "(defstruct TypeProbe [(value (slice))])\n",
+      "exit_code": 1,
+      "output": "(error@0:29:36:0 \"slice type: missing element type\")"
+    },
+    {
+      "type": "(slice i64)",
+      "source": "(defstruct TypeProbe [(value (slice i64))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (slice (int 64 1)))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(slice i64 3)",
+      "source": "(defstruct TypeProbe [(value (slice i64 3))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (slice (int 64 1)))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(slice i64 3 \"ignored\")",
+      "source": "(defstruct TypeProbe [(value (slice i64 3 \"ignored\"))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (slice (int 64 1)))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(vec)",
+      "source": "(defstruct TypeProbe [(value (vec))])\n",
+      "exit_code": 1,
+      "output": "(error@0:29:34:0 \"vec type: missing element type\")"
+    },
+    {
+      "type": "(vec i64)",
+      "source": "(defstruct TypeProbe [(value (vec i64))])\n",
+      "exit_code": 1,
+      "output": "(error@0:29:38:0 \"vec type: missing lane count\")"
+    },
+    {
+      "type": "(vec i64 3)",
+      "source": "(defstruct TypeProbe [(value (vec i64 3))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (vec (int 64 1) 3))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(vec i64 3 \"ignored\")",
+      "source": "(defstruct TypeProbe [(value (vec i64 3 \"ignored\"))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (vec (int 64 1) 3))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(struct)",
+      "source": "(defstruct TypeProbe [(value (struct))])\n",
+      "exit_code": 1,
+      "output": "(error@0:29:37:0 \"struct type: missing name\")"
+    },
+    {
+      "type": "(struct i64)",
+      "source": "(defstruct TypeProbe [(value (struct i64))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (primitive/struct? \"i64\"))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(struct i64 3)",
+      "source": "(defstruct TypeProbe [(value (struct i64 3))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (primitive/struct? \"i64\"))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(struct i64 3 \"ignored\")",
+      "source": "(defstruct TypeProbe [(value (struct i64 3 \"ignored\"))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (primitive/struct? \"i64\"))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(dyn)",
+      "source": "(defstruct TypeProbe [(value (dyn))])\n",
+      "exit_code": 1,
+      "output": "(error@0:29:34:0 \"dyn type: expected (dyn Trait)\")"
+    },
+    {
+      "type": "(dyn i64)",
+      "source": "(defstruct TypeProbe [(value (dyn i64))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (primitive/struct? \"i64-dyn\"))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(dyn i64 3)",
+      "source": "(defstruct TypeProbe [(value (dyn i64 3))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (primitive/struct? \"i64-dyn\"))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(dyn i64 3 \"ignored\")",
+      "source": "(defstruct TypeProbe [(value (dyn i64 3 \"ignored\"))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (primitive/struct? \"i64-dyn\"))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(fnptr)",
+      "source": "(defstruct TypeProbe [(value (fnptr))])\n",
+      "exit_code": 1,
+      "output": "(error@0:29:36:0 \"fnptr type: missing convention\")"
+    },
+    {
+      "type": "(fnptr i64)",
+      "source": "(defstruct TypeProbe [(value (fnptr i64))])\n",
+      "exit_code": 1,
+      "output": "(error@0:29:40:0 \"fnptr type: expected a vector of parameter types\")"
+    },
+    {
+      "type": "(fnptr i64 3)",
+      "source": "(defstruct TypeProbe [(value (fnptr i64 3))])\n",
+      "exit_code": 1,
+      "output": "(error@0:29:42:0 \"fnptr type: expected a vector of parameter types\")"
+    },
+    {
+      "type": "(fnptr i64 3 \"ignored\")",
+      "source": "(defstruct TypeProbe [(value (fnptr i64 3 \"ignored\"))])\n",
+      "exit_code": 1,
+      "output": "(error@0:29:52:0 \"fnptr type: expected a vector of parameter types\")"
+    },
+    {
+      "type": "(Box)",
+      "source": "(defstruct TypeProbe [(value (Box))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (app \"Box\" []))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(Box i64)",
+      "source": "(defstruct TypeProbe [(value (Box i64))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (app \"Box\" [(int 64 1)]))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(Box i64 3)",
+      "source": "(defstruct TypeProbe [(value (Box i64 3))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (app \"Box\" [(int 64 1) (const 3)]))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(Box i64 3 \"ignored\")",
+      "source": "(defstruct TypeProbe [(value (Box i64 3 \"ignored\"))])\n",
+      "exit_code": 1,
+      "output": "(error@0:40:49:0 \"unsupported type: \\\"ignored\\\"\")"
+    },
+    {
+      "type": "(const true)",
+      "source": "(defstruct TypeProbe [(value (const true))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (const true))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(const false)",
+      "source": "(defstruct TypeProbe [(value (const false))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (const false))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(const :m)",
+      "source": "(defstruct TypeProbe [(value (const :m))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (const :m))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(const 42)",
+      "source": "(defstruct TypeProbe [(value (const 42))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (const 42))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(const N)",
+      "source": "(defstruct TypeProbe [(value (const N))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (const N))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(const [])",
+      "source": "(defstruct TypeProbe [(value (const []))])\n",
+      "exit_code": 1,
+      "output": "(error@0:29:39:0 \"constant generic argument expects (const VALUE) with an integer, true, false, a keyword or a constant's name\")"
+    },
+    {
+      "type": "(const 1 2)",
+      "source": "(defstruct TypeProbe [(value (const 1 2))])\n",
+      "exit_code": 1,
+      "output": "(error@0:29:40:0 \"constant generic argument expects (const VALUE) with an integer, true, false, a keyword or a constant's name\")"
+    },
+    {
+      "type": "(mask 0)",
+      "source": "(defstruct TypeProbe [(value (mask 0))])\n",
+      "exit_code": 1,
+      "output": "(error@0:29:37:0 \"mask type requires a positive width or generic parameter\")"
+    },
+    {
+      "type": "(mask 1)",
+      "source": "(defstruct TypeProbe [(value (mask 1))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (vec bool 1))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(mask -1)",
+      "source": "(defstruct TypeProbe [(value (mask -1))])\n",
+      "exit_code": 1,
+      "output": "(error@0:29:38:0 \"mask type requires a positive width or generic parameter\")"
+    },
+    {
+      "type": "(mask W)",
+      "source": "(defstruct TypeProbe [(value (mask W))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (vec bool W))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(mask 8 \"ignored\")",
+      "source": "(defstruct TypeProbe [(value (mask 8 \"ignored\"))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (vec bool 8))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(array i64 0)",
+      "source": "(defstruct TypeProbe [(value (array i64 0))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (array (int 64 1) 0))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(array i64 -1)",
+      "source": "(defstruct TypeProbe [(value (array i64 -1))])\n",
+      "exit_code": 1,
+      "output": "(error@0:29:43:0 \"array type: a length cannot be negative\")"
+    },
+    {
+      "type": "(array i64 N)",
+      "source": "(defstruct TypeProbe [(value (array i64 N))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (array (int 64 1) N))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(array [] 1)",
+      "source": "(defstruct TypeProbe [(value (array [] 1))])\n",
+      "exit_code": 1,
+      "output": "(error@0:36:38:0 \"unsupported type: []\")"
+    },
+    {
+      "type": "(vec i32 0)",
+      "source": "(defstruct TypeProbe [(value (vec i32 0))])\n",
+      "exit_code": 1,
+      "output": "(error@0:29:40:0 \"vec type: expected a positive lane count or generic width parameter\")"
+    },
+    {
+      "type": "(vec i32 -1)",
+      "source": "(defstruct TypeProbe [(value (vec i32 -1))])\n",
+      "exit_code": 1,
+      "output": "(error@0:29:41:0 \"vec type: expected a positive lane count or generic width parameter\")"
+    },
+    {
+      "type": "(vec i32 W)",
+      "source": "(defstruct TypeProbe [(value (vec i32 W))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (vec (int 32 1) W))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(vec i32 :width)",
+      "source": "(defstruct TypeProbe [(value (vec i32 :width))])\n",
+      "exit_code": 1,
+      "output": "(error@0:29:45:0 \"vec type: expected a positive lane count or generic width parameter\")"
+    },
+    {
+      "type": "(ptr i64 \"ignored\")",
+      "source": "(defstruct TypeProbe [(value (ptr i64 \"ignored\"))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (ptr (int 64 1)))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(ptr [] i64)",
+      "source": "(defstruct TypeProbe [(value (ptr [] i64))])\n",
+      "exit_code": 1,
+      "output": "(error@0:34:36:0 \"unsupported type: []\")"
+    },
+    {
+      "type": "(ref i64 \"ignored\")",
+      "source": "(defstruct TypeProbe [(value (ref i64 \"ignored\"))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (ref 0 (int 64 1)))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(slice i64 [])",
+      "source": "(defstruct TypeProbe [(value (slice i64 []))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (slice (int 64 1)))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(dyn Show [])",
+      "source": "(defstruct TypeProbe [(value (dyn Show []))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (primitive/struct? \"Show-dyn\"))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(struct Foo [])",
+      "source": "(defstruct TypeProbe [(value (struct Foo []))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (primitive/struct? \"Foo\"))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(fnptr cc [] void)",
+      "source": "(defstruct TypeProbe [(value (fnptr cc [] void))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (fn \"cc\" [] void))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(fnptr (cc/C) [i64 (ptr)] i64)",
+      "source": "(defstruct TypeProbe [(value (fnptr (cc/C) [i64 (ptr)] i64))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (fn \"(cc/C)\" [(int 64 1) (ptr (int 64 1))] (int 64 1)))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(fnptr (cc/C) [] void \"ignored\")",
+      "source": "(defstruct TypeProbe [(value (fnptr (cc/C) [] void \"ignored\"))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (fn \"(cc/C)\" [] void))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(fnptr (cc/C bad) [] void)",
+      "source": "(defstruct TypeProbe [(value (fnptr (cc/C bad) [] void))])\n",
+      "exit_code": 1,
+      "output": "(error@0:36:46:0 \"fnptr type: a calling convention is a coil.cc.NativeCc value, such as (cc/C), or the name of a defcc\")"
+    },
+    {
+      "type": "(fnptr [] [] void)",
+      "source": "(defstruct TypeProbe [(value (fnptr [] [] void))])\n",
+      "exit_code": 1,
+      "output": "(error@0:36:38:0 \"fnptr type: a calling convention is a coil.cc.NativeCc value, such as (cc/C), or the name of a defcc\")"
+    },
+    {
+      "type": "(fnptr cc () void)",
+      "source": "(defstruct TypeProbe [(value (fnptr cc () void))])\n",
+      "exit_code": 1,
+      "output": "(error@0:29:47:0 \"fnptr type: expected a vector of parameter types\")"
+    },
+    {
+      "type": "(fnptr cc [] [])",
+      "source": "(defstruct TypeProbe [(value (fnptr cc [] []))])\n",
+      "exit_code": 1,
+      "output": "(error@0:42:44:0 \"unsupported type: []\")"
+    },
+    {
+      "type": "(Box (array (ptr T) N) (const :meters))",
+      "source": "(defstruct TypeProbe [(value (Box (array (ptr T) N) (const :meters)))])\n",
+      "exit_code": 0,
+      "output": "(conventions (cc \"coil.cc.C\" [] (none) [] [] (native c)) (cc \"coil.cc.Cold\" [] (none) [] [] (native cold)) (cc \"coil.cc.Fast\" [] (none) [] [] (native fast)) (cc \"coil.cc.SwiftTail\" [] (none) [] [] (native swifttail)) (cc \"coil.cc.Tail\" [] (none) [] [] (native tail)))\n(annotation-defs)\n(structs (primitive/struct? \"TypeProbe\" [] (c) [(fld \"value\" (app \"Box\" [(array (ptr (primitive/struct? \"T\")) N) (const :meters)]))]))\n(sums)\n(externs)\n(funcs)\n(asserts)\n(consts)\n(traits)\n(impls)\n(statics)\n(exports)"
+    },
+    {
+      "type": "(Box [])",
+      "source": "(defstruct TypeProbe [(value (Box []))])\n",
+      "exit_code": 1,
+      "output": "(error@0:34:36:0 \"unsupported type: []\")"
+    }
+  ]
+}

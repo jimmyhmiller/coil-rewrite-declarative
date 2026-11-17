@@ -10,7 +10,23 @@
 (import "coil.str" :use *)
 
 (defstruct Capture
-  [(field i64) (mode (slice u8)) (path (slice u8)) (start i64)])
+  [(field i64) (mode (slice u8)) (path (slice u8)) (start i64) (limit i64)])
+
+;;; Count only selected children; ignored tails are never recursively parsed.
+(defn capture-count! [(b (mut StrBuf)) (capture Capture)] (-> void)
+  (push-str! (mut b) "(let [available (- (sexp-count ")
+  (push-str! (mut b) (.path capture))
+  (push-str! (mut b) ") ")
+  (number! (mut b) (.start capture))
+  (push-str! (mut b) ")] ")
+  (if (>= (.limit capture) 0)
+      (do
+        (push-str! (mut b) "(if (< available ")
+        (number! (mut b) (.limit capture))
+        (push-str! (mut b) ") available ")
+        (number! (mut b) (.limit capture))
+        (push-str! (mut b) "))"))
+      (push-str! (mut b) "available)")))
 
 (defn predicate! [(b (mut StrBuf)) (mode (slice u8)) (path (slice u8))]
   (-> void)
@@ -70,13 +86,18 @@
                  (sexp-sym? (sexp-nth pattern 0)))
       (break :done (Err (problem pattern "expected a syntax pattern"))))
     (let [mode (sexp-sym (sexp-nth pattern 0))]
+      (when (= mode "skip-rest")
+        (unless (= (sexp-count pattern) 1)
+          (break :done (Err (problem pattern "skip-rest takes no arguments"))))
+        (break :done (Ok 0)))
       (if (or (= mode "list") (= mode "vector"))
           (let [last (sexp-nth pattern (- (sexp-count pattern) 1))
                 rest?
                   (and (> (sexp-count pattern) 1)
                        (sexp-list? last)
                        (> (sexp-count last) 0)
-                       (sexp-sym-is (sexp-nth last 0) "rest"))]
+                       (or (sexp-sym-is (sexp-nth last 0) "rest")
+                           (sexp-sym-is (sexp-nth last 0) "skip-rest")))]
             (push-str! (mut b) "(unless ")
             (predicate! (mut b) mode path)
             (guard-end! (mut b) path "wrong syntax container")
@@ -95,7 +116,8 @@
                     child-rest?
                       (and (sexp-list? child-form)
                            (> (sexp-count child-form) 0)
-                           (sexp-sym-is (sexp-nth child-form 0) "rest"))]
+                           (or (sexp-sym-is (sexp-nth child-form 0) "rest")
+                               (sexp-sym-is (sexp-nth child-form 0) "skip-rest")))]
                 (when (and child-rest? (!= i (- (sexp-count pattern) 1)))
                   (break
                     :done
@@ -117,7 +139,18 @@
                   (Ok [_]))))
             (Ok 0))
           (do
-            (unless (and (= (sexp-count pattern) 2)
+            (unless (and (or (= (sexp-count pattern) 2)
+                             (and (= (sexp-count pattern) 4)
+                                  (sexp-kw? (sexp-nth pattern 2))
+                                  (sexp-int? (sexp-nth pattern 3))
+                                  (or (and (= mode "rest")
+                                           (= (sexp-kw (sexp-nth pattern 2))
+                                              "limit")
+                                           (>= (sexp-int (sexp-nth pattern 3))
+                                               0))
+                                      (and (= mode "int")
+                                           (= (sexp-kw (sexp-nth pattern 2))
+                                              "min")))))
                          (sexp-sym? (sexp-nth pattern 1))
                          (or (= mode "float-bits")
                              (= mode "cstring")
@@ -163,12 +196,23 @@
                 (push-str! (mut b) "(unless ")
                 (predicate! (mut b) mode path)
                 (guard-end! (mut b) path "wrong syntax scalar"))
+              (when (and (= mode "int") (= (sexp-count pattern) 4))
+                (push-str! (mut b) "(unless (>= (sexp-int ")
+                (push-str! (mut b) path)
+                (push-str! (mut b) ") ")
+                (number! (mut b) (sexp-int (sexp-nth pattern 3)))
+                (push-str! (mut b) ")")
+                (guard-end! (mut b) path "integer below syntax minimum"))
               (push! (mut captures)
                      (Capture
                        :field field
                        :mode mode
                        :path path
-                       :start start))
+                       :start start
+                       :limit
+                         (if (= (sexp-count pattern) 4)
+                             (sexp-int (sexp-nth pattern 3))
+                             (- 0 1))))
               (Ok 0)))))))
 
 ;;; A literal list head commits to its rule, including malformed arity diagnostics.
@@ -312,6 +356,10 @@
                     (push-str! (mut views) (.path capture))
                     (push-str! (mut views) " :start ")
                     (number! (mut views) (.start capture))
+                    (push-str! (mut views) " :count ")
+                    (if (= (.mode capture) "rest")
+                        (capture-count! (mut views) capture)
+                        (push-str! (mut views) "1"))
                     (push-str! (mut views)
                                (if (= (.mode capture) "rest")
                                    " :rest? true)) "
@@ -355,8 +403,10 @@
                           (push-str! (mut b)
                                      "Id] (.allocator (.source-data store)))] (defer (free! (mut children))) (for [child-index ")
                           (number! (mut b) (.start capture))
-                          (push-str! (mut b) " (sexp-count ")
-                          (push-str! (mut b) path)
+                          (push-str! (mut b) " (+ ")
+                          (number! (mut b) (.start capture))
+                          (push-str! (mut b) " ")
+                          (capture-count! (mut b) (load capture))
                           (push-str! (mut b) ")] (push! (mut children) "))
                         (push-str! (mut b) "(match (surface-")
                         (number! (mut b) target)

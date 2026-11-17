@@ -3,19 +3,19 @@
   "caveats": "Physical lines include comments and blanks. Templates count as authored source. This is not a code-only LOC count or a complete toolchain reduction claim. Host Coil/stdlib bootstrap dependencies are not vendored or included. General seed output is ephemeral; the checked-in generated language parser and retained generated backend are separate.",
   "totals": {
     "authored-language-specifications": {
-      "files": 15,
-      "bytes": 9362,
-      "physical_lines": 249
+      "files": 16,
+      "bytes": 11832,
+      "physical_lines": 312
     },
     "authored-seed-and-runtime": {
       "files": 55,
-      "bytes": 589572,
-      "physical_lines": 10765
+      "bytes": 594828,
+      "physical_lines": 10825
     },
     "generated-language-toolchain": {
-      "files": 15,
-      "bytes": 243545,
-      "physical_lines": 777
+      "files": 16,
+      "bytes": 298755,
+      "physical_lines": 870
     },
     "retained-authored-machinery-and-specifications": {
       "files": 161,
@@ -38,14 +38,14 @@
       "physical_lines": 2869
     },
     "rewrite-build-and-validation-tools": {
-      "files": 36,
-      "bytes": 237235,
-      "physical_lines": 3739
+      "files": 39,
+      "bytes": 249221,
+      "physical_lines": 3902
     },
     "rewrite-tests-and-fixtures": {
-      "files": 68,
-      "bytes": 324813,
-      "physical_lines": 6786
+      "files": 69,
+      "bytes": 330877,
+      "physical_lines": 6899
     }
   },
   "files": [
@@ -155,6 +155,13 @@
       "physical_lines": 11
     },
     {
+      "path": "languages/type_syntax.schema",
+      "category": "authored-language-specifications",
+      "sha256": "da3b45f4e9c16c73ed7a4da64ac7e0100708b9fb7a5ac260d4c15700dc4f96e5",
+      "bytes": 2470,
+      "physical_lines": 63
+    },
+    {
       "path": "runtime/native.coil",
       "category": "authored-seed-and-runtime",
       "sha256": "69f52824aef907ea66c51a3425a419841bf57e97743866c41089d6a8d70bf4a0",
@@ -164,9 +171,9 @@
     {
       "path": "seed/README.md",
       "category": "authored-seed-and-runtime",
-      "sha256": "760b0cc393e9a0a9402e5aecd861e973bbfe999ed5af3c6a28233b316f1dd344",
-      "bytes": 131411,
-      "physical_lines": 747
+      "sha256": "995619cf31c3a0e7d4e7d8fff7d6f21d2e6f636f3808336ef33b512bc6ca7e6e",
+      "bytes": 134046,
+      "physical_lines": 757
     },
     {
       "path": "seed/admission.coil",
@@ -269,15 +276,15 @@
     {
       "path": "seed/generated/code_forms.coil",
       "category": "generated-language-toolchain",
-      "sha256": "71ab0e12c534965c25e36de08282da54a46021e252b724b5b299878172c1e9fc",
-      "bytes": 77993,
+      "sha256": "1290d03cdbd35920a74b3d3b7de8db2b608ecd639bd223622344acff404dd514",
+      "bytes": 78824,
       "physical_lines": 174
     },
     {
       "path": "seed/generated/derive_forms.coil",
       "category": "generated-language-toolchain",
-      "sha256": "c643bfd0eaaa76dd477767e275c5bcef24a410862f1b0fd04b3656c3a2df026a",
-      "bytes": 6083,
+      "sha256": "dba980b33fcf2f472b595673a4f8d6f3f9fb153f699e93a44ca4928771f2d7fa",
+      "bytes": 6095,
       "physical_lines": 43
     },
     {
@@ -304,22 +311,22 @@
     {
       "path": "seed/generated/name_forms.coil",
       "category": "generated-language-toolchain",
-      "sha256": "eac976d9bfd51328ab51804f38952ba3f0119367541ebc188b3329bec3ecfe20",
-      "bytes": 47112,
+      "sha256": "81427ba48b8f25a18a505c31c01047f727df8243ebcfae7acabd52aaff38b617",
+      "bytes": 47124,
       "physical_lines": 192
     },
     {
       "path": "seed/generated/pair_forms.coil",
       "category": "generated-language-toolchain",
-      "sha256": "a6a8be47b3aa2f667337677a06cbcd968b637d8bc84f699fbbf660a545a086b8",
-      "bytes": 12889,
+      "sha256": "d10d61e000d64bbf123dd0bd95f6c76d60b13c79721f95c7abce1c61fde88c02",
+      "bytes": 12946,
       "physical_lines": 45
     },
     {
       "path": "seed/generated/protocol_forms.coil",
       "category": "generated-language-toolchain",
-      "sha256": "df9e7ac21cacee998f55bcf2f7c784565d260efbf966a738bbfcf56b9473ba44",
-      "bytes": 31170,
+      "sha256": "5fe6bd0009a00f71872c87e163af5d2141d3d2e5de00938b1e64733b7318baf8",
+      "bytes": 31506,
       "physical_lines": 75
     },
     {
@@ -339,15 +346,15 @@
     {
       "path": "seed/generated/schema_forms.coil",
       "category": "generated-language-toolchain",
-      "sha256": "c412311c65dd22fb8d36568e3aa142c0f3ac3d95464f55f11ec1e9c4beae8f1d",
-      "bytes": 30332,
+      "sha256": "60a0e8012e8bb39f13d59fc726576af9b55e84e89b2869ac7f83e105528f20c7",
+      "bytes": 30812,
       "physical_lines": 102
     },
     {
       "path": "seed/generated/search_forms.coil",
       "category": "generated-language-toolchain",
-      "sha256": "68c37d4172b78c83acc99795b9bf16930f06fac992edf04783a7b904f4eda2ab",
-      "bytes": 17493,
+      "sha256": "6a50d8dcc2fd5cf36552ea6b325676e4dd0bfbb50862657545a34d80d99d22fa",
+      "bytes": 17649,
       "physical_lines": 57
     },
     {
@@ -356,6 +363,13 @@
       "sha256": "ca788092370b54bd3eb92a85bf82138945fbc0f0a23a429c488871e7ccdc431a",
       "bytes": 2663,
       "physical_lines": 11
+    },
+    {
+      "path": "seed/generated/type_syntax.coil",
+      "category": "generated-language-toolchain",
+      "sha256": "edd38ec45da39be0c71dfa87cbfcd4125c36f5d1a14b3e86b4a113c0ac310ac2",
+      "bytes": 53326,
+      "physical_lines": 93
     },
     {
       "path": "seed/index.coil",
@@ -451,8 +465,8 @@
     {
       "path": "seed/readers.coil",
       "category": "authored-seed-and-runtime",
-      "sha256": "e9964cb35c00368d102280a1e3a1ccdcbf78ca119c87b4af9c4e691c4272bb29",
-      "bytes": 11141,
+      "sha256": "ea4ec6a88a23c909d8b29e61516c582786dbf725ab2055800a0b02b6d8f96900",
+      "bytes": 11153,
       "physical_lines": 206
     },
     {
@@ -605,9 +619,9 @@
     {
       "path": "seed/syntax.coil",
       "category": "authored-seed-and-runtime",
-      "sha256": "0910ee021d5b5a4cd43c724fb1586198fe21d6c209b91efb563973c0a488c4bd",
-      "bytes": 20291,
-      "physical_lines": 431
+      "sha256": "3e7b016a515f11790e0015185fa0531175b2985d6369ad6e6958e5dad0c41d59",
+      "bytes": 22900,
+      "physical_lines": 481
     },
     {
       "path": "seed/syntax_reader.coil",
@@ -1100,6 +1114,13 @@
       "physical_lines": 109
     },
     {
+      "path": "tests/type-syntax.coil",
+      "category": "rewrite-tests-and-fixtures",
+      "sha256": "627d3c26dc050e1394a9e5104169ce20733f16104d69cb51e7554a6f1520c22f",
+      "bytes": 6064,
+      "physical_lines": 113
+    },
+    {
       "path": "tests/types.coil",
       "category": "rewrite-tests-and-fixtures",
       "sha256": "cd4b2daf0ba9014e66522048ff11c66226c3d78dc82ce76e2b9e1ec81cad12ab",
@@ -1182,6 +1203,13 @@
       "sha256": "47e205fe314150272199d8300f6986fc53b9222a1e4d25edfc9dacb24aeaf874",
       "bytes": 5491,
       "physical_lines": 87
+    },
+    {
+      "path": "tools/capture-type-reference.py",
+      "category": "rewrite-build-and-validation-tools",
+      "sha256": "1be4a9334ac87f036a7d0720969fb6c131b1aa6749dc5df8689832abf3bd05b4",
+      "bytes": 3601,
+      "physical_lines": 48
     },
     {
       "path": "tools/capture-use-reference.py",
@@ -1284,9 +1312,9 @@
     {
       "path": "tools/check-seed.py",
       "category": "rewrite-build-and-validation-tools",
-      "sha256": "7bde35dc151f6f02dd14e8bef83140684a274e700e91b9599167584b2ec4e625",
-      "bytes": 30100,
-      "physical_lines": 442
+      "sha256": "213891793dcb610e3e1053a41ad531fc373bedbfd570080e766d55d6b88b3439",
+      "bytes": 30353,
+      "physical_lines": 445
     },
     {
       "path": "tools/check-selection.py",
@@ -1294,6 +1322,13 @@
       "sha256": "863b74d7ee2853ec226cace4595f84c99828e5ea585f5f0506a5bed824c11344",
       "bytes": 3715,
       "physical_lines": 58
+    },
+    {
+      "path": "tools/check-syntax-tails.py",
+      "category": "rewrite-build-and-validation-tools",
+      "sha256": "97f1cbbfddf742a1f8694788469c263a0ad24e53b93dde9a049841ec4a3db6af",
+      "bytes": 4773,
+      "physical_lines": 66
     },
     {
       "path": "tools/check-syntax-views.py",
@@ -1308,6 +1343,13 @@
       "sha256": "bf10b260ede9694554beabe8d2ab15148157066aba3fc9bbdc5dc8e8e5d92662",
       "bytes": 4507,
       "physical_lines": 61
+    },
+    {
+      "path": "tools/check-type-syntax.py",
+      "category": "rewrite-build-and-validation-tools",
+      "sha256": "778a08353aefc3dcac2c962387c83909cfe552eab37c5363a48ec04a02423ff6",
+      "bytes": 3246,
+      "physical_lines": 45
     },
     {
       "path": "tools/check-use.py",
@@ -1340,9 +1382,9 @@
     {
       "path": "tools/gen-schema.py",
       "category": "rewrite-build-and-validation-tools",
-      "sha256": "6cea1ce6afa20d76c11351582232ee0d1da18a04ebc98434fe976df183efe5b3",
-      "bytes": 6009,
-      "physical_lines": 97
+      "sha256": "db217876a4848bb97b3fd454a3012b86f855cefb68e3f1e601e5948053271eb1",
+      "bytes": 6122,
+      "physical_lines": 98
     },
     {
       "path": "tools/inventory.py",

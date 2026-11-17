@@ -1,0 +1,24 @@
+{
+  "scope": "Written type grammar acceptance only against real parser capture. Canonical types, hygienic lexical identity, source-site publication and exact diagnostic equivalence remain unimplemented.",
+  "cases": 113,
+  "configurations": [
+    "default",
+    "debug-checks",
+    "release"
+  ],
+  "allocator_leaks": 0,
+  "host_version": "coil 0.1.0 (commit dcbbfee64333, 2026-11-17)",
+  "host_sha256": "a0e3f4c481945e8c29607cf022283ece170299f795c79b9487af75a931a55869",
+  "reference_sha256": "70822c1658b3daebb947db25e72ad9898b56a18c13926e0b5c95d0467b9c6a68",
+  "driver_sha256": "74e1f72e46a136045272bb93faec523f1e134e31810201dae26a89a199b3a7c7",
+  "inputs": {
+    "seed/types.coil": "e398f5cb019e3eea3339700ba5b3685b119421eb30ac5a2045c8835d5d9a6ce9",
+    "seed/scope.coil": "c7be3143d3e955ecd8c05ea3c7ffb4b8b6d9981a223fc5de55507aa89f35e71f",
+    "seed/resolution.coil": "b080dca9f1a7b3848105faf4e2369a3272911fe8ab22a0e23f75e23d112521c6",
+    "seed/source.coil": "090c81a0015f5a4941deb45e3dc8ff582b33cd4da97296cde4e3454979dad640",
+    "seed/sequence.coil": "bdcac1aac27c0ed59c3020705e0583ff28f8b553c115f8e9d4211d7d59976120",
+    "seed/generated/type_syntax.coil": "edd38ec45da39be0c71dfa87cbfcd4125c36f5d1a14b3e86b4a113c0ac310ac2",
+    "tools/check-type-syntax.py": "778a08353aefc3dcac2c962387c83909cfe552eab37c5363a48ec04a02423ff6",
+    "languages/type_syntax.schema": "da3b45f4e9c16c73ed7a4da64ac7e0100708b9fb7a5ac260d4c15700dc4f96e5"
+  }
+}
