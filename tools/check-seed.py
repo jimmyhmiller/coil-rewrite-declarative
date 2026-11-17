@@ -105,9 +105,9 @@ with tempfile.TemporaryDirectory(prefix='rewrite-judgment-') as directory:
         (typing.replace(b'(Fn Int ?body)', b'(Fn Int)'), b'expected (Fn'),
         (typing.replace(b'(Fn ?argument ?result)', b'(Fn ?argument)'), b'expected (Fn'),
         (typing.replace(b'(Fn ?same ?same)', b'(Fn Unknown ?same)'), b'unknown judgment'),
-        (typing.replace(b'(lookup name)', b'(lookup missing)'), b'lookup requires'),
-        (typing.replace(b'(bind name ?value)', b'(bind value ?value)'), b'binding requires'),
-        (typing.replace(b'(bind name ?value)', b'(bind name ?body)'), b'known before'),
+        (typing.replace(b'(reference name)', b'(reference missing)'), b'unknown binding field'),
+        (typing.replace(b'(scope body name)', b'(scope body value)'), b'binding requires'),
+        (typing.replace(b'(with ?value)', b'(with ?body)'), b'known before'),
     ]:
         result = subprocess.run([str(ROOT / 'build/schema-seed')], input=invalid, capture_output=True)
         assert result.returncode != 0 and not result.stdout and diagnostic in result.stderr, result
@@ -280,3 +280,30 @@ for invalid, diagnostic in [
     result = subprocess.run([str(ROOT/'build/schema-seed')], input=invalid, capture_output=True)
     assert result.returncode != 0 and not result.stdout and diagnostic in result.stderr, result
 print('Sequence field and rest-capture contracts passed')
+
+
+binding_source = (ROOT/'tests/schemas/parallel-bindings.schema').read_bytes()
+for invalid, diagnostic in [
+    (b'(node A) (bindings Missing)', b'unknown binding schema'),
+    (b'(node A) (bindings A) (bindings A)', b'duplicate binding declaration'),
+    (binding_source.replace(b'(Read (reference label))', b'(Read (reference label) (reference label))'), b'already has a reference'),
+    (binding_source.replace(b'(Read (reference label))', b'(Unknown (reference label))'), b'unknown binding constructor'),
+    (binding_source.replace(b'(Read (reference label))', b'(Read (reference label)) (Read (reference label))'), b'duplicate constructor binding rule'),
+    (binding_source.replace(b'(Read (reference label))', b'(Read (reference missing))'), b'unknown binding field'),
+    (binding_source.replace(b'(scope body label)', b'(scope label label)'), b'scope child must be a node reference'),
+    (binding_source.replace(b'(scope body label)', b'(scope body value)'), b'scope binding requires a Text field'),
+    (binding_source.replace(b'(scope body label)', b'(scope body label) (scope body label)'), b'duplicate child scope'),
+    (binding_source.replace(b'(scope body left-name right-name)', b'(scope body left-name left-name)'), b'duplicate scope binding field'),
+    (binding_source.replace(b'(reference label)', b'(lookup label)'), b'expected (reference name)'),
+    (binding_source.replace(b'(body ?body (with ?value))', b'(body ?body)'), b'scope payloads must match'),
+    (binding_source.replace(b'(with ?left ?right)', b'(with ?left)'), b'scope payloads must match'),
+    (binding_source.replace(b'(body ?body (with ?left ?right))', b'(left ?body)'), b'check each declared scoped child once'),
+    (binding_source.replace(b'(Read (lookup))', b'(Read Int)'), b'lookup must match the declared reference'),
+    (binding_source.replace(b'(let left right body)', b'(let body right left)'), b'let body must be the declared scoped child'),
+    (binding_source.replace(b'(let left right body)', b'(let left body)'), b'let values must match declared binding names'),
+    (binding_source.replace(b'(Outer (let value body))', b'(Outer (identity body))'), b'consume declared references and scopes'),
+    (binding_source.replace(b'(with ?value)', b'(with ?body)'), b'known before'),
+]:
+    result = subprocess.run([str(ROOT/'build/schema-seed')], input=invalid, capture_output=True)
+    assert result.returncode != 0 and not result.stdout and diagnostic in result.stderr, result
+print('Shared binding declaration and semantic-client contracts passed')

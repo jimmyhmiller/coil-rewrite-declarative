@@ -1,6 +1,7 @@
 ;;; Initial finite typing judgments: exhaustive cases and recursive premises.
 (module rewrite.judgment)
 (import "rewrite.schema" :use *)
+(import "rewrite.binding" :as binding)
 (import "rewrite.emit" :use [number!])
 (import "rewrite.readers" :use [quoted!])
 (import "coil.alloc" :use *)
@@ -183,56 +184,62 @@
         (match-type! (mut b) rule (sexp-nth term 2) premise field)
         (push-str! (mut b) ")))) "))))
 
-(defn text-field [(v (ptr Variant)) (name (ptr Sexp))] (-> i64)
-  (block :found
-    (for [i 0 (len (.fields v))]
-      (let [f (elem (field v fields) i)]
-        (when (and (not (.many? f))
-                   (sexp-sym-is name (.name f))
-                   (= (.type-name f) "Text"))
-          (break :found i))))
-    (- 0 1)))
-
 (defn scope! [(b (mut StrBuf))
-              (v (ptr Variant))
+              (bindings (ptr binding/Bindings))
+              (node i64)
+              (variant i64)
+              (field i64)
               (rule (ptr Sexp))
               (premise (ptr Sexp))
               (p i64)] (-> (Result i64 Diag))
   (block
     :done
-      (if (= (sexp-count premise) 2)
-          (do (push-str! (mut b) "(let [") (Ok 0))
-          (let [binding (sexp-nth premise 2)]
-            (unless (and (sexp-list? binding)
-                         (= (sexp-count binding) 3)
-                         (sexp-sym-is (sexp-nth binding 0) "bind"))
+      (let [names
+              (match (binding/child-scope bindings node variant field)
+                (Some [scope] (.names scope))
+                (None [] (zeroed (ArrayList i64))))
+            count (len names)]
+        (unless (if (= count 0)
+                    (= (sexp-count premise) 2)
+                    (and (= (sexp-count premise) 3)
+                         (sexp-list? (sexp-nth premise 2))
+                         (sexp-sym-is (sexp-nth (sexp-nth premise 2) 0) "with")
+                         (= (sexp-count (sexp-nth premise 2)) (+ count 1))))
+          (break
+            :done
+              (Err (problem premise
+                            "scope payloads must match declared bindings: (with Types...)"))))
+        (push-str! (mut b) "(let [")
+        (for [i 0 count]
+          (let [ty (sexp-nth (sexp-nth premise 2) (+ i 1))]
+            (unless (and (sexp-sym? ty)
+                         (or (scalar? (sexp-sym ty))
+                             (and (variable? (sexp-sym ty))
+                                  (>= (binding-index rule (sexp-sym ty)) 2)
+                                  (< (binding-index rule (sexp-sym ty)) p))))
               (break
-                :done (Err (problem binding "expected (bind name-field Type)"))))
-            (let [name (sexp-nth binding 1)
-                  ty (sexp-nth binding 2)
-                  index (text-field v name)]
-              (when (< index 0)
-                (break
-                  :done (Err (problem name "binding requires a Text field"))))
-              (unless (and (sexp-sym? ty)
-                           (or (scalar? (sexp-sym ty))
-                               (and (variable? (sexp-sym ty))
-                                    (>= (binding-index rule (sexp-sym ty)) 2)
-                                    (< (binding-index rule (sexp-sym ty)) p))))
-                (break
-                  :done
-                    (Err (problem ty
-                                  "binding type must be known before this premise"))))
-              (push-str! (mut b)
-                         "(let [(mut scope) (scope-bind context f")
-              (number! (mut b) index)
-              (push-str! (mut b) " (TypeBinding :type ")
-              (type-expression! (mut b) rule (sexp-sym ty))
-              (push-str! (mut b) " :category \"value\")) ")
-              (Ok 0))))))
+                :done
+                  (Err (problem ty
+                                "binding type must be known before this premise"))))
+            (push-str! (mut b) "(mut scope")
+            (unless (= i (- count 1)) (number! (mut b) i))
+            (push-str! (mut b) ") (scope-bind ")
+            (if (= i 0)
+                (push-str! (mut b) "context")
+                (do
+                  (push-str! (mut b) "(mut scope")
+                  (number! (mut b) (- i 1))
+                  (push-str! (mut b) ")")))
+            (push-str! (mut b) " f")
+            (number! (mut b) (get names i))
+            (push-str! (mut b) " (TypeBinding :type ")
+            (type-expression! (mut b) rule (sexp-sym ty))
+            (push-str! (mut b) " :category \"value\")) ")))
+        (Ok count))))
 
 (defn compile-rule [(b (mut StrBuf))
                     (n (ptr Node))
+                    (bindings (ptr binding/Bindings))
                     (ni i64)
                     (vi i64)
                     (rule (ptr Sexp))] (-> (Result i64 Diag))
@@ -251,8 +258,27 @@
           v (elem (field n variants) vi)
           lookup?
             (and (sexp-list? result)
-                 (= (sexp-count result) 2)
+                 (= (sexp-count result) 1)
                  (sexp-sym-is (sexp-nth result 0) "lookup"))]
+      (unless (= lookup? (>= (binding/reference bindings ni vi) 0))
+        (break
+          :done
+            (Err (problem rule
+                          "judgment lookup must match the declared reference"))))
+      (for scope (.scopes bindings)
+        (when (and (= (.node scope) ni) (= (.variant scope) vi))
+          (let [(mut uses) 0
+                name (.name (elem (field v fields) (.child scope)))]
+            (for [p 2 (sexp-count rule)]
+              (when (and (sexp-list? (sexp-nth rule p))
+                         (> (sexp-count (sexp-nth rule p)) 0)
+                         (sexp-sym-is (sexp-nth (sexp-nth rule p) 0) name))
+                (set! uses (+ uses 1))))
+            (unless (= uses 1)
+              (break
+                :done
+                  (Err (problem rule
+                                "judgment must check each declared scoped child once")))))))
       (when categorized?
         (unless (and (= (sexp-count result-form) 3)
                      (sexp-sym? (sexp-nth result-form 1))
@@ -316,7 +342,7 @@
                       :done
                         (Err (problem field-name
                                       "premise field must reference the judged sum"))))
-                  (match (scope! (mut b) v rule premise p)
+                  (match (scope! (mut b) bindings ni vi f rule premise p)
                     (Err [d] (break :done (Err d)))
                     (Ok [_] 0))
                   (push-str! (mut b) "answer (judge-worker-")
@@ -337,10 +363,7 @@
             (unless found
               (break :done (Err (problem field-name "unknown premise field")))))))
       (if lookup?
-          (let [index (text-field v (sexp-nth result 1))]
-            (when (< index 0)
-              (break
-                :done (Err (problem result "lookup requires a Text field"))))
+          (let [index (binding/reference bindings ni vi)]
             (push-str! (mut b) "(context-lookup context f")
             (number! (mut b) index)
             (push-str! (mut b) " (.index id))"))
@@ -354,7 +377,10 @@
       (push-str! (mut b) ")))\n")
       (Ok 0))))
 
-(defn compile-one [(a (dyn Allocator)) (s (ptr Schema)) (form (ptr Sexp))]
+(defn compile-one [(a (dyn Allocator))
+                   (s (ptr Schema))
+                   (bindings (ptr binding/Bindings))
+                   (form (ptr Sexp))]
   (-> (Result (slice u8) Diag))
   (block :done
     (unless (>= (sexp-count form) 2)
@@ -391,7 +417,7 @@
                 (when (sexp-sym-is (sexp-nth rule 0)
                                    (.name (elem (field n variants) v)))
                   (set! matches (+ matches 1))
-                  (match (compile-rule (mut b) n ni v rule)
+                  (match (compile-rule (mut b) n bindings ni v rule)
                     (Err [d] (break :done (Err d)))
                     (Ok [_] 0)))))
             (unless (= matches 1)

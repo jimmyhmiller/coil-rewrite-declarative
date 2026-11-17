@@ -55,18 +55,22 @@ The first premise naming a variable binds it to that child's synthesized type. L
 
 This implements local inference over concrete scalar types, not general unification of type constructors or polymorphic type schemes. The conditional fixture exercises both Int and Bool results, disagreeing branches, and an invalid condition. A separate projection rule exercises independent variables. Contexts for variables/lets/functions and bidirectional checking remain required for the frontend slice.
 
-Lexical contexts are expressed through lookup and premise-local extension:
+Lexical topology is declared once and consumed by checking and lowering:
 
 ```
-(Variable (lookup name))
+(bindings Expr
+  (Variable (reference name))
+  (Let (scope body name)))
+; Judgment cases:
+(Variable (lookup))
 (Let ?body
   (value ?value)
-  (body ?body (bind name ?value)))
+  (body ?body (with ?value)))
 ```
 
-`lookup` requires a Text field and returns the nearest binding's type, or `UnboundName` with the expression ID and name. `bind` also requires a Text field. Its type must be a scalar or a variable bound by an earlier premise; it cannot depend on the premise whose context it extends. Each extension exists only for that recursive premise. The implementation uses immutable linked stack frames, so returning from a child restores the parent's context without mutation or cleanup bookkeeping. The empty root context is a sentinel and is never followed to its null parent.
+`lookup` uses the reference field selected by the binding declaration and returns the nearest binding's type, or `UnboundName` with the expression ID and name. `with` supplies one type payload per declared name, in declaration order. Each type must be a scalar or a variable bound by an earlier premise; it cannot depend on the premise whose context it extends. Each extension exists only for that recursive premise. The judgment must check every declared scoped child exactly once, with the declared payload count. The implementation uses immutable linked stack frames, so returning from a child restores the parent's context without mutation or cleanup bookkeeping. The empty root context is a sentinel and is never followed to its null parent.
 
-This lets the rules specify non-recursive let scope: value in the outer context, body in the extended context. Tests check unresolved names, shadowing, outer-name use in an initializer, and sibling isolation. Binding Text is borrowed from the expression table; the table and its strings must outlive a judgment call. General namespace resolution, mutually recursive bindings, function types and environment-dependent caching remain unimplemented.
+This lets the rules specify non-recursive let scope: value in the outer context, body in the extended context. Tests check unresolved names, shadowing, outer-name use in an initializer, and sibling isolation. Binding Text is borrowed from the expression table; the table and its strings must outlive a judgment call. General namespace resolution, mutually recursive bindings and environment-dependent caching remain unimplemented.
 
 Schemas also derive constructor readers and a multi-table `Store`. `parse-N(store, form)` reads a `coil.reader/Sexp` into the corresponding node table. For example:
 
@@ -87,10 +91,10 @@ IDs belong to one type store and are meaningful only while it lives. Callers mus
 Judgment result terms can construct function types:
 
 ```
-(LambdaInt (Fn Int ?body) (body ?body (bind name Int)))
+(LambdaInt (Fn Int ?body) (body ?body (with Int)))
 ```
 
-`Fn` terms nest recursively, and their leaves are scalars or previously inferred rule variables. The seed validates every nested term and rejects unbound variables before generation. Generated code interns the resulting type in the caller's `rewrite.types/Types` store; construction errors propagate as `TypeConstruction`. The generated module imports that runtime, which must accompany generated output. The acceptance harness copies the exact source into its isolated consumer projects.
+The LambdaInt schema declares `(LambdaInt (scope body name))` in its binding rules. `Fn` terms nest recursively, and their leaves are scalars or previously inferred rule variables. The seed validates every nested term and rejects unbound variables before generation. Generated code interns the resulting type in the caller's `rewrite.types/Types` store; construction errors propagate as `TypeConstruction`. The generated module imports that runtime, which must accompany generated output. The acceptance harness copies the exact source into its isolated consumer projects.
 
 The public signature is now `judge-N(type-store, rows, id)`. Context bindings and type-variable equality operate on canonical IDs from that same store. Tests parse and check identity functions, let-bound functions and nested function results, then decompose the returned types before releasing the store. LambdaInt/LambdaBool are fixtures demonstrating domain-independent rule composition, not a claim to implement Coil lambda semantics or capture rules. Call typing, argument annotations, function-type pattern premises, polymorphism and elaboration remain pending.
 
@@ -125,11 +129,11 @@ The generated internal `lower-N` function requires an acyclic, fully checked gra
 Lowering now supports lexical values:
 
 ```
-(Variable (name name))
-(Let (let name value body))
+(Variable (name))
+(Let (let value body))
 ```
 
-`name` resolves a Text field through the lowering context. `let` lowers its initializer in the outer context, binds the resulting CIR value only for the body, and returns the body's value. Context entries contain CIR value IDs, not source expressions, so uses share the initializer's result. Shadowing and leaving scope do not mutate outer bindings. An initializer's branch merge is completed before its value is bound; body branches receive the same dominating value.
+`name` resolves the binding declaration's reference field through the lowering context. `let` lowers its value children in the outer context, binds their resulting CIR values to the names declared for its body, and returns the body's value. Its final field must be that scoped body, and its value count must match the declared names. Other lowering operations cannot silently ignore a declared scope or reference. Context entries contain CIR value IDs, not source expressions, so uses share the initializer's result. Shadowing and leaving scope do not mutate outer bindings. An initializer's branch merge is completed before its value is bound; body branches receive the same dominating value.
 
 The native suite includes shadowing, outer-name lookup in initializers, branch-local shadowing without leaks, and bindings initialized by conditional merges. It also generates 40 deterministic nested programs with an independent Python value oracle and executes them through the new generated frontend/lowering and retained backend in all three host build configurations. This does not cover side effects or calls yet; those must extend the same semantics tests as implemented.
 
@@ -295,3 +299,29 @@ A sequence-valued source field used directly as a target sequence expression map
 The native fixture now parses an arbitrary-length module declaration list, including nested and empty groups, and transforms it into a core module with a function sequence field. The independent vector-record fixture parses constructor and surface forms, rejects malformed containers/elements/arity, and maps a shared sequence with logical length 3 × 2^60 while retaining only three target element rows and fewer than 70 sequence segments. Text remains valid after input storage is poisoned and freed. The runtime suite maps 10,000 nested joins, injects an element error, retries using completed memo entries, and checks cycle cleanup and source-growth rejection.
 
 These lists provide data and traversal for declaration collections. They do not yet define binding, simultaneous declarations, imports, expansion rounds or compile-time execution. Sequence judgments and lowering operations need their own semantic rules rather than treating a list as one expression.
+
+
+Binding declarations are a shared semantic input:
+
+```
+(bindings Calc
+  (Read (reference label))
+  (Outer (scope body label))
+  (Parallel (scope body left-name right-name)))
+(judgment Calc
+  ...
+  (Parallel ?body
+    (left ?left) (right ?right)
+    (body ?body (with ?left ?right))))
+(lower Calc
+  ...
+  (Parallel (let left right body)))
+```
+
+Ellipses stand for the other required cases. A `reference` annotation selects one scalar Text field per constructor. A `scope` selects a node-reference child and one or more scalar Text fields whose names are visible only while processing that child. Constructors without annotations remain unscoped. Duplicate schema/constructor declarations, duplicate child scopes, repeated name fields within one scope, unknown fields and invalid field types are rejected. Names are installed in listed order; if distinct name fields contain the same Text, the later binding shadows the earlier one. This is ordered lexical shadowing, not a uniqueness rule for parameter declarations.
+
+The seed parses and validates this binding model once alongside schemas, then passes it to judgment and lowering generation. The generation phase contract names the model as an input to both consumers. Checking supplies type payloads with `with`; lowering supplies value-child fields with `let`. The current lower operation evaluates all value children left-to-right in the outer context before extending the body context. The type checker similarly requires each payload type to be available before checking the scoped child. Consumer contracts reject missing/extra payloads, undeclared lookups, unconsumed scoped children and scopes that the lowering operation cannot implement.
+
+`tests/schemas/parallel-bindings.schema` is a second language with a two-binding form whose initializers see the outer scope. Native tests distinguish that behavior from sequential binding, check shadowing and sibling isolation, and check mixed Int/Bool payloads. A separate probe changes only the binding declaration's name order: both the inferred result type and native result change accordingly, without editing judgment/lowering rules. Existing unary Coil-shaped let tests and installed-Coil source comparisons remain unchanged.
+
+The binding model separates lexical topology from client-specific payloads; it does not prove that arbitrary typing rules and lowering rules assign equivalent payload semantics. Names still resolve through Text contexts in each consumer. Canonical binding identities, standalone resolution, namespaces/imports, forward/recursive declaration groups, binding-aware transformation, renaming/substitution and capture rules remain required. Scope annotations on sequence children can be represented, but the current single-child judgment/lowering operations reject them; sequence semantics need their own operations. This is not a general constraint engine or full Coil name resolution.

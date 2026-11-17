@@ -1,6 +1,7 @@
 ;;; Scalar lowering rules derive CIR traversal and branch/SSA construction.
 (module rewrite.lower)
 (import "rewrite.schema" :use *)
+(import "rewrite.binding" :as binding)
 (import "rewrite.emit" :use [number!])
 (import "coil.alloc" :use *)
 (import "coil.arraylist" :use *)
@@ -28,6 +29,7 @@
 
 (defn rule! [(b (mut StrBuf))
              (n (ptr Node))
+             (bindings (ptr binding/Bindings))
              (ni i64)
              (vi i64)
              (rule (ptr Sexp))] (-> (Result i64 Diag))
@@ -49,17 +51,27 @@
             identity? (sexp-sym-is op "identity")
             bind? (sexp-sym-is op "let")
             arity
-              (cond (or (or constant? boolean?) lookup? identity?) 1
+              (cond lookup? 0
+                    bind? (- (sexp-count expression) 1)
+                    (or constant? boolean? identity?) 1
                     (or add? call?) 2
-                    (or branch? bind?) 3
+                    branch? 3
                     :else 0)
             (mut fields) (ArrayList::new [i64] (malloc-allocator))]
         (defer (free! (mut fields)))
-        (unless (and (> arity 0) (= (sexp-count expression) (+ arity 1)))
+        (unless (and (or lookup? (> arity 0))
+                     (or (not bind?) (>= arity 2))
+                     (= (sexp-count expression) (+ arity 1)))
           (break
             :done
               (Err (problem expression
                             "unknown lowering operation or wrong arity"))))
+        (unless (and (= lookup? (>= (binding/reference bindings ni vi) 0))
+                     (= (binding/scope-count bindings ni vi) (if bind? 1 0)))
+          (break
+            :done
+              (Err (problem expression
+                            "lowering must consume declared references and scopes"))))
         (for [i 1 (+ arity 1)]
           (let [field (sexp-nth expression i)
                 index
@@ -67,7 +79,6 @@
                                 field
                                 (cond constant? "Int"
                                       boolean? "Bool"
-                                      (or lookup? (and bind? (= i 1))) "Text"
                                       :else (.name n)))]
             (when (< index 0)
               (break
@@ -96,21 +107,54 @@
               lookup?
                 (do
                   (push-str! (mut b) "(match (value-lookup context f")
-                  (number! (mut b) (get fields 0))
+                  (number! (mut b) (binding/reference bindings ni vi))
                   (push-str! (mut b)
                              ") (LocalValue [value] value) (GlobalSymbol [symbol] (cir/sym! function symbol 0)))"))
               bind?
-                (do
-                  (push-str! (mut b) "(let [value ")
-                  (child! (mut b) ni (get fields 1))
-                  (push-str! (mut b)
-                             " (mut scope) (scope-bind context f")
-                  (number! (mut b) (get fields 0))
-                  (push-str! (mut b)
-                             " (LocalValue value))] (lower-worker-")
+                (let [scope
+                        (match (binding/child-scope bindings
+                                                    ni
+                                                    vi
+                                                    (get fields (- arity 1)))
+                          (Some [scope] scope)
+                          (None []
+                                (break
+                                  :done
+                                    (Err (problem expression
+                                                  "let body must be the declared scoped child")))))
+                      names (.names scope)
+                      count (- arity 1)]
+                  (unless (= (len names) count)
+                    (break
+                      :done
+                        (Err (problem expression
+                                      "let values must match declared binding names"))))
+                  (push-str! (mut b) "(let [")
+                  (for [i 0 count]
+                    (push-str! (mut b) "value")
+                    (number! (mut b) i)
+                    (push-str! (mut b) " ")
+                    (child! (mut b) ni (get fields i))
+                    (push-str! (mut b) " "))
+                  (for [i 0 count]
+                    (push-str! (mut b) "(mut scope")
+                    (unless (= i (- count 1)) (number! (mut b) i))
+                    (push-str! (mut b) ") (scope-bind ")
+                    (if (= i 0)
+                        (push-str! (mut b) "context")
+                        (do
+                          (push-str! (mut b) "(mut scope")
+                          (number! (mut b) (- i 1))
+                          (push-str! (mut b) ")")))
+                    (push-str! (mut b) " f")
+                    (number! (mut b) (get names i))
+                    (push-str! (mut b) " (LocalValue value")
+                    (number! (mut b) i)
+                    (push-str! (mut b) ")) "))
+                  (push-str! (mut b) "] (lower-worker-")
                   (number! (mut b) ni)
                   (push-str! (mut b) " rows f")
-                  (number! (mut b) (get fields 2))
+                  (number! (mut b) (get fields (- arity 1)))
                   (push-str! (mut b) " function (mut scope)))"))
               call?
                 (do
@@ -143,7 +187,10 @@
         (push-str! (mut b) ")\n")
         (Ok 0)))))
 
-(defn compile-one [(a (dyn Allocator)) (s (ptr Schema)) (form (ptr Sexp))]
+(defn compile-one [(a (dyn Allocator))
+                   (s (ptr Schema))
+                   (bindings (ptr binding/Bindings))
+                   (form (ptr Sexp))]
   (-> (Result (slice u8) Diag))
   (block :done
     (unless (>= (sexp-count form) 2)
@@ -178,7 +225,7 @@
                 (when (sexp-sym-is (sexp-nth rule 0)
                                    (.name (elem (field n variants) vi)))
                   (set! count (+ count 1))
-                  (match (rule! (mut b) n ni vi rule)
+                  (match (rule! (mut b) n bindings ni vi rule)
                     (Err [d] (break :done (Err d)))
                     (Ok [_] 0)))))
             (unless (= count 1)

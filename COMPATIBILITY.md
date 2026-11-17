@@ -68,3 +68,10 @@ This is a context-free normalization capability, not Coil macro/reader compatibi
 Sequence-valued node fields and final list/vector rest captures now support arbitrary declaration collections. The native fixture parses a module and nested groups into source sequence fields, maps them into a core module's function field, then compiles normally. An independent vector-record client checks constructor/surface parsing, malformed input diagnostics, compact shared-sequence mapping and text lifetime after source teardown. Segment traversal uses an explicit stack and retries correctly after element failures.
 
 Only node-reference sequences are supported. Binding rules over collections, type-checking sequences, import/module semantics, dynamic expansion rounds and language-toolchain self-description remain incomplete.
+
+
+## Shared lexical binding checkpoint
+
+Reference fields and child-local name visibility now come from one binding declaration consumed by typing and lowering. Existing unary let and installed-Coil surface comparisons remain covered. A separate parallel-binding language exercises multiple names, outer-scope initializer evaluation, shadowing, sibling isolation and mixed payload types. A declaration-only name-order change is checked against both inferred type and native output.
+
+This covers lexical topology, not full Coil binding compatibility. Names still resolve by Text in each consumer; canonical IDs, namespaces/imports, recursive groups, capture rules and binding-aware transforms remain missing.

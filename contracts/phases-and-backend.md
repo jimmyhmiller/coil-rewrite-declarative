@@ -47,3 +47,10 @@ The native fixture introduces an alias plus its implementation from one source d
 Schema sequence fields now store nominal handles rather than arrays embedded in rows. Constructor vectors and final surface `rest` captures produce them. Sequence-to-sequence transformation preserves shared segments through one generic traversal, using explicit single-result versus sequence-result element maps. Mapping has its own segment memo and structured cycle/input-growth errors. The module fixture crosses source-program and core-program schemas with declaration/function sequence fields before materialization at the existing program boundary.
 
 This makes the collection boundary executable. It does not make the program phase contract a checked ownership/effect protocol, nor does it define simultaneous bindings or a staged expansion loop.
+
+
+## Shared lexical topology
+
+Binding declarations now specify each constructor's reference field and names visible in individual children. The seed validates that model once and supplies it to judgment and lowering generation. Judgment premises provide type payloads; lowering provides evaluated value payloads. Both clients check declared scope/reference coverage and payload count. A two-name fixture proves outer-scope value evaluation, body visibility, ordered shadowing and isolation; changing only its declared name order changes both type inference and native execution.
+
+This shares lexical topology without introducing a new runtime resolver. Text lookup still occurs in each consumer, and the model does not prove that arbitrary client rules assign equivalent payloads. Canonical binding IDs, namespace/import resolution, recursive groups and binding-aware transforms remain unimplemented. Program-global signature/index construction remains outside this lexical model.

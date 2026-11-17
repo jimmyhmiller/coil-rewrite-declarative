@@ -92,6 +92,23 @@ with tempfile.TemporaryDirectory(prefix='rewrite-lowering-') as directory:
     (work/'main.coil').write_text(wrong_sequence)
     rejected = subprocess.run(['coil', 'check', 'main.coil'], cwd=work, capture_output=True)
     assert rejected.returncode != 0 and all(name in rejected.stdout + rejected.stderr for name in [b'N0Seq', b'N1Seq']), rejected
+    parallel_schema = (ROOT/'tests/schemas/parallel-bindings.schema').read_bytes()
+    parallel_client = (ROOT/'tests/parallel-bindings.coil.in').read_text()
+    (work/'generated.coil').write_bytes(subprocess.check_output([str(ROOT/'build/schema-seed')], input=parallel_schema))
+    (work/'main.coil').write_text(parallel_client)
+    for flags in [[], ['--debug-checks'], ['--release']]:
+        subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)
+    # Only the binding declaration changes. Both clients must follow the new name order.
+    swapped = parallel_schema.replace(b'(scope body left-name right-name)', b'(scope body right-name left-name)')
+    (work/'generated.coil').write_bytes(subprocess.check_output([str(ROOT/'build/schema-seed')], input=swapped))
+    probe = parallel_client.split('(defn main []')[0] + """
+(defn main [] (-> i64)
+  (if (and (check "(parallel [x true y 2] x)" 2)
+           (typed "(parallel [x true y 2] x)" 1)) 0 1))
+"""
+    (work/'main.coil').write_text(probe)
+    for flags in [[], ['--debug-checks'], ['--release']]:
+        subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)
 print('Source -> generated checking/lowering -> CIR -> native execution passed')
 print('Function designators rejected as values; explicit function pointers agree with installed Coil')
 

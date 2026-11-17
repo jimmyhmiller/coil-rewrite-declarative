@@ -1,5 +1,6 @@
 (module rewrite.main)
 (import "rewrite.schema" :as schema)
+(import "rewrite.binding" :as binding)
 (import "rewrite.emit" :as emit)
 (import "rewrite.index" :as index)
 (import "rewrite.readers" :as readers)
@@ -23,10 +24,11 @@
        (sexp-sym-is (sexp-nth form 0) "judgment")))
 
 (def compiler-phases
-  "(phases\n (input schema Schema)\n (phase program (needs (maps TransformAPI) (surface SurfaceAPI) (readers ReaderAPI) (indexes IndexAPI) (judgments JudgmentAPI) (lowering CIRAPI)) (makes (program ProgramAPI)))\n (phase transform (needs (readers ReaderAPI)) (makes (maps TransformAPI)))\n (phase syntax (needs (readers ReaderAPI)) (makes (surface SurfaceAPI)))\n (phase readers (needs (tables Tables)) (makes (readers ReaderAPI)))\n (phase indexes (needs (tables Tables)) (makes (indexes IndexAPI)))\n (phase judgment (needs (tables Tables)) (makes (judgments JudgmentAPI)))\n (phase lower (needs (tables Tables)) (makes (lowering CIRAPI)))\n (phase tables (needs (schema Schema)) (makes (tables Tables))))")
+  "(phases\n (input schema Schema)\n (input bindings Bindings)\n (phase program (needs (maps TransformAPI) (surface SurfaceAPI) (readers ReaderAPI) (indexes IndexAPI) (judgments JudgmentAPI) (lowering CIRAPI)) (makes (program ProgramAPI)))\n (phase transform (needs (readers ReaderAPI)) (makes (maps TransformAPI)))\n (phase syntax (needs (readers ReaderAPI)) (makes (surface SurfaceAPI)))\n (phase readers (needs (tables Tables)) (makes (readers ReaderAPI)))\n (phase indexes (needs (tables Tables)) (makes (indexes IndexAPI)))\n (phase judgment (needs (tables Tables) (bindings Bindings)) (makes (judgments JudgmentAPI)))\n (phase lower (needs (tables Tables) (bindings Bindings)) (makes (lowering CIRAPI)))\n (phase tables (needs (schema Schema)) (makes (tables Tables))))")
 
 (defn compile-stage [(a (dyn Allocator))
                      (sp (ptr schema/Schema))
+                     (bindings (ptr binding/Bindings))
                      (forms (ptr (ArrayList Sexp)))
                      (stage (slice u8))]
   (-> (Result (slice u8) Diag))
@@ -132,7 +134,7 @@
                           (break
                             :done
                               (Err (schema/problem form "duplicate lowering"))))))
-                    (match (lower/compile-one a sp form)
+                    (match (lower/compile-one a sp bindings form)
                       (Err [d] (break :done (Err d)))
                       (Ok [text] (push-str! (mut output) text))))
                   (when (and (= stage "judgment") (judgment? form))
@@ -147,7 +149,7 @@
                           (break
                             :done
                               (Err (schema/problem form "duplicate judgment"))))))
-                    (match (judgment/compile-one a sp form)
+                    (match (judgment/compile-one a sp bindings form)
                       (Err [d] (break :done (Err d)))
                       (Ok [text] (push-str! (mut output) text)))))))
       (Ok (str (load output))))))
@@ -160,13 +162,17 @@
               (match (schema/parse-forms a forms)
                 (Err [d] (break :done (Err d)))
                 (Ok [schema] (box! a schema/Schema schema)))
+            bindings
+              (match (binding/parse a schema forms)
+                (Err [d] (break :done (Err d)))
+                (Ok [bindings] (box! a binding/Bindings bindings)))
             order
               (match (phase/schedule a compiler-phases 0)
                 (Err [d] (break :done (Err d)))
                 (Ok [order] order))
             (mut output) (StrBuf::new a)]
         (for [i 0 (len order)]
-          (match (compile-stage a schema forms (get order i))
+          (match (compile-stage a schema bindings forms (get order i))
             (Err [d] (break :done (Err d)))
             (Ok [text] (push-str! (mut output) text))))
         (Ok (str (load output))))))
