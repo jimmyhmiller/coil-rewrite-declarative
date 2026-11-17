@@ -72,3 +72,10 @@
     (phase check (needs (all-globals GlobalEnvironment)) (makes (checked CheckedProgram)))
     (phase register (needs (declarations Declarations)) (makes (globals GlobalEnvironment)))))
 (source-program Function (command))
+
+(diagnostics Expr
+  (UnboundName [at name] "unbound name '{}'" name)
+  (FunctionArity [at expected actual] "expected {} arguments, got {}" expected actual)
+  (ExpectedFunction [at _] "called expression is not a function")
+  (Mismatch [at _ expected actual _ _] "expected type {}, got type {}" expected actual)
+  (CategoryMismatch [at actual _ _] "unexpected expression category '{}'" actual))

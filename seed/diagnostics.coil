@@ -1,0 +1,97 @@
+(module rewrite.diagnostics)
+(import "rewrite.schema" :use *)
+(import "rewrite.protocol" :use [name?])
+(import "rewrite.emit" :use [number!])
+(import "rewrite.readers" :use [quoted!])
+(import "coil.reader" :use *)
+(import "coil.arraylist" :use *)
+(import "coil.alloc" :use *)
+(import "coil.result" :use *)
+(import "coil.str" :use *)
+
+;;; Cases bind judgment payloads by position. A binding named at selects the
+;;; expression whose stored origin is reported. Other names supply format values.
+(defn compile-one [(a (dyn Allocator)) (s (ptr Schema)) (form (ptr Sexp))]
+  (-> (Result (slice u8) Diag))
+  (block :done
+    (unless (> (sexp-count form) 2)
+      (break :done (Err (problem form "expected diagnostics schema and cases"))))
+    (let [(mut schema) -1
+          (mut b) (StrBuf::new a)]
+      (for [i 0 (len (.nodes s))]
+        (when (sexp-sym-is (sexp-nth form 1) (.name (elem (field s nodes) i)))
+          (set! schema i)))
+      (when (< schema 0)
+        (break :done (Err (problem form "unknown diagnostic schema"))))
+      (push-str! (mut b)
+                 "(defn report-body [(store (ptr Store)) (path (slice u8)) (function (slice u8)) (reason Judgment)] (-> void) (match reason ")
+      (for [i 2 (sexp-count form)]
+        (let [rule (sexp-nth form i)]
+          (unless (and (sexp-list? rule)
+                       (>= (sexp-count rule) 3)
+                       (sexp-sym? (sexp-nth rule 0))
+                       (name? (sexp-sym (sexp-nth rule 0)))
+                       (sexp-vec? (sexp-nth rule 1))
+                       (sexp-str? (sexp-nth rule 2)))
+            (break
+              :done
+                (Err (problem rule
+                              "expected (Judgment [fields] message arguments...)"))))
+          (let [fields (sexp-nth rule 1)
+                (mut located?) false]
+            (push-str! (mut b) "(")
+            (push-str! (mut b) (sexp-sym (sexp-nth rule 0)))
+            (push-str! (mut b) " [")
+            (for [j 0 (sexp-count fields)]
+              (let [field (sexp-nth fields j)]
+                (unless (and (sexp-sym? field)
+                             (or (sexp-sym-is field "_")
+                                 (name? (sexp-sym field))))
+                  (break
+                    :done (Err (problem field "invalid diagnostic binding"))))
+                (unless (sexp-sym-is field "_")
+                  (for [prior 0 j]
+                    (when (sexp-sym-is (sexp-nth fields prior) (sexp-sym field))
+                      (break
+                        :done
+                          (Err (problem field "duplicate diagnostic binding"))))))
+                (if (sexp-sym-is field "_")
+                    (push-str! (mut b) "_ ")
+                    (do
+                      (push-str! (mut b) "d")
+                      (number! (mut b) j)
+                      (push-str! (mut b) " ")))
+                (when (sexp-sym-is field "at") (set! located? true))))
+            (push-str! (mut b) "] ")
+            (when located?
+              (push-str! (mut b) "(let [index ")
+              (for [j 0 (sexp-count fields)]
+                (when (sexp-sym-is (sexp-nth fields j) "at")
+                  (push-str! (mut b) "d")
+                  (number! (mut b) j)))
+              (push-str! (mut b)
+                         "] (when (and (>= index 0) (< index (len (.origins")
+              (number! (mut b) schema)
+              (push-str! (mut b) " store)))) (let [origin (get (.origins")
+              (number! (mut b) schema)
+              (push-str! (mut b)
+                         " store) index)] (print \"{}:{}..{}: \" path (.lo origin) (.hi origin))))) "))
+            (push-str! (mut b) "(print \"in {}: \" function) (println ")
+            (quoted! (mut b) (sexp-str (sexp-nth rule 2)))
+            (for [k 3 (sexp-count rule)]
+              (let [arg (sexp-nth rule k)
+                    (mut slot) -1]
+                (for [j 0 (sexp-count fields)]
+                  (when (and (sexp-sym? arg)
+                             (not (sexp-sym-is arg "_"))
+                             (sexp-sym-is (sexp-nth fields j) (sexp-sym arg)))
+                    (set! slot j)))
+                (when (< slot 0)
+                  (break
+                    :done (Err (problem arg "unknown diagnostic argument"))))
+                (push-str! (mut b) " d")
+                (number! (mut b) slot)))
+            (push-str! (mut b) ")) "))))
+      (push-str! (mut b)
+                 "(_ (println \"type checking failed in {}\" function))))\n")
+      (Ok (finish! (mut b))))))
