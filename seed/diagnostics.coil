@@ -24,7 +24,7 @@
       (when (< schema 0)
         (break :done (Err (problem form "unknown diagnostic schema"))))
       (push-str! (mut b)
-                 "(defn report-body [(store (ptr Store)) (path (slice u8)) (function (slice u8)) (reason Judgment)] (-> void) (match reason ")
+                 "(defn report-body [(store (ptr Store)) (path (slice u8)) (text (slice u8)) (function (slice u8)) (reason Judgment)] (-> void) (match reason ")
       (for [i 2 (sexp-count form)]
         (let [rule (sexp-nth form i)]
           (unless (and (sexp-list? rule)
@@ -75,7 +75,7 @@
               (push-str! (mut b) " store)))) (let [origin (get (.origins")
               (number! (mut b) schema)
               (push-str! (mut b)
-                         " store) index)] (print \"{}:{}..{}: \" path (.lo origin) (.hi origin))))) "))
+                         " store) index)] (match (source/position text (.lo origin)) (Some [p] (print \"{}:{}:{}: \" path (.line p) (.column p))) (None []))))) "))
             (push-str! (mut b) "(print \"in {}: \" function) (println ")
             (quoted! (mut b) (sexp-str (sexp-nth rule 2)))
             (for [k 3 (sexp-count rule)]

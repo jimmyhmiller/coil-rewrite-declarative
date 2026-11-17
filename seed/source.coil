@@ -235,3 +235,17 @@
           :row row
           :field field)
         value))
+
+;;; One-based line and byte column for a reader offset, including end-of-file.
+(defstruct Position [(line i64) (column i64)])
+
+(defn position [(text (slice u8)) (offset i64)] (-> (Option Position))
+  (if (or (< offset 0) (> offset (len text)))
+      (None)
+      (let [(mut line) 1
+            (mut column) 1]
+        (for [i 0 offset]
+          (if (= (get text i) (: 10 u8))
+              (do (set! line (+ line 1)) (set! column 1))
+              (set! column (+ column 1))))
+        (Some (Position :line line :column column)))))
