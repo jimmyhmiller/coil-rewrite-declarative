@@ -14,6 +14,7 @@ with tempfile.TemporaryDirectory(prefix='rewrite-lowering-') as directory:
     roots = ['.', *[str(ROOT / 'vendor/coil' / p) for p in ['src/compiler/declarative', 'src/compiler/native', 'src/declarative/tests']]]
     (work/'Coil.toml').write_text('[package]\nname = "fixture"\nentry = "main.coil"\nsource-roots = '+json.dumps(roots)+'\n')
     shutil.copyfile(ROOT/'seed/types.coil', work/'types.coil')
+    shutil.copyfile(ROOT/'seed/scope.coil', work/'scope.coil')
     shutil.copyfile(ROOT/'runtime/native.coil', work/'native.coil')
     (work/'generated.coil').write_bytes(subprocess.check_output([str(ROOT/'build/schema-seed')], input=(ROOT/'tests/schemas/lowering.schema').read_bytes()))
     rng = random.Random(90210)
@@ -52,7 +53,12 @@ with tempfile.TemporaryDirectory(prefix='rewrite-lowering-') as directory:
         subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)
     program_schema = (ROOT/'tests/schemas/lowering.schema').read_bytes() + b'\n(node Function (name Text :key) (parameter Text) (body Expr))\n(program Expr Function name parameter body Int Int)\n'
     (work/'generated.coil').write_bytes(subprocess.check_output([str(ROOT/'build/schema-seed')], input=program_schema))
-    (work/'main.coil').write_text((ROOT/'tests/program.coil.in').read_text())
+    client = (ROOT/'tests/program.coil.in').read_text().replace('(defn main []', '(defn hand-tests []')
+    # The first function calls the last declaration, across unused global names.
+    many = '(Function "main" "x" (Call (Variable "f127") (Variable "x"))) '
+    many += ' '.join(f'(Function "f{i}" "x" (Add (Variable "x") (Integer 1)))' for i in range(128))
+    client += '\n(defn main [] (-> i64) (if (and (= (hand-tests) 0) (check ' + json.dumps(many) + ' 42)) 0 1))\n'
+    (work/'main.coil').write_text(client)
     for flags in [[], ['--debug-checks'], ['--release']]:
         subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)
 print('Source -> generated checking/lowering -> CIR -> native execution passed')

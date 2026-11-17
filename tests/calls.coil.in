@@ -1,6 +1,7 @@
 (module fixture.main)
 (import "rewrite.generated" :use *)
 (import "rewrite.types" :as types)
+(import "rewrite.scope" :use *)
 (import "rewrite.native" :as native)
 (import "coil.alloc" :use *)
 (import "coil.scratch" :use [ScratchArena])
@@ -29,23 +30,23 @@
         callee (parse-source a (mut store) "(Add (Variable \"x\") (Integer 1))")
         caller (parse-source a (mut store) "(Let \"once\" (Call (Variable \"inc\") (Integer 20)) (Add (Add (Variable \"once\") (Variable \"once\")) (Call (Choose (Boolean true) (Variable \"inc\") (Variable \"inc\")) (Integer 20))))")
         signature (match (types/function (mut types) 1 1) (Ok [id] id) (Err [_] (panic "type construction")))
-        (mut empty) (zeroed Context)
-        (mut parameter) (Context :present true :name "x" :type 1 :parent (primitive/cast (ptr Context) (mut empty)))
-        (mut functions) (Context :present true :name "inc" :type signature :parent (primitive/cast (ptr Context) (mut empty)))
+        (mut empty) (zeroed (Scope i64))
+        (mut parameter) (scope-bind (primitive/cast (ptr (Scope i64)) (mut empty)) "x" (: 1 i64))
+        (mut functions) (scope-bind (primitive/cast (ptr (Scope i64)) (mut empty)) "inc" signature)
         (mut callee-f) (cir/Func::new) (mut caller-f) (cir/Func::new)
         cf (primitive/cast (ptr cir/Func) (mut callee-f))
         mf (primitive/cast (ptr cir/Func) (mut caller-f))
-        (mut values) (zeroed ValueContext)]
+        (mut values) (zeroed (Scope ValueBinding))]
     (unless (and
       (match (judge-worker-0 (mut types) (mut (.rows0 store)) callee (len (.rows0 store)) (mut parameter)) (Typed [ty] (= ty 1)) (_ false))
       (match (judge-worker-0 (mut types) (mut (.rows0 store)) caller (len (.rows0 store)) (mut functions)) (Typed [ty] (= ty 1)) (_ false)))
       (panic "test program failed typing"))
     (cir/set-block! cf (cir/new-block! cf))
-    (let [(mut scope) (ValueContext :present true :name "x" :value (cir/arg! cf cop/T-I64 false) :parent (primitive/cast (ptr ValueContext) (mut values)))]
+    (let [(mut scope) (scope-bind (primitive/cast (ptr (Scope ValueBinding)) (mut values)) "x" (LocalValue (cir/arg! cf cop/T-I64 false)))]
       (cir/ret1! cf (lower-worker-0 (mut (.rows0 store)) callee cf (mut scope))))
     (cir/finish! cf)
     (cir/set-block! mf (cir/new-block! mf))
-    (let [(mut scope) (ValueContext :present true :name "inc" :value (cir/sym! mf (cast u32 inc-symbol) 0) :parent (primitive/cast (ptr ValueContext) (mut values)))]
+    (let [(mut scope) (scope-bind (primitive/cast (ptr (Scope ValueBinding)) (mut values)) "inc" (GlobalSymbol (cast u32 inc-symbol)))]
       (cir/ret1! mf (lower-worker-0 (mut (.rows0 store)) caller mf (mut scope))))
     (cir/finish! mf)
     (let [(mut direct) 0 (mut indirect) 0]

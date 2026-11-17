@@ -16,6 +16,7 @@ assert generated == subprocess.check_output([str(ROOT / 'build/schema-seed')], i
 with tempfile.TemporaryDirectory(prefix='rewrite-schema-') as directory:
     work = Path(directory)
     shutil.copyfile(ROOT / "seed/types.coil", work / "types.coil")
+    shutil.copyfile(ROOT / "seed/scope.coil", work / "scope.coil")
     (work / 'Coil.toml').write_text('[package]\nname = "fixture"\nentry = "main.coil"\nsource-roots = ["."]\n')
     (work / 'generated.coil').write_bytes(generated)
     client = (ROOT / 'tests/generated.coil.in').read_text()
@@ -34,6 +35,7 @@ recursive = b'(node Link (next Link) (label Text) (live Bool))'
 with tempfile.TemporaryDirectory(prefix='rewrite-recursive-') as directory:
     work = Path(directory)
     shutil.copyfile(ROOT / "seed/types.coil", work / "types.coil")
+    shutil.copyfile(ROOT / "seed/scope.coil", work / "scope.coil")
     (work / 'generated.coil').write_bytes(subprocess.check_output([str(ROOT / 'build/schema-seed')], input=recursive))
     subprocess.run(['coil', 'check', str(work / 'generated.coil')], check=True)
 invalid = subprocess.run([str(ROOT / 'build/schema-seed')], input=b'(node X (x Missing))', capture_output=True)
@@ -43,6 +45,7 @@ print('Recursive schema and generator error-channel checks passed')
 with tempfile.TemporaryDirectory(prefix='rewrite-variants-') as directory:
     work = Path(directory)
     shutil.copyfile(ROOT / "seed/types.coil", work / "types.coil")
+    shutil.copyfile(ROOT / "seed/scope.coil", work / "scope.coil")
     (work / 'Coil.toml').write_text('[package]\nname = "fixture"\nentry = "main.coil"\nsource-roots = ["."]\n')
     (work / 'generated.coil').write_bytes(subprocess.check_output(
         [str(ROOT / 'build/schema-seed')], input=(ROOT / 'tests/schemas/recursive.schema').read_bytes()))
@@ -63,6 +66,7 @@ print('Recursive variants: execution, growth, and invalid-declaration checks pas
 with tempfile.TemporaryDirectory(prefix='rewrite-judgment-') as directory:
     work = Path(directory)
     shutil.copyfile(ROOT / "seed/types.coil", work / "types.coil")
+    shutil.copyfile(ROOT / "seed/scope.coil", work / "scope.coil")
     (work / 'Coil.toml').write_text('[package]\nname = "fixture"\nentry = "main.coil"\nsource-roots = ["."]\n')
     typing = (ROOT / 'tests/schemas/typing.schema').read_bytes()
     output = subprocess.check_output([str(ROOT / 'build/schema-seed')], input=typing)
@@ -97,6 +101,7 @@ print('Generated judgments: valid/invalid typing, malformed rules, bounds and cy
 with tempfile.TemporaryDirectory(prefix='rewrite-reader-') as directory:
     work = Path(directory)
     shutil.copyfile(ROOT / "seed/types.coil", work / "types.coil")
+    shutil.copyfile(ROOT / "seed/scope.coil", work / "scope.coil")
     (work / 'Coil.toml').write_text('[package]\nname = "fixture"\nentry = "main.coil"\nsource-roots = ["."]\n')
     (work / 'generated.coil').write_bytes(subprocess.check_output(
         [str(ROOT / 'build/schema-seed')], input=(ROOT / 'tests/schemas/typing.schema').read_bytes()))
@@ -108,6 +113,7 @@ print('Schema-derived source readers and typing pipeline passed')
 with tempfile.TemporaryDirectory(prefix='rewrite-index-') as directory:
     work = Path(directory)
     shutil.copyfile(ROOT/'seed/types.coil', work/'types.coil')
+    shutil.copyfile(ROOT/'seed/scope.coil', work/'scope.coil')
     (work/'Coil.toml').write_text('[package]\nname="fixture"\nentry="main.coil"\nsource-roots=["."]\n')
     keyed = b'(node Entry (label Text :key) (serial Int :key) (flag Bool :key))'
     (work/'generated.coil').write_bytes(subprocess.check_output([str(ROOT/'build/schema-seed')], input=keyed))

@@ -39,9 +39,9 @@
     (push-str! (mut b)
                "(defsum Judgment (Typed [(type i64)]) (Mismatch [(node i64) (field i64) (expected i64) (actual i64) (rule-lo i64) (rule-hi i64)]) (InvalidReference [(node i64)]) (CyclicInput [(node i64)]) (UnboundName [(node i64) (name (slice u8))]) (TypeConstruction [(error types/TypeError)]) (ExpectedFunction [(node i64) (actual i64)]))\n")
     (push-str! (mut b)
-               "(defstruct Context [(present bool) (name (slice u8)) (type i64) (parent (ptr Context))])\n(defn context-lookup [(context (ptr Context)) (name (slice u8)) (node i64)] (-> Judgment) (block :found (let [(mut cursor) context] (loop (unless (.present cursor) (break)) (when (= (.name cursor) name) (break :found (Typed (.type cursor)))) (set! cursor (.parent cursor)))) (UnboundName node name)))\n")
+               "(import \"rewrite.scope\" :use [Scope scope-bind scope-global scope-lookup])\n(defn context-lookup [(context (ptr (Scope i64))) (name (slice u8)) (node i64)] (-> Judgment) (match (scope-lookup context name) (Some [ty] (Typed ty)) (None [] (UnboundName node name))))\n")
     (push-str! (mut b)
-               "(defstruct ValueContext [(present bool) (name (slice u8)) (value u32) (parent (ptr ValueContext))])\n(defn value-lookup [(context (ptr ValueContext)) (name (slice u8))] (-> u32) (block :found (let [(mut cursor) context] (loop (unless (.present cursor) (break)) (when (= (.name cursor) name) (break :found (.value cursor))) (set! cursor (.parent cursor)))) (panic \"unbound name in checked lowering\")))\n")
+               "(defsum ValueBinding (LocalValue [(value u32)]) (GlobalSymbol [(symbol u32)]))\n(defn value-lookup [(context (ptr (Scope ValueBinding))) (name (slice u8))] (-> ValueBinding) (match (scope-lookup context name) (Some [value] value) (None [] (panic \"unbound name in checked lowering\"))))\n")
     (for [i 0 (len (.nodes s))]
       (let [n (elem (field s nodes) i)]
         (push-str! (mut b) "(defstruct N")
