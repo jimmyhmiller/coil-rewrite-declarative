@@ -1,0 +1,32 @@
+{
+  "scope": "Trait availability membership, idempotent introduction and direct declaration lookup against exact helper capture; not full declaration validation, parent-session integration or generated-form admission.",
+  "cases": 57,
+  "configurations": [
+    "default",
+    "debug-checks",
+    "release"
+  ],
+  "allocator_leaks": 0,
+  "host_version": "coil 0.1.0 (commit dcbbfee64333, 2026-11-17)",
+  "host_sha256": "a0e3f4c481945e8c29607cf022283ece170299f795c79b9487af75a931a55869",
+  "reference_sha256": "7a56bf77db4d0824ff9fbd69215edf5d79ecdeb325e2257909d88342efa4de82",
+  "driver_sha256": "83bebe3dd2925c71d776f64781000a76902d3fc27c9a3d35de70490b55805c72",
+  "inputs": {
+    "seed/types.coil": "e398f5cb019e3eea3339700ba5b3685b119421eb30ac5a2045c8835d5d9a6ce9",
+    "seed/scope.coil": "c7be3143d3e955ecd8c05ea3c7ffb4b8b6d9981a223fc5de55507aa89f35e71f",
+    "seed/resolution.coil": "b080dca9f1a7b3848105faf4e2369a3272911fe8ab22a0e23f75e23d112521c6",
+    "seed/source.coil": "090c81a0015f5a4941deb45e3dc8ff582b33cd4da97296cde4e3454979dad640",
+    "seed/sequence.coil": "bdcac1aac27c0ed59c3020705e0583ff28f8b553c115f8e9d4211d7d59976120",
+    "seed/refer_runtime.coil": "fa9405d1a24895cc2835b424648c85a7bd29c513151d3718e9caddbd0d368b33",
+    "seed/selection_runtime.coil": "f2f7608f324e3ae5e313c5bbb1dfa3d0fc418445ea23f95b4f987b51c64a8507",
+    "seed/namespace.coil": "01dbd2ef2fa2a9a0fc5ae3faa7f44198f3c4f17840ea8f2e43de7c732f62b601",
+    "seed/search_runtime.coil": "82f18d2a79fc3086cd35695bcab238c83470334db03292b9abc35c7cbf145b71",
+    "seed/equality_runtime.coil": "677953a98f75ce17eba81be80da3133d56da5387413e15679ba218c10e462039",
+    "seed/trait_declarations.coil": "04f408228dde1e5512dce4f6911e7ee4c3c421eed7144105b90c6d16c4ef92aa",
+    "seed/generated/name_forms.coil": "eac976d9bfd51328ab51804f38952ba3f0119367541ebc188b3329bec3ecfe20",
+    "seed/generated/export_search.coil": "0958122e80f6ba9f2ff587e2760da4da371fafca3c73e633b8a4ba55b5ed663b",
+    "seed/generated/code_forms.coil": "5e86c20526290506b5b707059a2521010ada1612fa8592276f7c6a79d0621490",
+    "tools/check-traits.py": "bf10b260ede9694554beabe8d2ab15148157066aba3fc9bbdc5dc8e8e5d92662",
+    "languages/code.schema": "332b6adc7a3521d92af26301bb85f3ad194807a421efd97d6688c7e66cf6927d"
+  }
+}

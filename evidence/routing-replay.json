@@ -14,7 +14,7 @@
     "seed/sequence.coil": "bdcac1aac27c0ed59c3020705e0583ff28f8b553c115f8e9d4211d7d59976120",
     "seed/refer_runtime.coil": "fa9405d1a24895cc2835b424648c85a7bd29c513151d3718e9caddbd0d368b33",
     "seed/selection_runtime.coil": "f2f7608f324e3ae5e313c5bbb1dfa3d0fc418445ea23f95b4f987b51c64a8507",
-    "seed/namespace.coil": "d55f43600f98c731c24fb71b31d3cf7b047a41ce110217678d3742b9ada91bbd",
+    "seed/namespace.coil": "01dbd2ef2fa2a9a0fc5ae3faa7f44198f3c4f17840ea8f2e43de7c732f62b601",
     "seed/search_runtime.coil": "82f18d2a79fc3086cd35695bcab238c83470334db03292b9abc35c7cbf145b71",
     "seed/routing.coil": "40caf673390c0a315f3f32c2ec701a62d86013b73f0c91d30b4fd4a1f5f537fe",
     "seed/routing_facts.coil": "24eabdb95c24c6e450392b013c02c72544efb3ef351accd8218fe839f83f79a2",
@@ -27,7 +27,7 @@
     "seed/generated/export_search.coil": "0958122e80f6ba9f2ff587e2760da4da371fafca3c73e633b8a4ba55b5ed663b",
     "seed/generated/resolve_protocol.coil": "674f6b3ebd9021f16c3dc5b0da344b2f61d860709cfc600d5f6bac6b8811d7ae",
     "seed/generated/head_protocol.coil": "228d6003128bf3b5c17d08f06fd1ab01c96f13dd7bcd23a62acd41e126febbef",
-    "seed/generated/code_forms.coil": "c4fffd7ae94eccec9e75daf5aedd60b396bb01e08a3ac63915e09ee7a138041f"
+    "seed/generated/code_forms.coil": "5e86c20526290506b5b707059a2521010ada1612fa8592276f7c6a79d0621490"
   },
   "configurations_passed": [
     "default",

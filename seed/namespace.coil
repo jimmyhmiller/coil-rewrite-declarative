@@ -1,4 +1,4 @@
-;;; An immutable view of one declaration namespace and its export/reexport graph.
+;;; Immutable namespace/import facts with owned, monotonically introduced declarations.
 (module rewrite.namespace)
 (import "rewrite.nameforms" :as forms)
 (import "rewrite.refer" :as refer)
@@ -6,6 +6,7 @@
 (import "rewrite.exportsearch" :as policy)
 (import "rewrite.searchruntime" :as search)
 (import "rewrite.sequence" :as sequence)
+(import "rewrite.source" :as source)
 (import "coil.alloc" :use *)
 (import "coil.arraylist" :use *)
 (import "coil.hashmap" :use [HashMap])
@@ -27,7 +28,10 @@
    (declarations (HashMap (slice u8) forms/N3Id))
    (aliases (HashMap (slice u8) forms/N4Id))
    (modules (HashMap (slice u8) forms/N5Id))
-   (compiled (ArrayList (Option Module)))])
+   (compiled (ArrayList (Option Module)))
+   (introduced-text source/Sources)
+   (introduced-rows (ArrayList forms/N3Row))
+   (introduced-index (HashMap (slice u8) forms/N3Id))])
 
 (defsum Error
   (Row [(schema i64) (index i64)])
@@ -55,7 +59,10 @@
   (free! (mut (.compiled view)))
   (free! (mut (.declarations view)))
   (free! (mut (.aliases view)))
-  (free! (mut (.modules view))))
+  (free! (mut (.modules view)))
+  (free! (mut (.introduced-index view)))
+  (free! (mut (.introduced-rows view)))
+  (source/release! (mut (.introduced-text view))))
 
 (defn compile-edges [(a (dyn Allocator))
                      (store (ptr forms/Store))
@@ -137,7 +144,10 @@
                 :declarations (forms/new-index-3-0 a)
                 :aliases (forms/new-index-4-0 a)
                 :modules (forms/new-index-5-0 a)
-                :compiled (ArrayList::new [(Option Module)] a))
+                :compiled (ArrayList::new [(Option Module)] a)
+                :introduced-text (source/create a)
+                :introduced-rows (ArrayList::new [forms/N3Row] a)
+                :introduced-index (forms/new-index-3-0 a))
             (mut declarations) (ArrayList::new [forms/N3Id] a)
             (mut aliases) (ArrayList::new [forms/N4Id] a)
             (mut modules) (ArrayList::new [forms/N5Id] a)
@@ -208,11 +218,35 @@
     (Some [id] (.f1 (get (.rows4 (.store view)) (.index id))))
     (None [] qualified)))
 
+;;; Publish only between queries. Existing base and introduced memberships are
+;;; idempotent; aliases remain a separate lookup policy. All text is copied.
+;;; Earlier returned canonical strings remain valid until view release.
+(defn introduce! [(view (ptr View)) (qualified (slice u8))] (-> bool)
+  (block :done
+    (match (get (.declarations view) qualified)
+      (Some [_] (break :done false))
+      (None []))
+    (match (get (.introduced-index view) qualified)
+      (Some [_] (break :done false))
+      (None []))
+    (let [name (source/intern! (field view introduced-text) qualified)
+          id
+            (forms/append-3 (field view introduced-rows) (forms/N3Row :f0 name))]
+      (match (forms/insert-index-3-0 (field view introduced-index)
+                                     (field view introduced-rows)
+                                     id)
+        (Ok [_] true)
+        (Err [_] (panic "introduced declaration index invariant"))))))
+
 (defn declaration [(view (ptr View)) (qualified (slice u8))]
   (-> (Option (slice u8)))
-  (match (get (.declarations view) (alias-name view qualified))
-    (None [] (None))
-    (Some [id] (Some (.f0 (get (.rows3 (.store view)) (.index id)))))))
+  (let [name (alias-name view qualified)]
+    (match (get (.introduced-index view) name)
+      (Some [id] (Some (.f0 (get (.introduced-rows view) (.index id)))))
+      (None []
+            (match (get (.declarations view) name)
+              (None [] (None))
+              (Some [id] (Some (.f0 (get (.rows3 (.store view)) (.index id))))))))))
 
 (defn direct :cc (cc/C) [(context (ptr Context)) (query (ptr search/Query))]
   (-> (Result (Option (slice u8)) QueryError))

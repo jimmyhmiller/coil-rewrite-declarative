@@ -1,7 +1,7 @@
 {
   "host_version": "coil 0.1.0 (commit dcbbfee64333, 2026-11-17)",
   "host_sha256": "a0e3f4c481945e8c29607cf022283ece170299f795c79b9487af75a931a55869",
-  "seed_sha256": "73695407e0c1aff95a3b7eb17e6dae9cde556d5021d78ac4f426d9c7e2fc58e3",
+  "seed_sha256": "9c35ec81a4bd0178b2ed7f0dda048edc91062bf44e12c0cd8f05693f40e6a507",
   "driver_sha256": "8c448428d16d53a0e7404bc0cc99accc20648c2a7a777257f985cc17b67dee03",
   "independent_generated_sha256": "0c7b520ec2ef86ba2064ab4eaec529d8c80b90b79ff2ac2f6034cd35f7881b88",
   "scope": "Generated pair selection and selected syntax occurrence preservation; derive registry and full admission are not replayed.",
@@ -17,7 +17,7 @@
     "seed/pair_selection.coil": "846047da05dd94541106436a3aaac259038fc02e9a1ebe025b00ea848198c8b9",
     "languages/pair_selection.schema": "cea7197d8dd3d5752d8eea847ffcf741ef5e67118a840c24fb9219fcff75ec41",
     "seed/generated/pair_forms.coil": "a6a8be47b3aa2f667337677a06cbcd968b637d8bc84f699fbbf660a545a086b8",
-    "languages/code.schema": "d81ca4815193c79c9add692a397a4cf40e1c28b8e5d1598bc68cfe8f2f544afb",
-    "seed/generated/code_forms.coil": "c4fffd7ae94eccec9e75daf5aedd60b396bb01e08a3ac63915e09ee7a138041f"
+    "languages/code.schema": "332b6adc7a3521d92af26301bb85f3ad194807a421efd97d6688c7e66cf6927d",
+    "seed/generated/code_forms.coil": "5e86c20526290506b5b707059a2521010ada1612fa8592276f7c6a79d0621490"
   }
 }

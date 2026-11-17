@@ -6,6 +6,7 @@
 (import "rewrite.resolveprotocol" :as routing)
 (import "rewrite.routing" :as router)
 (import "rewrite.namespace" :as namespace)
+(import "rewrite.traitdeclarations" :as traits)
 (import "rewrite.nameforms" :as names)
 (import "rewrite.routingfacts" :as facts)
 (import "rewrite.sourceroutes" :as records)
@@ -45,12 +46,6 @@
                                         "(Namespace [(Declaration \"lib.Known\") (Declaration \"lib.Ambiguous\") (Declaration \"other.Ambiguous\")] [] [])"))
             (Ok [id] id)
             (Err [_] (panic "old namespace")))
-        new-root
-          (match (names/parse-7 (mut store)
-                                (parsed sa
-                                        "(Namespace [(Declaration \"lib.Known\") (Declaration \"lib.Later\")] [] [])"))
-            (Ok [id] id)
-            (Err [_] (panic "new namespace")))
         route-root
           (match (names/parse-13 (mut store)
                                  (parsed sa
@@ -59,7 +54,6 @@
             (Err [_] (panic "routing facts")))
         (mut macros) (view a (mut store) macro-root)
         (mut old) (view a (mut store) old-root)
-        (mut new) (view a (mut store) new-root)
         (mut world)
           (match (facts/compile a (mut store) route-root)
             (Ok [w] w)
@@ -77,7 +71,6 @@
     (defer (names/store-free! (mut store)))
     (defer (namespace/release! (mut macros)))
     (defer (namespace/release! (mut old)))
-    (defer (namespace/release! (mut new)))
     (defer (facts/release! (mut world)))
     (set! (.hyg (sexp-nth pending 3)) 7)
     (set! (.hmod (sexp-nth pending 3))
@@ -166,8 +159,15 @@
       (None [] (panic "second arm was skipped after first miss"))
       (Some [_]))
     (unless (= (len (.entries r)) 2) (panic "failed registration appended"))
-    ; A caller publishes a new immutable trait snapshot between operations.
-    (set! (.traits c) (primitive/cast (ptr namespace/View) (mut new)))
+    ; Generated declarations publish membership; finish performs settlement.
+    (unless (= (traits/observe! sa
+                                (mut old)
+                                (parsed sa
+                                        "(do (deftrait Later malformed-body) (do (deftrait Later)))")
+                                (Some "lib"))
+               1)
+      (panic "trait declaration publication"))
+    (unless (= (len (.pending r)) 1) (panic "declaration settled too early"))
     (match (integration/finish! (mut c) r)
       (Ok [_])
       (Err [_] (panic "updated traits did not settle")))

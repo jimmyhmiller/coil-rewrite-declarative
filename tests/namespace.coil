@@ -8,6 +8,7 @@
 (import "coil.scratch" :use [ScratchArena])
 (import "coil.debug-allocator" :use [DebugAllocator])
 (import "coil.result" :use *)
+(import "coil.str" :use [StrBuf])
 
 (defn expect [(a (dyn Allocator))
               (view (ptr namespace/View))
@@ -64,6 +65,22 @@
               (Ok [view] view)
               (Err [_] (panic "view")))]
       (defer (namespace/release! (mut view)))
+      (expect a (mut view) "unrecorded" "Future" 0 (None))
+      (unless (namespace/introduce! (mut view) "unrecorded.Future")
+        (panic "new declaration"))
+      (expect a (mut view) "unrecorded" "Future" 0 (Some "unrecorded.Future"))
+      (when (namespace/introduce! (mut view) "base.a")
+        (panic "base declaration duplicated"))
+      (when (namespace/introduce! (mut view) "unrecorded.Future")
+        (panic "introduced declaration duplicated"))
+      (for [i 0 2000]
+        (let [(mut text) (StrBuf::new a)]
+          (push-str! (mut text) "grown.n")
+          (push-i64! (mut text) i)
+          (namespace/introduce! (mut view) (str text))
+          (free! (mut text))))
+      (expect a (mut view) "grown" "n1999" 0 (Some "grown.n1999"))
+
       (expect a (mut view) "facade" "a" 0 (Some "base.a"))
       (expect a (mut view) "facade" "local" 0 (Some "base.b"))
       (expect a (mut view) "facade" "b" 0 (None))
@@ -71,6 +88,9 @@
       (expect a (mut view) "facade" "alias" 0 (Some "base.a"))
       ; Declaration alias lookup is one hop, matching the reference table.
       (expect a (mut view) "facade" "chain" 0 (None))
+      (namespace/introduce! (mut view) "facade.alias")
+      (expect a (mut view) "facade" "alias" 0 (Some "base.a"))
+      (expect a (mut view) "facade" "chain" 0 (Some "facade.alias"))
       (expect a (mut view) "variants" "x" 0 (Some "base.a"))
       (expect a (mut view) "hidden" "a" 0 (None))
       (expect a (mut view) "unrecorded" "x" 0 (Some "unrecorded.x"))

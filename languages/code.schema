@@ -71,3 +71,9 @@
 (syntax DeriveDeclaration
   :expect "register-derive: expected (register-derive Trait :struct FN :sum FN)"
   (DeriveDeclaration (list "register-derive" (symbol trait) (rest arguments))))
+
+
+; Availability observation accepts a symbol name before full trait validation.
+(node DeclaredTrait (name Text) (body (many Syntax)))
+(syntax DeclaredTrait
+  (DeclaredTrait (list "deftrait" (symbol name) (rest body))))

@@ -21,8 +21,8 @@
   (Macro [(error (heads/Failure head/Error))])
   (Trait [(error (routes/Failure routing/Error))]))
 
-;;; Borrowed immutable namespace snapshots. Replace traits only between calls;
-;;; pending settlement then observes the new snapshot, without caching misses.
+;;; Borrowed namespace views. Publish introductions or replace views only between
+;;; calls; pending settlement observes current membership without caching misses.
 ;;; Callback failures may borrow these snapshots until inspected.
 (defstruct Context
   [(allocator (dyn Allocator))
