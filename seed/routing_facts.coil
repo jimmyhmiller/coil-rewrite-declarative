@@ -1,0 +1,182 @@
+;;; Owned indexes for an immutable module-routing snapshot; text borrows Store.
+(module rewrite.routingfacts)
+(import "rewrite.nameforms" :as forms)
+(import "rewrite.namespace" :as namespace)
+(import "rewrite.refer" :as refer)
+(import "coil.alloc" :use *)
+(import "coil.arraylist" :use *)
+(import "coil.hashmap" :use [HashMap])
+(import "coil.str" :use [keyops-borrowed])
+(import "coil.result" :use *)
+
+(defstruct Module
+  [(aliases (HashMap (slice u8) (slice u8)))
+   (imported (HashMap (slice u8) bool))
+   (uses (ArrayList namespace/Edge))
+   (core refer/Policy)])
+
+(defstruct World
+  [(modules (HashMap (slice u8) forms/N11Id))
+   (compiled (ArrayList (Option Module)))
+   (declared (HashMap (slice u8) bool))
+   (toolchain (HashMap (slice u8) bool))
+   (project-owners (HashMap (slice u8) (slice u8)))
+   (library-owners (HashMap (slice u8) (slice u8)))
+   (prelude (slice u8))])
+
+(defn release-module! [(module (mut Module))] (-> void)
+  (free! (mut (.aliases module)))
+  (free! (mut (.imported module)))
+  (namespace/release-edges! (mut (.uses module)))
+  (refer/release! (mut (.core module))))
+
+(defn release! [(world (mut World))] (-> void)
+  (for entry (.compiled world)
+    (match entry
+      (Some [module] (let [(mut owned) module] (release-module! (mut owned))))
+      (None [])))
+  (free! (mut (.compiled world)))
+  (free! (mut (.modules world)))
+  (free! (mut (.declared world)))
+  (free! (mut (.toolchain world)))
+  (free! (mut (.project-owners world)))
+  (free! (mut (.library-owners world))))
+
+(defn names! [(a (dyn Allocator))
+              (store (ptr forms/Store))
+              (sequence forms/N0Seq)
+              (output (ptr (HashMap (slice u8) bool)))]
+  (-> (Result bool namespace/Error))
+  (block
+    :done
+      (let [(mut ids) (ArrayList::new [forms/N0Id] a)]
+        (defer (free! (mut ids)))
+        (match (forms/sequence-materialize-0 a store sequence (mut ids))
+          (Ok [_])
+          (Err [e] (break :done (Err (namespace/Sequence e)))))
+        (for id ids
+          (match (forms/lookup-0 (field store rows0) id)
+            (None [] (break :done (Err (namespace/Row 0 (.index id)))))
+            (Some [row] (set! output (.f0 row) true))))
+        (Ok true))))
+
+(defn compile-module [(a (dyn Allocator))
+                      (store (ptr forms/Store))
+                      (row forms/N11Row)]
+  (-> (Result Module namespace/Error))
+  (block
+    :done
+      (let [(mut output)
+              (Module
+                :aliases
+                  (HashMap::new [(slice u8) (slice u8)] a (keyops-borrowed))
+                :imported (HashMap::new [(slice u8) bool] a (keyops-borrowed))
+                :uses (ArrayList::new [namespace/Edge] a)
+                :core (refer/create a))
+            (mut ids) (ArrayList::new [forms/N10Id] a)
+            (mut complete?) false]
+        (defer (unless complete? (release-module! (mut output))))
+        (defer (free! (mut ids)))
+        (match (forms/sequence-materialize-10 a store (.f1 row) (mut ids))
+          (Ok [_])
+          (Err [e] (break :done (Err (namespace/Sequence e)))))
+        (for id ids
+          (match (forms/lookup-10 (field store rows10) id)
+            (None [] (break :done (Err (namespace/Row 10 (.index id)))))
+            (Some [alias]
+                  (match (get (.aliases output) (.f0 alias))
+                    (Some [_])
+                    (None []
+                          (set! (mut (.aliases output)) (.f0 alias) (.f1 alias))))
+                  (set! (mut (.imported output)) (.f1 alias) true))))
+        (match (namespace/compile-uses a store (.f2 row))
+          (Err [e] (break :done (Err e)))
+          (Ok [uses] (set! (.uses output) uses)))
+        (match (forms/refer-imports a store (.f3 row))
+          (Err [e] (break :done (Err (namespace/CoreRefer (.f0 row) e))))
+          (Ok [core]
+              (refer/release! (mut (.core output)))
+              (set! (.core output) core)))
+        (set! complete? true)
+        (Ok output))))
+
+;;; Normalize duplicate module records before building this snapshot. Alias lists
+;;; preserve the reference's first matching alias and all imported target names.
+;;; Toolchain names are explicit classification facts supplied by the loader.
+(defn compile [(a (dyn Allocator)) (store (ptr forms/Store)) (root forms/N13Id)]
+  (-> (Result World namespace/Error))
+  (block
+    :done
+      (let [row
+              (match (forms/lookup-13 (field store rows13) root)
+                (Some [row] row)
+                (None [] (break :done (Err (namespace/Row 13 (.index root))))))
+            (mut world)
+              (World
+                :modules (forms/new-index-11-0 a)
+                :compiled (ArrayList::new [(Option Module)] a)
+                :declared (HashMap::new [(slice u8) bool] a (keyops-borrowed))
+                :toolchain (HashMap::new [(slice u8) bool] a (keyops-borrowed))
+                :project-owners
+                  (HashMap::new [(slice u8) (slice u8)] a (keyops-borrowed))
+                :library-owners
+                  (HashMap::new [(slice u8) (slice u8)] a (keyops-borrowed))
+                :prelude (.f4 row))
+            (mut modules) (ArrayList::new [forms/N11Id] a)
+            (mut providers) (ArrayList::new [forms/N12Id] a)
+            (mut complete?) false]
+        (defer (unless complete? (release! (mut world))))
+        (defer (free! (mut modules)))
+        (defer (free! (mut providers)))
+        (match (forms/sequence-materialize-11 a store (.f0 row) (mut modules))
+          (Ok [_])
+          (Err [e] (break :done (Err (namespace/Sequence e)))))
+        (match (forms/sequence-materialize-12 a store (.f1 row) (mut providers))
+          (Ok [_])
+          (Err [e] (break :done (Err (namespace/Sequence e)))))
+        (match (names! a store (.f2 row) (field (mut world) declared))
+          (Ok [_])
+          (Err [e] (break :done (Err e))))
+        (match (names! a store (.f3 row) (field (mut world) toolchain))
+          (Ok [_])
+          (Err [e] (break :done (Err e))))
+        (for [i 0 (len (.rows11 (load store)))]
+          (push! (mut (.compiled world)) (None)))
+        (for id modules
+          (match (forms/insert-index-11-0 (mut (.modules world))
+                                          (field store rows11)
+                                          id)
+            (Ok [_])
+            (Err [e] (break :done (Err (namespace/Index e)))))
+          (match (compile-module a
+                                 store
+                                 (get (.rows11 (load store)) (.index id)))
+            (Err [e] (break :done (Err e)))
+            (Ok [module]
+                (set! (mut (.compiled world)) (.index id) (Some module)))))
+        (for id providers
+          (match (forms/lookup-12 (field store rows12) id)
+            (None [] (break :done (Err (namespace/Row 12 (.index id)))))
+            (Some [provider]
+                  (set! (mut (.project-owners world))
+                        (.f0 provider)
+                        (.f1 provider))
+                  (unless (.f2 provider)
+                    (set! (mut (.library-owners world))
+                          (.f0 provider)
+                          (.f1 provider))))))
+        (set! complete? true)
+        (Ok world))))
+
+(defn module-of [(world (ptr World)) (name (slice u8))] (-> (Option Module))
+  (match (get (.modules world) name)
+    (None [] (None))
+    (Some [id] (get (.compiled world) (.index id)))))
+
+(defn provider [(world (ptr World)) (name (slice u8)) (asking (slice u8))]
+  (-> (slice u8))
+  (let [answer
+          (match (get (.toolchain world) asking)
+            (Some [_] (get (.library-owners world) name))
+            (None [] (get (.project-owners world) name)))]
+    (match answer (Some [owner] owner) (None [] ""))))

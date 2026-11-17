@@ -33,7 +33,8 @@
   (Row [(schema i64) (index i64)])
   (Sequence [(error sequence/SequenceError)])
   (Index [(error forms/IndexError)])
-  (Refer [(edge i64) (error refer/Error)]))
+  (Refer [(edge i64) (error refer/Error)])
+  (CoreRefer [(module (slice u8)) (error refer/Error)]))
 
 (defsum QueryError (InvalidView))
 
@@ -202,22 +203,24 @@
                     (Some [_] true)
                     (None [] false)))))))
 
+(defn alias-name [(view (ptr View)) (qualified (slice u8))] (-> (slice u8))
+  (match (get (.aliases view) qualified)
+    (Some [id] (.f1 (get (.rows4 (.store view)) (.index id))))
+    (None [] qualified)))
+
+(defn declaration [(view (ptr View)) (qualified (slice u8))]
+  (-> (Option (slice u8)))
+  (match (get (.declarations view) (alias-name view qualified))
+    (None [] (None))
+    (Some [id] (Some (.f0 (get (.rows3 (.store view)) (.index id)))))))
+
 (defn direct :cc (cc/C) [(context (ptr Context)) (query (ptr search/Query))]
   (-> (Result (Option (slice u8)) QueryError))
-  (let [view (.view context)
-        store (.store view)
-        (mut b) (StrBuf::new (.scratch context))]
+  (let [(mut b) (StrBuf::new (.scratch context))]
     (push-str! (mut b) (.owner query))
     (push-str! (mut b) ".")
     (push-str! (mut b) (.name query))
-    (let [qualified (str b)
-          target
-            (match (get (.aliases view) qualified)
-              (Some [id] (.f1 (get (.rows4 store) (.index id))))
-              (None [] qualified))]
-      (Ok (match (get (.declarations view) target)
-            (None [] (None))
-            (Some [id] (Some (.f0 (get (.rows3 store) (.index id))))))))))
+    (Ok (declaration (.view context) (str b)))))
 
 (defn reexports :cc (cc/C) [(context (ptr Context)) (query (ptr search/Query))]
   (-> (Result (ArrayList search/Query) QueryError))

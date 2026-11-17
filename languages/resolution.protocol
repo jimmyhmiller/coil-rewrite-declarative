@@ -1,0 +1,15 @@
+(module rewrite.resolveprotocol)
+(protocol
+  (start spelling)
+  (finish complete)
+  (state spelling
+    (on Slash slash)
+    (on Dotted dotted-own)
+    (on Bare bare-own))
+  (state slash (on Done complete))
+  (state dotted-own (on Found complete) (on Missing absolute))
+  (state absolute (on Done complete))
+  (state bare-own (on Found complete) (on Missing shadow))
+  (state shadow (on Blocked complete) (on Clear uses))
+  (state uses (on Found complete) (on Missing core))
+  (state core (on Done complete)))

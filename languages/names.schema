@@ -18,3 +18,8 @@
 (selection macro-use Candidate first)
 (selection unique-use Candidate (agree-any owner target))
 (node Imports (uses (many Reexport)))
+
+(node ImportAlias (name Text) (target Text))
+(node ModuleImports (name Text :key) (aliases (many ImportAlias)) (uses Imports) (core Refer))
+(node Provider (name Text) (owner Text) (root Bool))
+(node Routing (modules (many ModuleImports)) (providers (many Provider)) (declared (many Name)) (toolchain (many Name)) (prelude Text))

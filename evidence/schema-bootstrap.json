@@ -10,6 +10,11 @@
       "output": "seed/generated/schema_forms.coil",
       "generated_sha256": "c412311c65dd22fb8d36568e3aa142c0f3ac3d95464f55f11ec1e9c4beae8f1d"
     },
+    "languages/resolution.protocol": {
+      "specification_sha256": "2935a8152436fde995fb6154d264e6a6c9aee9bda726fbd9a0e5001db5dc25b5",
+      "output": "seed/generated/resolve_protocol.coil",
+      "generated_sha256": "674f6b3ebd9021f16c3dc5b0da344b2f61d860709cfc600d5f6bac6b8811d7ae"
+    },
     "languages/exports.search": {
       "specification_sha256": "d5ac7c50216c9417078203a9a9c4b4e2777a1d4fbc54e12539a640420afa8160",
       "output": "seed/generated/export_search.coil",
@@ -21,9 +26,9 @@
       "generated_sha256": "68c37d4172b78c83acc99795b9bf16930f06fac992edf04783a7b904f4eda2ab"
     },
     "languages/names.schema": {
-      "specification_sha256": "372c8404debe1cb67a26b077b3d5a77ac8cb479cb1dc9b070e5fcbf211691342",
+      "specification_sha256": "cdcbeda7b85f3d05fd99e58c89703846f75ebc1357b9eb642f3f2f9c0bf12d58",
       "output": "seed/generated/name_forms.coil",
-      "generated_sha256": "cb3bf67118ba57f029ae806fe39d36410d0eeb1a0e87cf7839f5e87fe40a0382"
+      "generated_sha256": "dc635ecbb7041f3c7de7fa7756bd581d160aec2b5b1eae0b864aafc410517463"
     },
     "languages/code.schema": {
       "specification_sha256": "d1cecb6b0a6a73d4b545d047d2a6e7893feadb1e2335c7607396e8959dda4998",
@@ -63,9 +68,10 @@
     "seed/generated/before_protocol.coil": "d4c501ee6b518eeea2ffd0f2a4a97a616e9b1975e419a4456ffdf3be9acc84d5",
     "seed/generated/code_forms.coil": "8cd71624fa90d36fb3376c0ef4341d40399fbbc99229bb46e6d19a62ea878662",
     "seed/generated/export_search.coil": "0958122e80f6ba9f2ff587e2760da4da371fafca3c73e633b8a4ba55b5ed663b",
-    "seed/generated/name_forms.coil": "cb3bf67118ba57f029ae806fe39d36410d0eeb1a0e87cf7839f5e87fe40a0382",
+    "seed/generated/name_forms.coil": "dc635ecbb7041f3c7de7fa7756bd581d160aec2b5b1eae0b864aafc410517463",
     "seed/generated/protocol_forms.coil": "df9e7ac21cacee998f55bcf2f7c784565d260efbf966a738bbfcf56b9473ba44",
     "seed/generated/request_protocol.coil": "b6ca981116487cd83bdde28702a1e9d69533952a6514cbad94fa9dcdbf7cbbd0",
+    "seed/generated/resolve_protocol.coil": "674f6b3ebd9021f16c3dc5b0da344b2f61d860709cfc600d5f6bac6b8811d7ae",
     "seed/generated/schema_forms.coil": "c412311c65dd22fb8d36568e3aa142c0f3ac3d95464f55f11ec1e9c4beae8f1d",
     "seed/generated/search_forms.coil": "68c37d4172b78c83acc99795b9bf16930f06fac992edf04783a7b904f4eda2ab",
     "seed/generated/stage_protocol.coil": "ca788092370b54bd3eb92a85bf82138945fbc0f0a23a429c488871e7ccdc431a",
@@ -74,7 +80,7 @@
     "seed/judgment.coil": "5c89d13c8af1532e8cfbb5d5808cdbf0d58de0989d354bac8762c2cbde2aa504",
     "seed/lower.coil": "2421bc11672e988aef991f081125c869b563d1b762239229fa8bf39bd10e59cb",
     "seed/main.coil": "1d87b674f8c5b69b43bf3f392222a4caa0832a3ff2dc011bc1a3059386a0fcb5",
-    "seed/namespace.coil": "21dd43fee30210f1ed2d865d07424b202175eaaaa30fecc48704428a702f5bbf",
+    "seed/namespace.coil": "d55f43600f98c731c24fb71b31d3cf7b047a41ce110217678d3742b9ada91bbd",
     "seed/phase.coil": "ee9681c4c18d5d0974415dfdee37c23b203d735d87a012962e58e1c5cec3ea1e",
     "seed/produced.coil": "a2ef562cc081f4ba5ff732f3e5edf4f43f91b5dd727f7c41d6e6bf6e7876137d",
     "seed/program.coil": "b8ad6fb872c4de33aac6cb06f818cebeb70046bd795252b9af88e11b6bb0a3f9",
@@ -88,6 +94,8 @@
     "seed/resolve.coil": "2928e535b334a1728fea51807ad73e0b5ed16f90ce4b75acd9bd2d8cf45df78e",
     "seed/revision.coil": "eedefc4f099ac12328e061ccc2033fe87994893a4f269acf87bebe7540fd660c",
     "seed/rounds.coil": "3bf2099362ab986c0355d86a789c892108c5e9f64eb578a74d1527f6774bc299",
+    "seed/routing.coil": "40caf673390c0a315f3f32c2ec701a62d86013b73f0c91d30b4fd4a1f5f537fe",
+    "seed/routing_facts.coil": "24eabdb95c24c6e450392b013c02c72544efb3ef351accd8218fe839f83f79a2",
     "seed/schema.coil": "0db07959be94f09975feacf8bfb3a987de79dbdd1a295c71eb8a5e4c3ae473d9",
     "seed/scope.coil": "c7be3143d3e955ecd8c05ea3c7ffb4b8b6d9981a223fc5de55507aa89f35e71f",
     "seed/search.coil": "1dc133adde12ae7cdee718146c58c84684adef6da47ab6c8ef627fef1b4ce026",
