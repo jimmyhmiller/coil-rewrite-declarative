@@ -44,3 +44,13 @@ A judgment names a declared sum, gives exactly one case per variant, and checks 
 The generated `judge-N` API returns a `Judgment` sum: `Typed` carries 1/2/3 for Int/Bool/Text, `Mismatch` identifies the child ID, field, expected/actual types and premise byte span, and `InvalidReference` and `CyclicInput` distinguish graph errors. Nested failures propagate unchanged; premises run in declaration order and the first failure wins. Recursion has a table-length depth budget, sufficient for any acyclic path through that table, rather than an arbitrary constant cutoff. Very deep valid graphs can still exhaust the native stack; iterative scheduling and memoization are future work. The result retains the failing premise but not a full ancestry trace or original expression source span. This finite kernel is not Coil's type system: contexts, type variables, unification, elaboration, bidirectional checking and richer result schemas remain to implement.
 
 Schema parsing currently recognizes and defers judgment forms to the judgment compiler. The command publishes no generated source if judgment validation fails. The command reads the source once and shares those parsed forms between schema validation and judgment compilation.
+
+Rule-local inference variables use a `?` prefix:
+
+```
+(Choose ?result (condition Bool) (yes ?result) (no ?result))
+```
+
+The first premise naming a variable binds it to that child's synthesized type. Later premises using the variable require equality with the binding; the rule result may return it. Distinct variables bind independently. Variables are scoped to one variant rule, and a result variable without a premise binding is rejected at its source span. Rule compilation assigns local slots by first occurrence, so variable spelling does not enter generated identifiers. Premises still execute in source order and preserve first-failure behavior.
+
+This implements local inference over concrete scalar types, not general unification of type constructors or polymorphic type schemes. The conditional fixture exercises both Int and Bool results, disagreeing branches, and an invalid condition. A separate projection rule exercises independent variables. Contexts for variables/lets/functions and bidirectional checking remain required for the frontend slice.

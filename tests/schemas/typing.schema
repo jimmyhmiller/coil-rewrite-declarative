@@ -1,8 +1,12 @@
 (sum Expr
   (Integer (value Int))
   (Boolean (value Bool))
-  (Add (left Expr) (right Expr)))
+  (Add (left Expr) (right Expr))
+  (Choose (condition Expr) (yes Expr) (no Expr))
+  (Project (left Expr) (right Expr)))
 (judgment Expr
   (Integer Int)
   (Boolean Bool)
-  (Add Int (left Int) (right Int)))
+  (Add Int (left Int) (right Int))
+  (Choose ?result (condition Bool) (yes ?result) (no ?result))
+  (Project ?right (left ?left) (right ?right)))

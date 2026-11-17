@@ -59,6 +59,8 @@ with tempfile.TemporaryDirectory(prefix='rewrite-judgment-') as directory:
     (work / 'Coil.toml').write_text('[package]\nname = "fixture"\nentry = "main.coil"\nsource-roots = ["."]\n')
     typing = (ROOT / 'tests/schemas/typing.schema').read_bytes()
     output = subprocess.check_output([str(ROOT / 'build/schema-seed')], input=typing)
+    renamed = subprocess.check_output([str(ROOT / 'build/schema-seed')], input=typing.replace(b'?result', b'?branch'))
+    assert output == renamed, 'same-length variable renaming changed generated code'
     (work / 'generated.coil').write_bytes(output)
     premise = b'(right Int)'
     offset = typing.index(premise)
@@ -72,6 +74,7 @@ with tempfile.TemporaryDirectory(prefix='rewrite-judgment-') as directory:
         (typing.replace(b'(left Int)', b'(missing Int)'), b'unknown premise field'),
         (typing.replace(b'(Integer Int)', b'(Integer Int (value Int))'), b'premise field'),
         (typing.replace(b'(Integer Int)', b'(Integer Mystery)'), b'judgment result'),
+        (typing.replace(b'(Integer Int)', b'(Integer ?unbound)'), b'unbound result'),
     ]:
         result = subprocess.run([str(ROOT / 'build/schema-seed')], input=invalid, capture_output=True)
         assert result.returncode != 0 and not result.stdout and diagnostic in result.stderr, result

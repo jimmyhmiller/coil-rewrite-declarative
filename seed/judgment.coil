@@ -11,6 +11,25 @@
 (defn tag [(name (slice u8))] (-> i64)
   (cond (= name "Int") 1 (= name "Bool") 2 (= name "Text") 3 :else 0))
 
+(defn variable? [(name (slice u8))] (-> bool)
+  (and (> (len name) 1) (= (get name 0) (: 63 u8))))
+
+(defn binding-index [(rule (ptr Sexp)) (name (slice u8))] (-> i64)
+  (block :found
+    (for [p 2 (sexp-count rule)]
+      (let [premise (sexp-nth rule p)]
+        (when (and (sexp-list? premise)
+                   (= (sexp-count premise) 2)
+                   (sexp-sym-is (sexp-nth premise 1) name))
+          (break :found p))))
+    (- 0 1)))
+
+(defn type-expression! [(b (mut StrBuf)) (rule (ptr Sexp)) (name (slice u8))]
+  (-> void)
+  (if (variable? name)
+      (do (push-str! (mut b) "t") (number! (mut b) (binding-index rule name)))
+      (number! (mut b) (tag name))))
+
 (defn compile-rule [(b (mut StrBuf))
                     (n (ptr Node))
                     (ni i64)
@@ -21,17 +40,34 @@
       (break :done (Err (problem rule "expected (Variant Result premises...)"))))
     (let [result (sexp-nth rule 1)
           v (elem (field n variants) vi)]
-      (unless (and (sexp-sym? result) (scalar? (sexp-sym result)))
+      (unless (and (sexp-sym? result)
+                   (or (scalar? (sexp-sym result))
+                       (variable? (sexp-sym result))))
         (break
           :done
-            (Err (problem result "judgment result must be Int, Bool or Text"))))
+            (Err (problem result
+                          "judgment result must be a scalar or bound type variable"))))
+      (when (and (variable? (sexp-sym result))
+                 (< (binding-index rule (sexp-sym result)) 0))
+        (break :done (Err (problem result "unbound result type variable"))))
       (push-str! (mut b) "(N")
       (number! (mut b) ni)
       (push-str! (mut b) "V")
       (number! (mut b) vi)
       (push-str! (mut b) " [")
       (for [i 0 (len (.fields v))] (push-str! (mut b) " f") (number! (mut b) i))
-      (push-str! (mut b) "] (block :rule ")
+      (push-str! (mut b) "] (block :rule (let [")
+      (for [p 2 (sexp-count rule)]
+        (let [premise (sexp-nth rule p)]
+          (when (and (sexp-list? premise)
+                     (= (sexp-count premise) 2)
+                     (sexp-sym? (sexp-nth premise 1)))
+            (let [name (sexp-sym (sexp-nth premise 1))]
+              (when (and (variable? name) (= (binding-index rule name) p))
+                (push-str! (mut b) "(mut t")
+                (number! (mut b) p)
+                (push-str! (mut b) ") 0 "))))))
+      (push-str! (mut b) "] ")
       (for [p 2 (sexp-count rule)]
         (let [premise (sexp-nth rule p)]
           (unless (and (sexp-list? premise) (= (sexp-count premise) 2))
@@ -43,7 +79,8 @@
                 (mut found) false]
             (unless (and (sexp-sym? field-name) (sexp-sym? expected))
               (break :done (Err (problem premise "premise requires symbols"))))
-            (unless (scalar? (sexp-sym expected))
+            (unless (or (scalar? (sexp-sym expected))
+                        (variable? (sexp-sym expected)))
               (break :done (Err (problem expected "unknown expected type"))))
             (for [f 0 (len (.fields v))]
               (let [field (elem (field v fields) f)]
@@ -59,24 +96,30 @@
                   (push-str! (mut b) " rows f")
                   (number! (mut b) f)
                   (push-str! (mut b)
-                             " (- fuel 1))] (match answer (Typed [actual] (unless (= actual ")
-                  (number! (mut b) (tag (sexp-sym expected)))
+                             " (- fuel 1))] (match answer (Typed [actual] (do ")
+                  (when (and (variable? (sexp-sym expected))
+                             (= (binding-index rule (sexp-sym expected)) p))
+                    (push-str! (mut b) "(set! t")
+                    (number! (mut b) p)
+                    (push-str! (mut b) " actual) "))
+                  (push-str! (mut b) "(unless (= actual ")
+                  (type-expression! (mut b) rule (sexp-sym expected))
                   (push-str! (mut b) ") (break :rule (Mismatch (.index f")
                   (number! (mut b) f)
                   (push-str! (mut b) ") ")
                   (number! (mut b) f)
                   (push-str! (mut b) " ")
-                  (number! (mut b) (tag (sexp-sym expected)))
+                  (type-expression! (mut b) rule (sexp-sym expected))
                   (push-str! (mut b) " actual ")
                   (number! (mut b) (.lo premise))
                   (push-str! (mut b) " ")
                   (number! (mut b) (.hi premise))
-                  (push-str! (mut b) ")))) (_ (break :rule answer)))) "))))
+                  (push-str! (mut b) "))))) (_ (break :rule answer)))) "))))
             (unless found
               (break :done (Err (problem field-name "unknown premise field")))))))
       (push-str! (mut b) "(Typed ")
-      (number! (mut b) (tag (sexp-sym result)))
-      (push-str! (mut b) ")))\n")
+      (type-expression! (mut b) rule (sexp-sym result))
+      (push-str! (mut b) "))))\n")
       (Ok 0))))
 
 (defn compile-one [(a (dyn Allocator)) (s (ptr Schema)) (form (ptr Sexp))]
