@@ -163,3 +163,11 @@ The cumulative native fixture now uses this driver for routing, installation, in
 Protocol tests cover zero, exact and exceeded budgets; independent retry/poll budgets; acyclic protocols without budgets; fresh repeated runs; handler failures; unexpected outcomes; invalid graph/name/shape contracts; and rejected callback signatures. A fuel check occurs after its source handler returns and before its target handler runs; no rollback of source effects is promised. The graph proof assumes handlers return and does not bound their own execution.
 
 Validation: the complete seed and final native suites passed. Isolated seed regeneration now compares all four language artifacts, including the protocol grammar and staged protocol driver. The independent protocol client and boundary/error tests passed in debug/debug-checks/release. No whole-compiler performance, complete expansion compatibility or self-hosting claim follows.
+
+## Reference boundary and shared-counter checkpoint
+
+Thirteen installed-reference probes now establish before-expand, semantic and after-expand call counts and outcomes. Successful artifacts are executed to verify their rewritten global value. Mixed staged/plain rounds establish one counter with conditional 16/64 guards and equality precedence. A separate trace records the distinction between module-projection equality and whole-form equality in an initially unchanged fixture.
+
+The protocol language's `spend-within` transition applies a stricter ceiling to an existing budget counter, with no reset or independent count. Its generated before-expand guard model replays eight reference changing-round traces in debug/debug-checks/release. The evidence is scoped to accounting: it does not establish rewritten source compatibility, initial normalization, production request handling, Code construction, semantic model availability or strict final checking. Full self-hosting and toolchain replacement gates remain unmet.
+
+Validation: all 13 reference probes and the additional comparison trace passed. The full seed and native suites passed; isolated regeneration covers five language artifacts. The final accounting replay passed in all three configurations and its evidence hash points to the final reference capture. This remains a partial compiler rewrite, with no global installation.

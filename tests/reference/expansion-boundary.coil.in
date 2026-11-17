@@ -1,0 +1,35 @@
+(module boundary.transform)
+(import "coil.primitive" :as p)
+(import "coil.phase" :as phase)
+(defn counter? [(form Code)] (-> bool)
+  (and (p/code-list? form) (= (p/code-count form) 3)
+       (p/code-eq (p/code-nth form 0) `def)
+       (p/code-eq (p/code-nth form 1) `boundary-count)))
+(defn count-in [(forms Code) (i i64)] (-> i64)
+  (if (>= i (p/code-count forms)) (- 0 1)
+    (let [form (p/code-nth forms i)]
+      (if (counter? form) (p/code-int (p/code-nth form 2)) (count-in forms (+ i 1))))))
+(defn items [(forms Code) (i i64) (n i64)] (-> Code)
+  (if (>= i (p/code-count forms)) `()
+    (let [form (p/code-nth forms i)]
+      `(~(if (counter? form) `(~(p/code-nth form 0) ~(p/code-nth form 1) ~(+ n 1)) form)
+        ~@(items forms (+ i 1) n)))))
+(defn with-stage [(m Code)] (-> Code)
+  `(~@m (stage ~(p/gensym) (defn ~(p/gensym) [(x Code)] (-> Code) x))))
+(defn change-module [(m Code)] (-> Code)
+  (let [n (count-in m 0)]
+    (println "boundary-call {}" n)
+    (if @@STAGE_ONLY@@ (with-stage m)
+      (if (>= n @@TARGET@@) m
+        (let [next (items m 0 n)]
+          (if @@PROGRESS@@ (with-stage next) next))))))
+(defn modules [(forms Code) (i i64)] (-> Code)
+  (if (>= i (p/code-count forms)) `()
+    (let [m (p/code-nth forms i)]
+      `(~(if (p/code-eq (p/code-nth m 0) `boundary.main) (change-module m) m)
+        ~@(modules forms (+ i 1))))))
+(defn transform [(forms Code)] (-> Code)
+  (let [next (modules forms 0)]
+    (println "boundary-module-equal {}" (p/code-eq forms next))
+    `(do ~@next)))
+(transform transform @@PHASE@@ :modules (phase/OwnModules))

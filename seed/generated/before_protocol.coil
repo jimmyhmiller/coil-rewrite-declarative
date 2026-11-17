@@ -1,0 +1,11 @@
+;;; Generated from languages/before_expand.protocol by tools/gen-schema.py. Do not edit.
+(module rewrite.beforeprotocol)
+(import "coil.result" :use *)
+(import "coil.cc" :as cc)
+(defsum Event (Event-Equal)(Event-ChangedPlain)(Event-ChangedStage)(Event-Accepted))
+(defn state-name [(state i64)] (-> (slice u8)) (block :done (when (= state 2) (break :done "complete"))(when (= state 3) (break :done "round"))(when (= state 4) (break :done "accept"))"<unknown>"))
+(defn budget-name [(budget i64)] (-> (slice u8)) (block :done (when (= budget 0) (break :done "rounds"))"<unknown>"))
+(defn event-name [(event Event)] (-> (slice u8)) (match event (Event-Equal [] "Equal")(Event-ChangedPlain [] "ChangedPlain")(Event-ChangedStage [] "ChangedStage")(Event-Accepted [] "Accepted")))
+(defsum Failure [E] (HandlerError [(state i64) (error E)]) (UnexpectedEvent [(state i64) (event Event)]) (Exhausted [(budget i64) (limit i64)]))
+(defstruct Handlers [C E] [(step-round (fnptr (cc/C) [(ptr C)] (Result Event E)))(step-accept (fnptr (cc/C) [(ptr C)] (Result Event E)))])
+(defn run [C E] [(context (ptr C)) (handlers (ptr (Handlers C E)))] (-> (Result bool (Failure E))) (block :done (let [(mut state) 3 (mut spent0) 0] (loop (when (= state 2) (break :done (Ok true))) (cond (= state 3) (let [step (.step-round handlers) event (match (step context) (Ok [event] event) (Err [e] (break :done (Err (HandlerError [E] state e)))))] (match event (Event-Equal [] (set! state 2))(Event-ChangedPlain [] (when (>= spent0 16) (break :done (Err (Exhausted [E] 0 16)))) (set! spent0 (+ spent0 1))(set! state 4))(Event-ChangedStage [] (when (>= spent0 64) (break :done (Err (Exhausted [E] 0 64)))) (set! spent0 (+ spent0 1))(set! state 4))(_ (break :done (Err (UnexpectedEvent [E] state event)))))) (= state 4) (let [step (.step-accept handlers) event (match (step context) (Ok [event] event) (Err [e] (break :done (Err (HandlerError [E] state e)))))] (match event (Event-Accepted [] (set! state 3))(_ (break :done (Err (UnexpectedEvent [E] state event)))))) :else (panic "invalid generated protocol state"))) (Ok true))))

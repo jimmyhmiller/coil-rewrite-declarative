@@ -397,3 +397,5 @@ for invalid in [b'(node X (value Text)) (syntax X (X (float-bits value)))',
 print('Raw float-bit and C-string syntax capture type checks passed')
 
 subprocess.run(['python3', 'tools/check-protocol.py', '--compiler', 'build/schema-seed'], cwd=ROOT, check=True)
+
+subprocess.run(['python3', 'tools/check-expansion-policy.py'], cwd=ROOT, check=True)

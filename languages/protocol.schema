@@ -1,7 +1,8 @@
 (module rewrite.protocolforms)
 (sum Edge
   (Goto (event Text :key) (target Text))
-  (Spend (event Text :key) (target Text) (budget Text)))
+  (Spend (event Text :key) (target Text) (budget Text))
+  (Within (event Text :key) (target Text) (budget Text) (ceiling Int)))
 (sum Clause
   (Budget (name Text :key) (limit Int))
   (Start (name Text :key))
@@ -10,7 +11,8 @@
 (node Protocol (clauses (many Clause)))
 (syntax Edge
   (Goto (list "on" (symbol event) (symbol target)))
-  (Spend (list "spend" (symbol event) (symbol budget) (symbol target))))
+  (Spend (list "spend" (symbol event) (symbol budget) (symbol target)))
+  (Within (list "spend-within" (symbol event) (symbol budget) (int ceiling) (symbol target))))
 (syntax Clause
   (Budget (list "budget" (symbol name) (int limit)))
   (Start (list "start" (symbol name)))

@@ -30,6 +30,10 @@ invalid = [
     (base.replace(b'(on Done complete)', b'(on bad/name complete)'), b'invalid protocol event name'),
     (base.replace(b'(budget requests 64)', b'(budget bad/name 64)'), b'invalid protocol name'),
     (base.replace(b'(spend Request requests install)', b'(spend Request requests)'), b'wrong syntax arity'),
+    (base.replace(b'(spend Request requests install)', b'(spend-within Request requests -1 install)'), b'protocol edge ceiling must be within its budget'),
+    (base.replace(b'(spend Request requests install)', b'(spend-within Request requests 65 install)'), b'protocol edge ceiling must be within its budget'),
+    (base.replace(b'(spend Request requests install)', b'(spend-within Request missing 16 install)'), b'unknown protocol budget'),
+    (base.replace(b'(on Done complete)', b'(on Done complete) (spend-within Done requests 16 install)'), b'duplicate protocol outcome'),
 ]
 for spec, message in invalid:
     result = subprocess.run([str(compiler)], input=spec, capture_output=True)

@@ -61,7 +61,7 @@ The implementation's guard conditions are part of the trace, not newly proposed 
 - Before-expand tests equality first, then applies `iters >= 16` when that round made no stage progress, and the wider `iters >= 64` guard for continued staging.
 - The macro-tower helper `stage3-max-rounds` uses `min(64 + number-of-subforms, 4096)`.
 
-Do not infer an invocation count merely from the diagnostic's phrase “16 rounds”: counters start at zero and the equality test precedes the guard. None of these bounds permits successful truncation. Boundary-count and nonconvergence fixtures remain to be captured before implementing equivalent policies.
+Do not infer an invocation count merely from the diagnostic's phrase “16 rounds”: counters start at zero and the equality test precedes the guard. None of these bounds permits successful truncation. Selected before-expand, semantic and after-expand boundary probes are now captured below. Macro-tower and once-only/model-availability boundaries remain to be covered.
 
 ## Reader lifetime and target separation
 
@@ -99,3 +99,35 @@ The rewrite now has invocation-owned native handles, structural promotion, impor
 This is rewrite mechanism evidence, not reproduction of the reference's original `staged_chain` source. Request discovery and the resumption decision remain fixture code; returned syntax is selected from authored templates rather than constructed by general Code operations. Production language-declared expansion transitions, marker routing, reference limit policies, imports, semantic capabilities and full phase/runtime artifact isolation remain required.
 
 A generated protocol driver now replaces the staged fixture's handwritten ordering loop. `languages/staging.protocol` declares route/install/invoke/resume transitions and a finite request budget; `languages/protocol.schema` supplies the compiler's grammar and key indexes. This is control-mechanism evidence. The fixture's request budget counts transitions into install, while the reference guards rounds after equality and distinguishes stage progress. They are different policies. Do not substitute this bound for the reference limits; capture exact boundary behavior and express that accounting explicitly in subsequent expansion rules.
+
+
+## Executed round boundaries and declared guard model
+
+`tools/capture-expansion-boundaries.py` records 13 executable reference probes in `evidence/expansion-boundaries.json`. It identifies the installed compiler by binary hash and reported revision, and reads the expander blob from that exact Git revision rather than assuming the reference checkout HEAD matches. Every successful compile executes its output and checks the rewritten global's value. Failed cases require the actual limit diagnostic and a fresh missing output artifact. Raw inputs and logs remain under `build/expansion-boundaries/`; hashes, call sequences and module-projection equality are recorded in JSON. Compiler bytes are checked again after the run.
+
+The before-expand probes establish:
+
+| Rewrites and progress | Transform calls | Result |
+|---|---:|---|
+| 16 plain changes, then equality | 17 | success |
+| 17 plain changes requested | 17 | 16-round diagnostic |
+| 64 changes with new stage declarations, then equality | 65 | success |
+| 65 such staged changes requested | 65 | 64-round diagnostic |
+| First 16 changes staged, next change plain | 17 | 16-round diagnostic |
+| First 16 changes plain, change 17 staged, then equality | 18 | success |
+| Same sequence followed by another plain change | 18 | 16-round diagnostic |
+
+These cases distinguish one monotonically increasing accepted-round counter from separate plain/staged counters or a counter reset after staging. Equality wins even when the counter is at a limit. Stage progress means a nonempty batch of newly split stage declarations in that round; it is not a count of native entry calls. The semantic transform probes independently accept 16 changes plus an equality call and reject another change. The after-expand probe runs once despite returning changed forms.
+
+Two probes with an unchanged scalar counter produce calls `[0, 0]`: an identity result and a stage-only result. In the identity case, the module projection compares equal on both calls, while `COIL_MTRACE=rounds` reports whole-form `changed=yes`, then `changed=no`. Source reconstruction groups forms by module, but the evidence establishes only the predicate distinction, not a general normalization cost. The trace's printed `round 0` is the transformer index passed by `run-transformers`, not the loop iteration count. Do not infer loop counts from that label or use module-projection equality as the guard's whole-form equality.
+
+`languages/before_expand.protocol` now declares the accounting kernel. `Equal` completes immediately; `ChangedPlain` spends the shared `rounds` budget under a ceiling of 16; `ChangedStage` spends the same budget under its overall limit of 64. Only a successful spending edge enters the `accept` handler. The round handler computes candidate output and classifies equality/progress; the accept handler publishes that candidate. Handler errors stop the protocol.
+
+`tools/check-expansion-policy.py` replays the eight changing-round before-expand traces through this generated driver in debug/debug-checks/release. `evidence/before-policy-replay.json` links the captured reference evidence, language/model output, fixture, scripts and compiler by hashes. This checks the accounting kernel. It does not run those source files through the rewritten frontend, reproduce initial form normalization, or implement request discovery, Code construction, semantic models and strict checking. The simpler request-count staging fixture remains a separate mechanism test.
+
+Reproduce with:
+
+```sh
+python3 tools/capture-expansion-boundaries.py --reference ../coil --compiler coil
+python3 tools/check-expansion-policy.py
+```

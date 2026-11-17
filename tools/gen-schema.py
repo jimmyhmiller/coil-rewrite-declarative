@@ -14,7 +14,8 @@ OUTPUT = ROOT / 'seed/generated/schema_forms.coil'
 LANGUAGE_ARTIFACTS = [(SPEC, OUTPUT, 'rewrite.schemaforms'),
             (ROOT/'languages/code.schema', ROOT/'seed/generated/code_forms.coil', 'rewrite.codeforms'),
             (ROOT/'languages/protocol.schema', ROOT/'seed/generated/protocol_forms.coil', 'rewrite.protocolforms'),
-            (ROOT/'languages/staging.protocol', ROOT/'seed/generated/stage_protocol.coil', 'rewrite.stageprotocol')]
+            (ROOT/'languages/staging.protocol', ROOT/'seed/generated/stage_protocol.coil', 'rewrite.stageprotocol'),
+            (ROOT/'languages/before_expand.protocol', ROOT/'seed/generated/before_protocol.coil', 'rewrite.beforeprotocol')]
 
 
 def digest(data):

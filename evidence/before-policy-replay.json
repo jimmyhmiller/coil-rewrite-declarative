@@ -1,0 +1,44 @@
+{
+  "scope": "Before-expand guard accounting only; replays eight captured reference changing-round traces. Does not execute reference source through the rewritten frontend or model initial form normalization.",
+  "reference_evidence_sha256": "7b05d4dff13545361a281d278f7b020292cce73e452a64a45ae097046b609d45",
+  "model_sha256": "3fe80d433d6bbf990de8cc107735203a8f174bfb57bc05c5f54b51537c9879dd",
+  "generated_sha256": "d4c501ee6b518eeea2ffd0f2a4a97a616e9b1975e419a4456ffdf3be9acc84d5",
+  "fixture_sha256": "7cf2e6d3b11b666ff3ef9de724a1145f601d54f925715076d205be23ba0fb10b",
+  "replay_script_sha256": "7340729b5261e2309d00ca26d4bec3fee683169ba67f2a379d0d2cb914556549",
+  "host_compiler_sha256": "f1485fd8f69496a11ca445dea1ac4a60005ee1401cf61636f1d1afab9c8483d5",
+  "reference_cases": [
+    "before-change-17",
+    "before-stable-16",
+    "early-stage-plain-change-17",
+    "early-stage-stable-16",
+    "late-stage-plain-change-18",
+    "late-stage-stable-17",
+    "staged-change-65",
+    "staged-stable-64"
+  ],
+  "generated_client_sha256": "5886b8fd3d64e0f0fc7cae3d5dd872134e06c0ac9b1a0546146e6f2839e054d2",
+  "results": [
+    {
+      "flags": [],
+      "exit": 0,
+      "stdout": "before-expand guard: shared counter and equality precedence: true\n",
+      "stderr": ""
+    },
+    {
+      "flags": [
+        "--debug-checks"
+      ],
+      "exit": 0,
+      "stdout": "before-expand guard: shared counter and equality precedence: true\n",
+      "stderr": ""
+    },
+    {
+      "flags": [
+        "--release"
+      ],
+      "exit": 0,
+      "stdout": "before-expand guard: shared counter and equality precedence: true\n",
+      "stderr": ""
+    }
+  ]
+}

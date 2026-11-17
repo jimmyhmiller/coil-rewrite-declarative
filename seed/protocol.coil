@@ -59,12 +59,41 @@
     result))
 
 (defn event-name [(edge grammar/N0Row)] (-> (slice u8))
-  (match edge (grammar/N0V0 [event _] event) (grammar/N0V1 [event _ _] event)))
+  (match edge
+    (grammar/N0V0 [event _] event)
+    (grammar/N0V1 [event _ _] event)
+    (grammar/N0V2 [event _ _ _] event)))
 
 (defn target-name [(edge grammar/N0Row)] (-> (slice u8))
   (match edge
     (grammar/N0V0 [_ target] target)
-    (grammar/N0V1 [_ target _] target)))
+    (grammar/N0V1 [_ target _] target)
+    (grammar/N0V2 [_ target _ _] target)))
+
+(defn edge-budget [(edge grammar/N0Row)] (-> (slice u8))
+  (match edge
+    (grammar/N0V0 [_ _] "")
+    (grammar/N0V1 [_ _ budget] budget)
+    (grammar/N0V2 [_ _ budget _] budget)))
+
+(defn edge-ceiling [(edge grammar/N0Row) (limit i64)] (-> i64)
+  (match edge (grammar/N0V2 [_ _ _ ceiling] ceiling) (_ limit)))
+
+(defn check-spending [(store (ptr grammar/Store))
+                      (index (ptr (HashMap (slice u8) grammar/N1Id)))
+                      (edge grammar/N0Row)]
+  (-> (Result bool (slice u8)))
+  (let [id (index-id index (edge-budget edge))]
+    (if (< id 0)
+        (Err "unknown protocol budget")
+        (let [limit
+                (match (get (.rows1 store) id)
+                  (grammar/N1V0 [_ n] n)
+                  (_ (panic "budget")))
+              ceiling (edge-ceiling edge limit)]
+          (if (or (< ceiling 0) (> ceiling limit))
+              (Err "protocol edge ceiling must be within its budget")
+              (Ok true))))))
 
 (defn index-id [(index (ptr (HashMap (slice u8) grammar/N1Id)))
                 (name (slice u8))] (-> i64)
@@ -182,18 +211,14 @@
                           (set! (mut event-index) event true)
                           (push! (mut events) event))
                     (Some [_]))
-                  (match edge
-                    (grammar/N0V0 [_ _]
-                                  (set! (mut incoming)
-                                        target
-                                        (+ 1 (get incoming target))))
-                    (grammar/N0V1 [_ _ budget]
-                                  (when (< (index-id (mut budget-index) budget)
-                                           0)
-                                    (break
-                                      :done
-                                        (Err (diagnostic eat
-                                                         "unknown protocol budget"))))))))))
+                  (if (= (edge-budget edge) "")
+                      (set! (mut incoming) target (+ 1 (get incoming target)))
+                      (match (check-spending (mut store)
+                                             (mut budget-index)
+                                             edge)
+                        (Ok [_])
+                        (Err [message]
+                             (break :done (Err (diagnostic eat message))))))))))
           (when (= (len events) 0)
             (break
               :done (Err (diagnostic root-at "protocol needs an effect state"))))
@@ -311,30 +336,30 @@
                       (push-str! (mut b) "(Event-")
                       (push-str! (mut b) (event-name edge))
                       (push-str! (mut b) " [] ")
-                      (match edge
-                        (grammar/N0V1 [_ _ budget]
-                                      (let [bid
-                                              (index-id (mut budget-index)
-                                                        budget)
-                                            limit
-                                              (match (get (.rows1 store) bid)
-                                                (grammar/N1V0 [_ n] n)
-                                                (_ (panic "budget")))]
-                                        (push-str! (mut b) "(when (>= spent")
-                                        (number! (mut b) bid)
-                                        (push-str! (mut b) " ")
-                                        (number! (mut b) limit)
-                                        (push-str! (mut b)
-                                                   ") (break :done (Err (Exhausted [E] ")
-                                        (number! (mut b) bid)
-                                        (push-str! (mut b) " ")
-                                        (number! (mut b) limit)
-                                        (push-str! (mut b) ")))) (set! spent")
-                                        (number! (mut b) bid)
-                                        (push-str! (mut b) " (+ spent")
-                                        (number! (mut b) bid)
-                                        (push-str! (mut b) " 1))")))
-                        (_))
+                      (let [budget (edge-budget edge)]
+                        (unless (= budget "")
+                          (let [bid
+                                  (index-id (mut budget-index)
+                                            budget)
+                                limit
+                                  (edge-ceiling edge
+                                                (match (get (.rows1 store) bid)
+                                                  (grammar/N1V0 [_ n] n)
+                                                  (_ (panic "budget"))))]
+                            (push-str! (mut b) "(when (>= spent")
+                            (number! (mut b) bid)
+                            (push-str! (mut b) " ")
+                            (number! (mut b) limit)
+                            (push-str! (mut b)
+                                       ") (break :done (Err (Exhausted [E] ")
+                            (number! (mut b) bid)
+                            (push-str! (mut b) " ")
+                            (number! (mut b) limit)
+                            (push-str! (mut b) ")))) (set! spent")
+                            (number! (mut b) bid)
+                            (push-str! (mut b) " (+ spent")
+                            (number! (mut b) bid)
+                            (push-str! (mut b) " 1))"))))
                       (push-str! (mut b) "(set! state ")
                       (number! (mut b)
                                (index-id (mut state-index) (target-name edge)))
