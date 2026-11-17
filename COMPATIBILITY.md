@@ -104,3 +104,8 @@ Binding declarations now derive alpha copying over complete resolved roots. Loca
 Dedicated tests compare source and target reference targets and declaration owner/field identities, preserve global names despite generated-prefix collisions, and poison/free the input before resolving the target again. Failure tests cover aliased Stores, unresolved references, missing origins, conflicting source documents and overlapping binder/reference roles. The native suite also runs 40 seeded expression cases through alpha copying before checking, lowering and execution against their existing oracle.
 
 This is a standalone shape-preserving operation, not general map hygiene. Freshness is scoped to one result plus its supplied globals. A field serving both binder and reference roles is explicitly rejected by alpha copying, while resolution still supports it. Failure can leave target-owned partial data; host-stack recursion and per-occurrence expansion remain limitations. Full macroexpansion, binding transport through arbitrary rewrites and semantic-client integration remain incomplete.
+
+
+## Expansion reference contracts
+
+`tools/capture-expansion-reference.py` captures existing staged-chain, early-macro, transform-introduced import/definition, guest-module reader, cross-target reader and reflective-reader behavior. The report identifies reference revision, compiler binary and input hashes, and stores exit/output assertions plus raw-output hashes. These checks currently execute only the reference compiler. They establish concrete targets for staged expansion and reader lifetime work; they are not passing rewrite parity entries. Source-observed phase policies and untested boundaries are distinguished in `contracts/expansion-protocol.md`.

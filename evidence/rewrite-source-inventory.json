@@ -38,9 +38,9 @@
       "physical_lines": 2869
     },
     "rewrite-build-and-validation-tools": {
-      "files": 9,
-      "bytes": 58744,
-      "physical_lines": 994
+      "files": 10,
+      "bytes": 66042,
+      "physical_lines": 1126
     },
     "rewrite-tests-and-fixtures": {
       "files": 37,
@@ -468,6 +468,13 @@
       "sha256": "6319fb707c819fd44f4fc1c79e7a11962498db0b758fc33919ee66f4c543bcb2",
       "bytes": 889,
       "physical_lines": 22
+    },
+    {
+      "path": "tools/capture-expansion-reference.py",
+      "category": "rewrite-build-and-validation-tools",
+      "sha256": "06fcb35b03a1105d3c41ef95d758ed822084485ed2d5421f6eec358ae5f9063f",
+      "bytes": 7298,
+      "physical_lines": 132
     },
     {
       "path": "tools/check-backend.py",

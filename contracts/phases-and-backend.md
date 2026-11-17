@@ -64,3 +64,6 @@ Resolution borrows names from immutable input storage, releases partial results 
 
 
 Alpha copying is the first transformation that consumes resolution identities. It preserves occurrence shape, assigns names to declarations, and rewrites reference fields by target IDs, returning source-occurrence to target-row correspondence. It copies every occurrence into target-owned storage. Successful target re-resolution must preserve reference-to-declaration relationships and declaration owner/field coordinates; the tests check these relations explicitly. This does not establish the same guarantee for general maps or for combining independently renamed roots. Source documents and origins survive input release, but failure publication remains caller-managed and partial target allocations may remain.
+
+
+The newer [expansion protocol trace](expansion-protocol.md) distinguishes before-expand staging, macro-tower progress, one-shot after-expand transforms, semantic fixpoints and reader lifetime capabilities. Its selected fixtures are executed only by the reference compiler and recorded separately from rewrite parity.
