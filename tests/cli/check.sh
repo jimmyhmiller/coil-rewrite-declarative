@@ -330,3 +330,36 @@ TOML
         [ "$status" -eq 29 ]
     done
 )
+
+mkdir -p standalone/source/nested standalone/caller
+echo '(module sample.app) (import "sample.worker" :as w) (defn main [] (-> i64) (w/value))' > standalone/source/entry.coil
+echo '(module sample.worker) (defn value [] (-> i64) 28)' > standalone/source/nested/implementation.coil
+echo '(module sample.duplicate)' > standalone/source/a.coil
+echo '(module sample.duplicate)' > standalone/source/b.coil
+echo '(module sample.worker) (defn value [] (-> i64) 63)' > standalone/caller/decoy.coil
+(
+    cd standalone/caller
+    for compiler in coil ../../rewrite; do
+        "$compiler" check ../source/entry.coil
+        status=0
+        "$compiler" run ../source/entry.coil || status=$?
+        [ "$status" -eq 28 ]
+    done
+)
+
+for target in nested/implementation implementation.coil; do
+    printf '(import "%s")\n' "$target" > standalone/source/path-import.coil
+    for compiler in coil ./rewrite; do
+        if "$compiler" check standalone/source/path-import.coil >diagnostic 2>&1; then exit 1; fi
+        grep -F "import paths are not supported" diagnostic >/dev/null
+        grep -F "path-import.coil:1:1" diagnostic >/dev/null
+    done
+done
+
+echo '(module sample.app) (import "sample.duplicate")' > standalone/source/conflict.coil
+for compiler in coil ./rewrite; do
+    if "$compiler" check standalone/source/conflict.coil >diagnostic 2>&1; then exit 1; fi
+    grep -F "namespace 'sample.duplicate' is declared by multiple source files" diagnostic >/dev/null
+    grep -F '/a.coil' diagnostic >/dev/null
+    grep -F '/b.coil' diagnostic >/dev/null
+done
