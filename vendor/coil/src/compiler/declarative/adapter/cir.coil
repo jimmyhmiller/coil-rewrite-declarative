@@ -1,0 +1,77 @@
+;;; The declarative backend as the Coil compiler calls it. Both machines are in
+;;; every compiler: AArch64, whose objects are Mach-O, and x86-64, whose objects
+;;; are ELF. What a build is for picks which machine's adapter
+;;; (declarative.machine-a64 or declarative.machine-x64) does the work.
+(module declarative.cir)
+(import "coil.alloc" :as alloc :use [Allocator malloc-allocator box!])
+(import "coil.arraylist" :use [ArrayList])
+(import "coil.primitive" :as primitive)
+(import "native.cir" :as cir)
+(import "native.asm" :as asm)
+(import "declarative.machine-a64" :as a64)
+(import "declarative.machine-x64" :as x64)
+
+;;; The settings read from the environment, as text for a unit's key: the same
+;;; for both machines.
+(defn settings-key [(a (dyn Allocator))] (-> (slice u8))
+  (a64/settings-key a))
+
+;;; What is kept from one function to the next below -O2, for one machine.
+(defstruct Work [(x64 bool) (a (ptr a64/Work)) (x (ptr x64/Work))])
+
+;;; A module compiled whole (-O2 and up), for one machine; the other's is empty.
+(defstruct Module [(x64 bool) (a a64/Module) (x x64/Module)])
+
+(defn work-create [(x64 bool)] (-> (ptr Work))
+  (box! (malloc-allocator) Work
+        (if x64
+            (Work :x64 true :a (primitive/cast (ptr a64/Work) 0) :x (x64/work-create))
+            (Work :x64 false :a (a64/work-create) :x (primitive/cast (ptr x64/Work) 0)))))
+
+(defn work-free! [(w (ptr Work))] (-> void)
+  (if (.x64 w) (x64/work-free! (.x w)) (a64/work-free! (.a w)))
+  (alloc/destroy [Work] (malloc-allocator) w))
+
+(defn compile! [(f (ptr cir/Func)) (ta (ptr asm/Asm)) (symbol u32) (level i32) (work (ptr Work))] (-> void)
+  (if (.x64 work)
+      (x64/compile! f ta symbol level (.x work))
+      (a64/compile! f ta symbol level (.a work))))
+
+(defn compile-debug! [(f (ptr cir/Func)) (ta (ptr asm/Asm)) (symbol u32) (level i32)
+                      (rows (mut (ArrayList u64))) (marks (mut (ArrayList u64))) (objects (mut (ArrayList i64)))
+                      (track (ArrayList u32)) (locs (mut (ArrayList u64)))
+                      (work (ptr Work))]
+  (-> void)
+  (if (.x64 work)
+      (x64/compile-debug! f ta symbol level (mut rows) (mut marks) (mut objects) track (mut locs) (.x work))
+      (a64/compile-debug! f ta symbol level (mut rows) (mut marks) (mut objects) track (mut locs) (.a work))))
+
+(defn module-create [(x64 bool)] (-> Module)
+  (if x64
+      (Module :x64 true :a (zeroed a64/Module) :x (x64/module-create))
+      (Module :x64 false :a (a64/module-create) :x (zeroed x64/Module))))
+
+(defn module-free! [(m (ptr Module))] (-> void)
+  (if (.x64 m) (x64/module-free! (field m x)) (a64/module-free! (field m a))))
+
+(defn module-add! [(m (ptr Module)) (f (ptr cir/Func)) (symbol u32) (never bool) (always bool) (private bool)]
+  (-> void)
+  (if (.x64 m)
+      (x64/module-add! (field m x) f symbol never always private)
+      (a64/module-add! (field m a) f symbol never always private)))
+
+(defn module-count! [(m (ptr Module))] (-> void)
+  (if (.x64 m) (x64/module-count! (field m x)) (a64/module-count! (field m a))))
+
+(defn compile-wave! [(m (ptr Module)) (ta (ptr asm/Asm)) (level i32) (threads i64) (symbols (slice u32))] (-> void)
+  (if (.x64 m)
+      (x64/compile-wave! (field m x) ta level threads symbols)
+      (a64/compile-wave! (field m a) ta level threads symbols)))
+
+(defn references! [(m (ptr Module)) (symbol u32) (out (mut (ArrayList u32)))] (-> void)
+  (if (.x64 m)
+      (x64/references! (field m x) symbol (mut out))
+      (a64/references! (field m a) symbol (mut out))))
+
+(defn place! [(m (ptr Module)) (ta (ptr asm/Asm)) (symbol u32)] (-> void)
+  (if (.x64 m) (x64/place! (field m x) ta symbol) (a64/place! (field m a) ta symbol)))

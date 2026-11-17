@@ -1,0 +1,966 @@
+# SPDX-FileCopyrightText: 2026 Jimmy Miller
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+# Library algorithms and their storage for cir.
+
+library declarative
+
+use "native.cir-ops" only *;
+
+const P-EQ = 0;
+
+const P-NE = 1;
+
+const P-SLT = 2;
+
+const P-SLE = 3;
+
+const P-SGT = 4;
+
+const P-SGE = 5;
+
+const P-ULT = 6;
+
+const P-ULE = 7;
+
+const P-UGT = 8;
+
+const P-UGE = 9;
+
+const F-OEQ = 0;
+
+const F-ONE = 1;
+
+const F-OLT = 2;
+
+const F-OLE = 3;
+
+const F-OGT = 4;
+
+const F-OGE = 5;
+
+const F-UNE = 6;
+
+const F-UEQ = 7;
+
+const F-ORD = 8;
+
+const F-UNO = 9;
+
+const F-ULT = 10;
+
+const F-ULE = 11;
+
+const F-UGT = 12;
+
+const F-UGE = 13;
+
+const AF-SEXT = 0x80;
+
+const AF-SRET = 0x100;
+
+const AF-VARIADIC = 0x200;
+
+const AF-ZEXT = 0x400;
+
+const AF-BYVAL = 0x800;
+
+fn af-byval(size: i64) -> u32 = (typed[u32](0x800) | (as[u32](size) << typed[u32](12)));
+
+fn af-byval-size(flags: u32) -> u32 = (flags >> typed[u32](12));
+
+fn af-byval?(flags: u32) -> bool = ((flags & typed[u32](0x800)) != typed[u32](0));
+
+const AF-ADDRESS = 0x2000;
+
+const AF-INDIRECT = 0x4000;
+
+const AF-SIGNED = 0x8000;
+
+fn af-signed?(flags: u32) -> bool = (not(af-byval?(flags)) and ((flags & typed[u32](0x8000)) != typed[u32](0)));
+
+fn af-address?(flags: u32) -> bool = (not(af-byval?(flags)) and ((flags & typed[u32](0x2000)) != typed[u32](0)));
+
+const AF-MIXED = 0x1000;
+
+# bits 24..26: log2 of an integer argument's C size plus one (Apple lays
+# stack arguments out at that size); 0 for the part's own size
+fn af-size(bytes: i64) -> u32 = choose {
+    (bytes == 1) => typed[u32](0x1000000);
+    (bytes == 2) => typed[u32](0x2000000);
+    (bytes == 4) => typed[u32](0x3000000);
+    else => typed[u32](0);
+  };
+
+# bits 16..23: how many following arguments must stay in consecutive registers
+record Value {
+  op: u8 = as[u8](op);
+  ty: u8 = as[u8](ty);
+  flags: u8;
+  aux: u8;
+  nops: u32;
+  ntotal: u32;
+  opb: u32 = opb;
+  imm: i64 = imm;
+  imm2: i64 = imm2;
+  block: u32 = none();
+  next: u32 = none();
+}
+construct Value as make-value(op: i64, ty: i64, imm: i64, imm2: i64, opb: u32) inline;
+
+record Block {
+  ibegin: u32;
+  iend: u32;
+  phi-first: u32 = none();
+  phi-begin: u32;
+  phi-count: u32;
+  term: u32 = none();
+  pred-first: u32 = none();
+  npred: u32;
+  sealed: bool;
+  info: u32;
+  info2: u32;
+}
+construct Block as empty-block() inline;
+
+record Edge {
+  from: u32;
+  next: u32;
+}
+
+# A PHI created in an unsealed block, completed when the block is sealed.
+record IncompletePhi {
+  block: u32;
+  var: u32;
+  phi: u32;
+}
+
+record VarDef {
+  block: u32;
+  value: u32;
+}
+
+# A slot of the (variable, block) -> definition table. A slot is live only
+# when its `gen` is the function's: starting a function bumps the generation
+# instead of zeroing the table, which only ever grows to the largest function.
+record DefSlot {
+  key: u64;
+  value: u32;
+  gen: u32;
+}
+
+record Func {
+  name: span[u8] = "";
+  values: list[Value];
+  operands: list[u32];
+  argflags: list[u32];
+  insts: list[u32];
+  blocks: list[Block];
+  edges: list[Edge];
+  args: list[u32];
+  arg-sret: list[bool];
+  arg-flags: list[u32];
+  allocas: list[u32];
+  phis: list[u32];
+  case-values: list[u64];
+  fwd: list[u32];
+  bytes: list[u8];
+  cur: u32 = none();
+  has-calls: bool = false;
+  has-tail-calls: bool = false;
+  has-dynamic-alloca: bool = false;
+  frame-escapes: bool = false;
+  var-types: list[u8] snapshot fresh;
+  last-def: list[VarDef] snapshot fresh;
+  def-slots: list[DefSlot] snapshot fresh reset keep;
+  def-gen: u32 = typed[u32](1) snapshot fresh reset keep;
+  def-count: i64 = 0 snapshot fresh reset keep;
+  incomplete: list[IncompletePhi] snapshot fresh;
+  undef-i64: u32 = none();
+  small-consts: list[u32] = repeat[u32](64, none()) reset fill none();
+  scratch-uses: list[u32] snapshot fresh reset keep;
+  scratch-insts: list[u32] snapshot fresh reset keep;
+  locs: list[u64];
+  cur-loc: u64 = typed[u64](0);
+  mark-insts: list[u32];
+  pending-marks: u32 = typed[u32](0);
+}
+
+fn none() -> u32 = typed[u32](0xFFFFFFFF);
+
+fn i64-of(x: u32) -> i64 = as[i64](x);
+
+fn u32-of(x: i64) -> u32 = as[u32](x);
+
+construct Func.new();
+
+release Func as func-free!(f);
+
+# A copy of XS in storage of exactly its length.
+fn list-copy[T](xs: ref[list[T]]) -> list[T] = copy-list[T](read(xs));
+
+# Make DST (uninitialized storage) the function SRC is after finish!, in
+# storage of exactly its size. SRC is unchanged and can be reset! for the
+# next function: a client that keeps every function lowers each into one
+# reused Func, whose lists have long since grown to size, and keeps this
+# copy, instead of growing a fresh Func's twenty lists from nothing every
+# time. The copy has SRC's values, instructions, blocks and PHIs, and none
+# of its SSA variables: after finish! no variable is read or written again,
+# and the definition table belongs to SRC's storage (it is sized for the
+# largest function SRC has held). A variable made in the copy is a new one.
+snapshot Func as copy-finished!(dst, src);
+
+# Start a new function (keeps the storage).
+recycle Func as reset!(f: ref[Func], name: span[u8]) {
+  name = name;
+  after = defs-reset!(f);
+}
+
+fn val(f: ref[Func], v: u32) -> ref[Value] = element(address(f, values), i64-of(v));
+
+# ---- frame escapes ----
+# Value.flags bit 2: the value is the address of (or into) this frame. If one
+# reaches a call argument, a stored value, a return or a variable, the frame
+# escapes, and pointer-argument tail calls are demoted (LLVM's musttail rule).
+fn frame-derived?(f: ref[Func], v: u32) -> bool = (((val(f, v)).flags & typed[u8](4)) != typed[u8](0));
+
+scatter mark-frame-derived!(f: ref[Func], v: u32) { field (val(f, v)).flags = (val(f, v)).flags | typed[u8](4); }
+
+scatter note-escape!(f: ref[Func], v: u32) {
+  where frame-derived?(f, v);
+  field f.frame-escapes = true;
+}
+
+# ---- volatile accesses ----
+# Value.flags bit 6 on an OP-LOAD or OP-STORE: the access is volatile. It
+# happens exactly once where it stands, in order with the other volatile
+# accesses, whatever is known about the memory: a pass may not remove,
+# forward, repeat, move or merge it, and the slot it names is not private.
+# The compile straight from CIR (-O0, -O1) writes each instruction as it stands
+# and need not look; the graph compile gives the load or store a volatile payload.
+fn volatile?(f: ref[Func], v: u32) -> bool = (((val(f, v)).flags & typed[u8](0x40)) != typed[u8](0));
+
+scatter mark-volatile!(f: ref[Func], v: u32) { field (val(f, v)).flags = (val(f, v)).flags | typed[u8](0x40); }
+
+fn blk(f: ref[Func], b: u32) -> ref[Block] = element(address(f, blocks), i64-of(b));
+
+fn value-count(f: ref[Func]) -> u32 = u32-of(len(f.values));
+
+fn block-count(f: ref[Func]) -> u32 = u32-of(len(f.blocks));
+
+fn operand(f: ref[Func], v: ref[Value], i: u32) -> u32 = (f.operands)[i64-of((v.opb + i))];
+
+insert push-value!(f: ref[Func], op: i64, ty: i64, imm: i64, imm2: i64) -> u32 {
+  column f.values = make-value(op, ty, imm, imm2, u32-of(len(f.operands)));
+  column f.fwd = none();
+  column f.locs = f.cur-loc;
+}
+
+# The source position the instructions made from here on belong to (an
+# opaque nonzero number the client decodes; 0 for none).
+scatter set-loc!(f: ref[Func], loc: u64) { field f.cur-loc = loc; }
+
+# A debug mark here (where a variable comes into scope, say): it marks the
+# next instruction, whose code offset the compiler records (Value.flags bit
+# 5, Compiler.dbg-marks). Returns its id. No instruction is added.
+insert append-debug-mark!(f: ref[Func]) -> u32 inline { column f.mark-insts = none(); }
+scatter note-pending-mark!(f: ref[Func]) inline { field f.pending-marks = f.pending-marks + typed[u32](1); }
+rewrite dbg-mark!(f: ref[Func]) -> u32 {
+  create id = append-debug-mark!(f);
+  apply note-pending-mark!(f);
+  result = id;
+}
+
+fn nmarks(f: ref[Func]) -> i64 = len(f.mark-insts);
+
+# Whether instruction `v` carries debug marks.
+fn dbg-marked?(f: ref[Func], v: u32) -> bool = (((val(f, v)).flags & typed[u8](0x20)) != typed[u8](0));
+
+insert push-operand!(f: ref[Func], x: u32, flags: u32) -> void {
+  column f.operands = x;
+  column f.argflags = flags;
+}
+
+# ---- values without instructions ----
+fn const!(f: ref[Func], ty: i64, lo: u64, hi: u64) -> u32 = push-value!(f, OP-CONST, ty, as[i64](lo), as[i64](hi));
+
+intern iconst!(f: ref[Func], v: i64) -> u32 {
+  values = f.small-consts;
+  eligible = v >= -16 and v < 48;
+  key = v + 16;
+  absent = none();
+  compute = push-value!(f, OP-CONST, T-I64, v, 0);
+}
+
+fn sym!(f: ref[Func], sym: u32, addend: i64) -> u32 = push-value!(f, OP-SYM, T-I64, i64-of(sym), addend);
+
+fn arg!(f: ref[Func], ty: i64, sret: bool) -> u32 = arg-flagged!(f, ty, sret, typed[u32](0));
+
+# An argument with flags (see the AF-… constants and bits 16..23).
+insert append-argument!(f: ref[Func], v: u32, sret: bool, flags: u32) -> void inline {
+  column f.args = v; column f.arg-sret = sret; column f.arg-flags = flags;
+}
+rewrite arg-flagged!(f: ref[Func], ty: i64, sret: bool, flags: u32) -> u32 {
+  create v = push-value!(f, OP-ARG, ty, len(f.args), 0);
+  apply append-argument!(f, v, sret, flags);
+  result = v;
+}
+
+# A stack slot of `size` bytes; its value is the slot's address.
+# A static stack slot; its `next` is its ordinal in `allocas`.
+insert append-alloca!(f: ref[Func], v: u32) -> void inline { column f.allocas = v; }
+rewrite alloca!(f: ref[Func], size: i64, align: i64) -> u32 {
+  create v = push-value!(f, OP-ALLOCA, T-I64, if(size < 1, 1, size), if(align < 1, 1, align));
+  apply number-alloca!(f, v, u32-of(len(f.allocas)));
+  apply append-alloca!(f, v);
+  apply mark-frame-derived!(f, v);
+  result = v;
+}
+
+# ---- blocks ----
+insert new-block!(f: ref[Func]) -> u32 {
+  column f.blocks = empty-block();
+}
+
+# Make `b` the block instructions go to. The previous block must be terminated.
+scatter set-block!(f: ref[Func], b: u32) {
+  let block = blk(f, b);
+  let at = u32-of(len(f.insts));
+  field f.cur = b;
+  field block.ibegin = at;
+  field block.iend = at;
+}
+
+fn cur-block(f: ref[Func]) -> u32 = f.cur;
+
+fn terminated?(f: ref[Func]) -> bool = ((f.cur == none()) or ((blk(f, f.cur)).term != none()));
+
+insert append-edge!(f: ref[Func], from: u32, to: u32) -> u32 inline {
+  column f.edges = make Edge { from = from; next = (blk(f, to)).pred-first; };
+}
+scatter link-predecessor!(f: ref[Func], to: u32, edge: u32) inline {
+  let target = blk(f, to);
+  field target.pred-first = edge;
+  field target.npred = target.npred + typed[u32](1);
+}
+rewrite add-edge!(f: ref[Func], from: u32, to: u32) -> void {
+  create edge = append-edge!(f, from, to);
+  apply link-predecessor!(f, to, edge);
+}
+
+# ---- instructions ----
+insert append-instruction!(f: ref[Func], v: u32) -> void inline { column f.insts = v; }
+scatter update-instruction-end!(f: ref[Func]) inline { field (blk(f, f.cur)).iend = u32-of(len(f.insts)); }
+scatter assign-pending-marks!(f: ref[Func], v: u32) inline {
+  from k in range(len(f.mark-insts) - i64-of(f.pending-marks), len(f.mark-insts));
+  write f.mark-insts at k = v;
+}
+scatter consume-pending-marks!(f: ref[Func], v: u32) inline {
+  field (val(f, v)).flags = (val(f, v)).flags | typed[u8](0x20);
+  field f.pending-marks = typed[u32](0);
+}
+rewrite bind-pending-marks!(f: ref[Func], v: u32) -> void inline {
+  require f.pending-marks > typed[u32](0);
+  apply assign-pending-marks!(f, v);
+  apply consume-pending-marks!(f, v);
+}
+rewrite inst!(f: ref[Func], op: i64, ty: i64, imm: i64, imm2: i64) -> u32 {
+  create v = push-value!(f, op, ty, imm, imm2);
+  apply append-instruction!(f, v);
+  apply update-instruction-end!(f);
+  apply bind-pending-marks!(f, v);
+  result = v;
+}
+
+scatter set-ops!(f: ref[Func], v: u32, nops: u32, ntotal: u32) {
+  let x = val(f, v);
+  field x.nops = nops;
+  field x.ntotal = ntotal;
+}
+
+fn op0!(f: ref[Func], op: i64, ty: i64, imm: i64, imm2: i64) -> u32 = inst!(f, op, ty, imm, imm2);
+
+rewrite op1!(f: ref[Func], op: i64, ty: i64, a: u32, imm: i64, imm2: i64) -> u32 else create op1-inst!(f, op, ty, a, imm, imm2) {
+  let x = val(f, a);
+  require (op == OP-SEXT or op == OP-ZEXT) and ty == T-I64 and as[i64](x.op) == OP-CONST and as[i64](x.ty) == T-I64 and imm > 0 and imm < 64;
+  let sh = 64 - imm;
+  let c = if(op == OP-SEXT, (x.imm << sh) >> sh, as[i64]((as[u64](x.imm) << as[u64](sh)) >> as[u64](sh)));
+  create v = iconst!(f, c);
+  result = v;
+}
+
+rewrite op1-inst!(f: ref[Func], op: i64, ty: i64, a: u32, imm: i64, imm2: i64) -> u32 {
+  create v = inst!(f, op, ty, imm, imm2);
+  apply push-operand!(f, a, typed[u32](0));
+  apply set-ops!(f, v, typed[u32](1), typed[u32](1));
+  apply mark-frame-derived!(f, v) when op == OP-DYNALLOCA or ((op == OP-ADDI or op == OP-COPY) and frame-derived?(f, a));
+  result = v;
+}
+
+rewrite op2!(f: ref[Func], op: i64, ty: i64, a: u32, b: u32, imm: i64, imm2: i64) -> u32 {
+  create v = inst!(f, op, ty, imm, imm2);
+  apply push-operand!(f, a, typed[u32](0));
+  apply push-operand!(f, b, typed[u32](0));
+  apply set-ops!(f, v, typed[u32](2), typed[u32](2));
+  apply mark-frame-derived!(f, v) when (op == OP-PTRADD or op == OP-ADD or op == OP-SUB or op == OP-OR or op == OP-AND)
+    and (frame-derived?(f, a) or frame-derived?(f, b));
+  apply note-escape!(f, b) when op == OP-STORE or op == OP-ATOMIC-STORE or op == OP-ATOMIC-RMW;
+  result = v;
+}
+
+rewrite op3!(f: ref[Func], op: i64, ty: i64, a: u32, b: u32, c: u32, imm: i64, imm2: i64) -> u32 {
+  create v = inst!(f, op, ty, imm, imm2);
+  apply push-operand!(f, a, typed[u32](0));
+  apply push-operand!(f, b, typed[u32](0));
+  apply push-operand!(f, c, typed[u32](0));
+  apply set-ops!(f, v, typed[u32](3), typed[u32](3));
+  apply mark-frame-derived!(f, v) when op == OP-SELECT and (frame-derived?(f, b) or frame-derived?(f, c));
+  apply note-escape!(f, c) when op == OP-CMPXCHG;
+  result = v;
+}
+
+# The base of address `p` once the constant offsets of ADDIs are folded into
+# the access's own (`addr-off` gives the total): `ldr x, [base, #off]`
+# instead of an add before every field access. An ADDI left without uses is
+# dropped by `finish!`.
+follow addr-base(f: ref[Func], p: u32) -> u32 {
+  start = p; view = val(f, node);
+  stop = as[i64](item.op) != OP-ADDI;
+  next = operand(f, item, typed[u32](0));
+  result = node;
+}
+follow addr-off(f: ref[Func], p: u32, off: i64) -> i64 {
+  start = p; view = val(f, node);
+  stop = as[i64](item.op) != OP-ADDI;
+  next = operand(f, item, typed[u32](0));
+  initial = off; step = acc + item.imm;
+  result = acc;
+}
+
+fn load-mem!(f: ref[Func], ty: i64, p: u32, off: i64, bytes: i64, signed: bool) -> u32 = op1!(f, OP-LOAD, ty, addr-base(f, p), addr-off(f, p, off), (bytes | if(signed, 256, 0)));
+
+fn store-mem!(f: ref[Func], p: u32, v: u32, off: i64, bytes: i64) -> u32 = op2!(f, OP-STORE, T-VOID, addr-base(f, p), v, addr-off(f, p, off), bytes);
+
+rewrite addi!(f: ref[Func], p: u32, off: i64) -> u32 else p {
+  require off != 0;
+  create v = op1!(f, OP-ADDI, T-I64, p, off, 0);
+  result = v;
+}
+
+# Terminators.
+scatter terminate-block!(f: ref[Func], b: u32, v: u32) inline { field (blk(f, b)).term = v; }
+rewrite br!(f: ref[Func], target: u32) -> void {
+  let b = f.cur;
+  create v = inst!(f, OP-BR, T-VOID, 0, 0);
+  apply push-operand!(f, target, typed[u32](0));
+  apply set-ops!(f, v, typed[u32](0), typed[u32](1));
+  apply terminate-block!(f, b, v);
+  apply add-edge!(f, b, target);
+}
+
+rewrite condbr!(f: ref[Func], c: u32, t: u32, e: u32) -> void {
+  let b = f.cur;
+  create v = inst!(f, OP-CONDBR, T-VOID, 0, 0);
+  apply push-operand!(f, c, typed[u32](0));
+  apply push-operand!(f, t, typed[u32](0));
+  apply push-operand!(f, e, typed[u32](0));
+  apply set-ops!(f, v, typed[u32](1), typed[u32](3));
+  apply terminate-block!(f, b, v);
+  apply add-edge!(f, b, t);
+  apply add-edge!(f, b, e) when t != e;
+}
+
+# A switch on `x` (I64): `values[i]` goes to `targets[i]`, anything else to
+# `default`. Values must be distinct.
+insert append-switch-case!(f: ref[Func], value: u64, target: u32) -> void inline {
+  column f.case-values = value; column f.operands = target; column f.argflags = typed[u32](0);
+}
+sweep append-switch-cases!(f: ref[Func], values: ref[list[u64]], targets: ref[list[u32]], n: i64) inline {
+  rows { from i in range(0, n); yield = i; }
+  apply = append-switch-case!(f, read(values)[row], read(targets)[row]);
+}
+sweep add-switch-edges!(f: ref[Func], b: u32, default: u32, targets: ref[list[u32]], n: i64) inline {
+  rows {
+    from i in range(0, n);
+    let target = read(targets)[i];
+    where target != default and not(any j in range(0, i): read(targets)[j] == target);
+    yield = target;
+  }
+  apply = add-edge!(f, b, row);
+}
+rewrite switch!(f: ref[Func], x: u32, default: u32, values: ref[list[u64]], targets: ref[list[u32]]) -> void {
+  let b = f.cur;
+  let n = len(read(values));
+  create v = inst!(f, OP-SWITCH, T-VOID, len(f.case-values), 0);
+  apply push-operand!(f, x, typed[u32](0));
+  apply push-operand!(f, default, typed[u32](0));
+  apply append-switch-cases!(f, values, targets, n);
+  apply set-ops!(f, v, typed[u32](1), u32-of(n + 2));
+  apply terminate-block!(f, b, v);
+  apply add-edge!(f, b, default);
+  apply add-switch-edges!(f, b, default, targets, n);
+}
+
+pipeline append-return-value!(f: ref[Func], value: u32) inline {
+  run note-escape!(f, value);
+  run push-operand!(f, value, typed[u32](0));
+}
+sweep append-return-values!(f: ref[Func], vals: ref[list[u32]], n: i64) inline {
+  rows { from i in range(0, n); yield = read(vals)[i]; }
+  apply = append-return-value!(f, row);
+}
+rewrite ret!(f: ref[Func], vals: ref[list[u32]]) -> void {
+  let b = f.cur;
+  let n = len(read(vals));
+  create v = inst!(f, OP-RET, T-VOID, 0, 0);
+  apply append-return-values!(f, vals, n);
+  apply set-ops!(f, v, u32-of(n), u32-of(n));
+  apply terminate-block!(f, b, v);
+}
+
+rewrite ret0!(f: ref[Func]) -> void {
+  let b = f.cur;
+  create v = inst!(f, OP-RET, T-VOID, 0, 0);
+  apply terminate-block!(f, b, v);
+}
+
+rewrite ret1!(f: ref[Func], x: u32) -> void {
+  let b = f.cur;
+  apply note-escape!(f, x);
+  create v = inst!(f, OP-RET, T-VOID, 0, 0);
+  apply push-operand!(f, x, typed[u32](0));
+  apply set-ops!(f, v, typed[u32](1), typed[u32](1));
+  apply terminate-block!(f, b, v);
+}
+
+rewrite unreachable!(f: ref[Func]) -> void {
+  let b = f.cur;
+  create v = inst!(f, OP-UNREACHABLE, T-VOID, 0, 0);
+  apply terminate-block!(f, b, v);
+}
+
+# ---- calls ----
+# A call: `target` is a symbol, or NONE with `callee` the pointer. `args` and
+# `flags` are parallel. Results beyond the first become OP-CALLRES values;
+# returns the call (its first result).
+scatter note-tail-call!(f: ref[Func]) inline { field f.has-tail-calls = true; }
+rewrite note-call-kind!(f: ref[Func], tail: bool) -> void else create note-has-calls!(f) inline {
+  require tail;
+  apply note-tail-call!(f);
+}
+pipeline append-call-argument!(f: ref[Func], value: u32, metadata: u32) inline {
+  run note-escape!(f, value);
+  run push-operand!(f, value, metadata);
+}
+sweep append-call-arguments!(f: ref[Func], args: ref[list[u32]], metadata: ref[list[u32]], n: i64) inline {
+  rows { from i in range(0, n); yield = i; }
+  apply = append-call-argument!(f, read(args)[row], read(metadata)[row]);
+}
+scatter attach-call-result!(f: ref[Func], value: u32, call: u32) inline { field (val(f, value)).block = call; }
+rewrite append-call-result!(f: ref[Func], call: u32, ty: i64, ordinal: i64) -> void inline {
+  create value = push-value!(f, OP-CALLRES, ty, ordinal, 0);
+  apply attach-call-result!(f, value, call);
+}
+sweep append-call-results!(f: ref[Func], call: u32, rtypes: ref[list[u8]], nr: i64) inline {
+  rows { from i in range(1, nr); yield = i; }
+  apply = append-call-result!(f, call, as[i64](read(rtypes)[row]), row - 1);
+}
+scatter set-call-results!(f: ref[Func], v: u32, nr: i64) inline { field (val(f, v)).aux = as[u8](nr); }
+rewrite call!(f: ref[Func], target: u32, callee: u32, args: ref[list[u32]], flags: ref[list[u32]], rtypes: ref[list[u8]], tail: bool) -> u32 {
+  let nr = len(read(rtypes));
+  let rty = if(nr > 0, as[i64](read(rtypes)[0]), T-VOID);
+  apply note-call-kind!(f, tail);
+  create v = inst!(f, if(tail, OP-TAILCALL, OP-CALL), rty, if(target == none(), -1, i64-of(target)), 0);
+  create n = len(read(args));
+  apply push-operand!(f, callee, typed[u32](0)) when callee != none();
+  apply append-call-arguments!(f, args, flags, n);
+  create nops = u32-of(n) + if(callee == none(), typed[u32](0), typed[u32](1));
+  apply set-ops!(f, v, nops, nops);
+  apply set-call-results!(f, v, nr);
+  apply append-call-results!(f, v, rtypes, nr);
+  apply terminate-block!(f, f.cur, v) when tail;
+  result = v;
+}
+
+# A call under a :shim convention (see OP-SHIMCALL).
+insert append-code-byte!(f: ref[Func], byte: u8) -> void inline { column f.bytes = byte; }
+sweep append-code-bytes!(f: ref[Func], bytes: span[u8]) inline {
+  rows { from i in range(0, len(bytes)); yield = bytes[i]; }
+  apply = append-code-byte!(f, row);
+}
+scatter configure-shim!(f: ref[Func], v: u32, ret-reg: u32, count: i64) inline {
+  let x = val(f, v);
+  field x.aux = as[u8](ret-reg);
+  field x.block = u32-of(len(f.bytes));
+  field x.next = u32-of(count);
+}
+rewrite shimcall!(f: ref[Func], target: u32, args: ref[list[u32]], regs: ref[list[u32]], ret-reg: u32, clobber: u64, bytes: span[u8], rty: i64) -> u32 {
+  apply note-has-calls!(f);
+  create v = inst!(f, OP-SHIMCALL, rty, if(target == none(), -1, i64-of(target)), as[i64](clobber));
+  create n = len(read(args));
+  apply append-call-arguments!(f, args, regs, n);
+  apply set-ops!(f, v, u32-of(n), u32-of(n));
+  apply configure-shim!(f, v, ret-reg, len(bytes));
+  apply append-code-bytes!(f, bytes);
+  result = v;
+}
+
+# The i-th result of a call (0 is the call itself).
+fn call-result(f: ref[Func], call: u32, i: i64) -> u32 = if((i == 0), call, (call + u32-of(i)));
+
+# ============================ SSA construction ==============================
+# A new variable of type `ty`.
+insert new-var!(f: ref[Func], ty: i64) -> u32 {
+  column f.var-types = as[u8](ty);
+  column f.last-def = make VarDef { block = none(); value = none(); };
+}
+
+fn def-key(var: u32, block: u32) -> u64 = ((as[u64](var) << typed[u64](32)) | as[u64](block));
+
+# Generation-stamped definition storage. Reset, probing, growth and rehashing
+# derive from this map schema, shared by clients unrelated to CIR.
+epoch-map defs(f: ref[Func]) {
+  entries = f.def-slots;
+  generation = f.def-gen;
+  count = f.def-count;
+  entry-type = DefSlot;
+  key-type = u64;
+  value-type = u32;
+  absent = none();
+  hash = (key * typed[u64](0x9E3779B97F4A7C15)) >> typed[u64](32);
+  initial = 64;
+  load-denominator = 2;
+}
+
+rewrite write-var!(f: ref[Func], var: u32, block: u32, v: u32) -> void {
+  let ld = element(address(f, last-def), i64-of(var));
+  apply defs-set!(f, def-key(var, ld.block), ld.value) when ld.block != none() and ld.block != block;
+  apply cache-definition!(ld, block, v);
+}
+scatter cache-definition!(ld: ref[VarDef], block: u32, v: u32) inline {
+  field ld.block = block; field ld.value = v;
+}
+
+pipeline def-var!(f: ref[Func], var: u32, v: u32) {
+  run note-escape!(f, v);
+  run write-var!(f, var, f.cur, v);
+}
+
+fn lookup-def(f: ref[Func], var: u32, block: u32) -> u32 = let ld = f.last-def[i64-of(var)] in if(ld.block == block, ld.value, defs-get(f, def-key(var, block)));
+
+rewrite new-phi!(f: ref[Func], block: u32, ty: i64) -> u32 {
+  let bb = blk(f, block);
+  create v = push-value!(f, OP-PHI, ty, 0, 0);
+  apply attach-phi!(f, bb, v, block);
+  result = v;
+}
+scatter attach-phi!(f: ref[Func], bb: ref[Block], v: u32, block: u32) inline {
+  let x = val(f, v);
+  field x.block = block;
+  field x.next = bb.phi-first;
+  field bb.phi-first = v;
+}
+
+follow resolve(f: ref[Func], v0: u32) -> u32 {
+  start = v0; view = f.fwd[i64-of(node)];
+  stop = item == none(); next = item; result = node;
+}
+
+rewrite undef!(f: ref[Func], ty: i64) -> u32 else create iconst!(f, 0) {
+  require ty == T-I128 or ty == T-F32 or ty == T-F64 or ty == T-V128;
+  create v = const!(f, ty, typed[u64](0), typed[u64](0));
+  result = v;
+}
+
+# A PHI is trivial precisely when its nonself resolved operands agree.
+# The agreement aggregate has no client accumulator or conflict state.
+consensus phi-agreement(f: ref[Func], phi: u32) -> u32 {
+  initial = none();
+  rows {
+    let x = val(f, phi);
+    from i in range(0, i64-of(x.nops));
+    let value = resolve(f, operand(f, x, u32-of(i)));
+    where value != phi;
+    yield = value;
+  }
+}
+scatter forward-phi!(f: ref[Func], phi: u32, replacement: u32) {
+  write f.fwd at i64-of(phi) = replacement;
+}
+rewrite try-remove-trivial-phi!(f: ref[Func], phi: u32) -> u32 else phi {
+  let agreement = phi-agreement(f, phi);
+  require agreement.valid;
+  create replacement = if(agreement.value == none(), undef!(f, as[i64]((val(f, phi)).ty)), agreement.value);
+  apply forward-phi!(f, phi, replacement);
+  result = replacement;
+}
+
+# The value plane and predecessor plane form one reserved merge-input row.
+# Resolution may recursively build other PHIs; its reserved offsets stay valid.
+gather add-phi-operands!(f: ref[Func], var: u32, phi: u32) -> u32 {
+  data = f.operands;
+  zero = f.argflags;
+  count = (blk(f, (val(f, phi)).block)).npred;
+  configure = configure-phi-inputs!(f, phi, base, count, width);
+  rows {
+    chain e from (blk(f, (val(f, phi)).block)).pred-first until none() next f.edges[i64-of(e)].next;
+    yield = f.edges[i64-of(e)].from;
+  }
+  resolve = read-var!(f, var, row);
+  column = value;
+  column = row;
+  finish = try-remove-trivial-phi!(f, phi);
+}
+scatter configure-phi-inputs!(f: ref[Func], phi: u32, base: u32, count: u32, width: u32) inline {
+  let x = val(f, phi);
+  field x.opb = base;
+  field x.nops = count;
+  field x.ntotal = count * width;
+}
+
+# Demand-driven SSA is specified by definition and predecessor constraints.
+# Open blocks defer merges; the solver publishes a cyclic merge before reading
+# its inputs. Sealing discharges all deferred merges for that block.
+sealed-ssa read-var!(f: ref[Func]) {
+  recursive = read-var-recursive!;
+  seal = seal!;
+  use = use-var!;
+  pending = f.incomplete;
+  pending-type = IncompletePhi;
+  current = f.cur;
+  absent = none();
+  definition = lookup-def(f, var, block);
+  resolved = resolve(f, value);
+  variable-type = as[i64](f.var-types[i64-of(var)]);
+  sealed = (blk(f, block)).sealed;
+  predecessor-count = (blk(f, block)).npred;
+  only-predecessor = f.edges[i64-of((blk(f, block)).pred-first)].from;
+  publish = write-var!(f, var, block, value);
+  merge = new-phi!(f, block, ty);
+  complete = add-phi-operands!(f, var, phi);
+  undefined = undef!(f, ty);
+  close = seal-block!(f, block);
+}
+
+scatter seal-block!(f: ref[Func], block: u32) inline {
+  field (blk(f, block)).sealed = true;
+}
+
+# Finish construction: seal every block, remove trivial PHIs to a fixpoint,
+# rewrite operands through forwards and lay out each block's PHIs.
+# Instructions with no effect besides their result.
+fn pure-op?(op: i64) -> bool = (((op >= OP-ADD) and (op <= OP-ASHR)) or ((op >= OP-ROTL) and (op <= OP-SELECT)) or ((op >= OP-ADDO) and (op <= OP-BITREV)) or ((op >= OP-FADD) and (op <= OP-COPY)) or (op == OP-PTRADD) or (op == OP-ADDI));
+
+# Remove pure instructions whose results are unused (address arithmetic the
+# access folded, results lowering computed and dropped), and with them uses
+# that kept others alive.
+# Instructions the isel compiles to a call of a runtime function: the
+# function is not a leaf.
+fn runtime-call-op?(x: ref[Value]) -> bool = let op = as[i64](x.op) in
+  op == OP-MEMCPYV or op == OP-MEMMOVEV or op == OP-MEMSETV
+    or (op >= OP-SDIV and op <= OP-UREM and as[i64](x.ty) == T-I128);
+
+# Compact instructions marked dead, preserving block ranges and moving
+# source debug marks to the next surviving instruction in the same block.
+compact compact-dead!(f: ref[Func]) {
+  input = f.insts;
+  output = f.scratch-insts;
+  anchors = f.mark-insts;
+  absent = none();
+  groups { from b in range(0, len(f.blocks)); yield = u32-of(b); }
+  begin = (blk(f, group)).ibegin;
+  end = (blk(f, group)).iend;
+  view = val(f, v);
+  keep = (item.flags & typed[u8](8)) == typed[u8](0);
+  anchored = (item.flags & typed[u8](0x20)) != typed[u8](0);
+  mark = mark-debug-anchor!(f, v);
+  configure = configure-instruction-range!(f, group, begin, end);
+}
+scatter mark-debug-anchor!(f: ref[Func], v: u32) inline {
+  let x = val(f, v);
+  field x.flags = x.flags | typed[u8](0x20);
+}
+scatter configure-instruction-range!(f: ref[Func], group: u32, begin: u32, end: u32) inline {
+  let block = blk(f, group);
+  field block.ibegin = begin;
+  field block.iend = end;
+}
+
+prune drop-dead!(f: ref[Func]) {
+  count = len(f.values);
+  counts = f.scratch-uses;
+  stream = f.insts;
+  view = val(f, v);
+  removable = pure-op?(as[i64](item.op));
+  uses {
+    from vi in range(0, len(f.values));
+    let x = val(f, u32-of(vi));
+    where as[i64](x.op) != OP-CONST and f.fwd[vi] == none();
+    from k in range(0, i64-of(x.nops));
+    yield = f.operands[i64-of(x.opb) + k];
+  }
+  roots { from arg in f.args; yield = arg; }
+  operands {
+    from k in range(0, i64-of(item.nops));
+    yield = f.operands[i64-of(item.opb) + k];
+  }
+  observe = cache-runtime-calls!(f);
+  mark = mark-unused!(f, v);
+  compact = compact-dead!(f);
+}
+scatter mark-unused!(f: ref[Func], v: u32) inline {
+  let x = val(f, v);
+  field x.flags = x.flags | typed[u8](8);
+}
+scatter cache-runtime-calls!(f: ref[Func]) inline {
+  field f.has-calls = f.has-calls or (any v in f.insts: runtime-call-op?(val(f, v)));
+}
+
+# Whether the function calls anything, runtime calls its instructions
+# become included (before finish!, which marks those).
+fn calls-anything?(f: ref[Func]) -> bool = f.has-calls or (any v in f.insts: runtime-call-op?(val(f, v)));
+
+# Remove the stores whose address is alloca `a`, and `a` itself (debug info
+# dropping a frame only it would need).
+compact drop-alloca-stores!(f: ref[Func], a: u32) inline {
+  input = f.insts; output = f.scratch-insts;
+  groups { from b in range(0, len(f.blocks)); yield = u32-of(b); }
+  begin = (blk(f, group)).ibegin; end = (blk(f, group)).iend;
+  view = val(f, v);
+  keep = not(as[i64](item.op) == OP-STORE and operand(f, item, typed[u32](0)) == a);
+  configure = configure-instruction-range!(f, group, begin, end);
+}
+retain remove-alloca!(f: ref[Func], a: u32) inline {
+  data = f.allocas;
+  keep = v != a;
+  configure = number-alloca!(f, v, index);
+}
+scatter number-alloca!(f: ref[Func], v: u32, index: u32) inline {
+  field (val(f, v)).next = index;
+}
+pipeline drop-alloca!(f: ref[Func], a: u32) {
+  run drop-alloca-stores!(f, a);
+  run remove-alloca!(f, a);
+}
+retain remove-fused-allocas!(f: ref[Func], uses: mut[list[u32]]) inline {
+  data = f.allocas;
+  keep = uses[i64-of(v)] != none();
+  configure = number-alloca!(f, v, index);
+}
+
+# Collapse a private aggregate snapshot into an overlap-safe transfer.
+# Exact two-use ownership and adjacent effects are required: an escaped,
+# partial, reused or cross-block temporary is never rewritten.
+tally snapshot-use-counts!(f: ref[Func]) inline {
+  count = len(f.values);
+  output = f.scratch-uses;
+  rows {
+    from vi in range(0, len(f.values));
+    let x = val(f, u32-of(vi));
+    where f.fwd[vi] == none();
+    from k in range(0, i64-of(x.nops));
+    yield = f.operands[i64-of(x.opb) + k];
+  }
+}
+count-rewrites fuse-adjacent-snapshots!(f: ref[Func], uses: mut[list[u32]]) inline {
+  rows {
+    from b in range(0, len(f.blocks));
+    let block = blk(f, u32-of(b));
+    from j in range(i64-of(block.ibegin), i64-of(block.iend) - 1);
+    let first = f.insts[j];
+    let second = f.insts[j + 1];
+    yield = first;
+  }
+  apply = try-fuse-snapshot!(f, borrow(uses), first, second);
+  changed = result;
+}
+rewrite try-fuse-snapshot!(f: ref[Func], uses: mut[list[u32]], first: u32, second: u32) {
+  let x = read(val(f, first));
+  let y = read(val(f, second));
+  let op = as[i64](x.op);
+  require (op == OP-MEMCPY or op == OP-MEMZERO) and as[i64](y.op) == OP-MEMCPY and x.imm > 0 and x.imm == y.imm;
+  let temporary = operand(f, val(f, first), typed[u32](0));
+  let slot = read(val(f, temporary));
+  require as[i64](slot.op) == OP-ALLOCA and slot.imm == x.imm and uses[i64-of(temporary)] == typed[u32](2)
+    and operand(f, val(f, second), typed[u32](1)) == temporary;
+  let destination = operand(f, val(f, second), typed[u32](0));
+  create source = if(op == OP-MEMZERO, iconst!(f, 0), operand(f, val(f, first), typed[u32](1)));
+  create count = iconst!(f, x.imm);
+  create begin = u32-of(len(f.operands));
+  apply push-operand!(f, destination, typed[u32](0));
+  apply push-operand!(f, source, typed[u32](0));
+  apply push-operand!(f, count, typed[u32](0));
+  apply replace-snapshot-values!(f, first, second, op, begin);
+  apply mark-fused-slot!(borrow(uses), temporary);
+}
+scatter replace-snapshot-values!(f: ref[Func], first: u32, second: u32, op: i64, begin: u32) inline {
+  let replacement = val(f, second);
+  let dead = val(f, first);
+  field replacement.op = as[u8](if(op == OP-MEMZERO, OP-MEMSETV, OP-MEMMOVEV));
+  field replacement.opb = begin;
+  field replacement.nops = typed[u32](3);
+  field replacement.ntotal = typed[u32](3);
+  field replacement.imm = 0;
+  field replacement.imm2 = 0;
+  field dead.flags = dead.flags | typed[u8](8);
+  field dead.nops = typed[u32](0);
+  field dead.ntotal = typed[u32](0);
+}
+scatter mark-fused-slot!(uses: mut[list[u32]], temporary: u32) inline {
+  write uses at i64-of(temporary) = none();
+}
+scatter note-has-calls!(f: ref[Func]) inline { field f.has-calls = true; }
+rewrite fuse-snapshots!(f: ref[Func]) -> void {
+  require len(f.allocas) > 0;
+  apply snapshot-use-counts!(f);
+  create removed = fuse-adjacent-snapshots!(f, borrow(f.scratch-uses));
+  apply note-has-calls!(f) when removed > 0;
+  apply compact-dead!(f) when removed > 0;
+  apply remove-fused-allocas!(f, borrow(f.scratch-uses)) when removed > 0;
+}
+
+sweep seal-all-blocks!(f: ref[Func]) inline {
+  rows { from b in range(0, len(f.blocks)); yield = u32-of(b); }
+  apply = seal!(f, row);
+}
+saturate simplify-phis!(f: ref[Func]) inline {
+  rows {
+    from b in range(0, len(f.blocks));
+    chain p from (blk(f, u32-of(b))).phi-first until none() next (val(f, p)).next;
+    where f.fwd[i64-of(p)] == none();
+    yield = p;
+  }
+  apply = try-remove-trivial-phi!(f, row);
+  changed = result != row;
+}
+scatter rewrite-forwarded-operands!(f: ref[Func]) inline {
+  from vi in range(0, len(f.values));
+  let x = val(f, u32-of(vi));
+  from k in range(0, i64-of(x.nops));
+  let at = i64-of(x.opb) + k;
+  let old = f.operands[at];
+  where f.fwd[i64-of(old)] != none();
+  write f.operands at at = resolve(f, old);
+}
+materialize layout-phis!(f: ref[Func]) inline {
+  target = f.phis;
+  groups { from b in range(0, len(f.blocks)); yield = u32-of(b); }
+  rows {
+    chain p from (blk(f, group)).phi-first until none() next (val(f, p)).next;
+    where f.fwd[i64-of(p)] == none();
+    yield = p;
+  }
+  order = reverse;
+  configure = configure-phi-range!(f, group, begin, count);
+}
+scatter configure-phi-range!(f: ref[Func], group: u32, begin: u32, count: u32) inline {
+  let block = blk(f, group);
+  field block.phi-begin = begin;
+  field block.phi-count = count;
+}
+pipeline finish!(f: ref[Func]) {
+  run seal-all-blocks!(f);
+  run simplify-phis!(f);
+  run rewrite-forwarded-operands!(f);
+  run drop-dead!(f);
+  run layout-phis!(f);
+}

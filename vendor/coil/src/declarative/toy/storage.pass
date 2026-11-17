@@ -1,0 +1,844 @@
+# A second client of library passes: storage is independent of CIR and the
+# assembler. Payload deliberately starts small, and fields are unaligned.
+library
+byte-buffer Payload {
+  capacity 2;
+  endian little;
+  integer 8;
+  integer 16;
+  integer 32;
+  integer 64;
+  leb128;
+}
+record History {
+  values: list[u32];
+  generation: u32 = typed[u32](7);
+  scratch: list[u32] snapshot fresh reset keep;
+}
+construct History.new();
+release History as history-free!;
+snapshot History as copy-history!(dst, src);
+recycle History as recycle-history!(history: ref[History]) {}
+
+fn check() -> bool {
+  bind {
+    var history = invoke History.new();
+    var bytes = invoke Payload.new();
+  } {
+    push!(borrow(history.values), typed[u32](17));
+    emit8!(borrow(bytes), typed[u8](0xaa));
+    emit16!(borrow(bytes), typed[u16](0x1234));
+    emit32!(borrow(bytes), typed[u32](0x89abcdef));
+    emit64!(borrow(bytes), typed[u64](0xfedcba9876543210));
+    bind {
+      contents = as-slice(borrow(bytes));
+      var ok = history.generation == typed[u32](7) and history.values[0] == typed[u32](17)
+        and len(contents) == 15 and contents[1] == typed[u8](0x34) and contents[2] == typed[u8](0x12)
+        and contents[3] == typed[u8](0xef) and contents[6] == typed[u8](0x89)
+        and contents[7] == typed[u8](0x10) and contents[14] == typed[u8](0xfe)
+        and read16(borrow(bytes), 1) == typed[u16](0x1234)
+        and read32(borrow(bytes), 3) == typed[u32](0x89abcdef)
+        and read64(borrow(bytes), 7) == typed[u64](0xfedcba9876543210);
+    } {
+      patch32!(borrow(bytes), 1, typed[u32](0x10203040));
+      set ok = ok and read32(borrow(bytes), 1) == typed[u32](0x10203040);
+      cut!(borrow(bytes), 1, 4);
+      set ok = ok and bytes.len == 11 and read8(borrow(bytes), 1) == typed[u8](0xab);
+      buf-clear!(borrow(bytes));
+      uleb!(borrow(bytes), typed[u64](624485));
+      sleb!(borrow(bytes), -624485);
+      bind { contents = as-slice(borrow(bytes)); } {
+        set ok = ok and len(contents) == 6 and contents[0] == typed[u8](0xe5)
+          and contents[1] == typed[u8](0x8e) and contents[2] == typed[u8](0x26)
+          and contents[3] == typed[u8](0x9b) and contents[4] == typed[u8](0xf1)
+          and contents[5] == typed[u8](0x59);
+      };
+      align-to!(borrow(bytes), 16);
+      set ok = ok and bytes.len == 16 and read64(borrow(bytes), 8) == typed[u64](0);
+      history-free!(borrow(history));
+      buf-free!(borrow(bytes));
+      ok;
+    };
+  };
+}
+
+# A second relation client: a graph of bit promises, with a recursive component,
+# duplicate edges, an unknown boundary and a disconnected recursive component.
+record Promises {
+  sources: list[u32]; targets: list[u32]; facts: list[u8];
+  offsets: list[u32]; users: list[u32]; cursor: list[u32];
+}
+construct Promises.new();
+release Promises as promises-free!(p);
+relation dependents!(p: ref[Promises]) {
+  keys = len(p.facts) + 1;
+  offsets = p.offsets;
+  cursor = p.cursor;
+  from edge in range(0, len(p.sources));
+  key = p.targets[edge];
+  column p.users = p.sources[edge];
+}
+meet settle!(p: ref[Promises]) {
+  values = p.facts;
+  offsets = p.offsets;
+  users = p.users;
+  top = typed[u8](3);
+  boundary = typed[u8](0);
+}
+fn check-relations() -> bool {
+  bind { var p = invoke Promises.new(); } {
+    for fact in range(0, 6) { push!(borrow(p.facts), if(fact == 2, typed[u8](1), typed[u8](3))); };
+    set p.sources = list[u32](typed[u32](0), typed[u32](1), typed[u32](1), typed[u32](1), typed[u32](3), typed[u32](4), typed[u32](5));
+    set p.targets = list[u32](typed[u32](1), typed[u32](0), typed[u32](2), typed[u32](2), typed[u32](6), typed[u32](5), typed[u32](4));
+    dependents!(borrow(p));
+    settle!(borrow(p));
+    bind { ok = p.facts[0] == typed[u8](1) and p.facts[1] == typed[u8](1)
+      and p.facts[2] == typed[u8](1) and p.facts[3] == typed[u8](0)
+      and p.facts[4] == typed[u8](3) and p.facts[5] == typed[u8](3); } {
+      promises-free!(borrow(p));
+      ok;
+    };
+  };
+}
+
+record Paths {
+  boundaries: list[u32] = list[u32](typed[u32](0), typed[u32](2), typed[u32](4), typed[u32](6));
+  owners: list[u32] = list[u32](typed[u32](0), typed[u32](0), typed[u32](1), typed[u32](1), typed[u32](2), typed[u32](2));
+  sources: list[u32] = list[u32](typed[u32](0), typed[u32](1), typed[u32](2));
+  targets: list[u32] = list[u32](typed[u32](1), typed[u32](2), typed[u32](1));
+  starts: list[u32]; reached: list[u32]; work: list[u32];
+  forward: list[u32] = repeat[u32](6, typed[u32](0));
+  backward: list[u32] = repeat[u32](6, typed[u32](0));
+  entered-forward: list[u32] = repeat[u32](3, typed[u32](0));
+  entered-backward: list[u32] = repeat[u32](3, typed[u32](0));
+  generation: u32 = typed[u32](0);
+}
+construct Paths.new();
+release Paths as paths-free!(state);
+region after!(state: ref[Paths], stop: u32) {
+  direction = forward; advance = true;
+  starts = state.starts; partition = state.owners[as[i64](p)];
+  begin = state.boundaries[as[i64](b)]; end = state.boundaries[as[i64](b) + 1];
+  marks = state.forward; entered = state.entered-forward;
+  generation = state.generation; work = state.work; collect = state.reached;
+  neighbors {
+    from e in range(0, len(state.sources));
+    where state.sources[e] == b;
+    yield = state.targets[e];
+  }
+}
+region before!(state: ref[Paths], stop: u32) {
+  direction = backward; advance = false;
+  starts = state.starts; partition = state.owners[as[i64](p)];
+  begin = state.boundaries[as[i64](b)]; end = state.boundaries[as[i64](b) + 1];
+  marks = state.backward; entered = state.entered-backward;
+  generation = state.generation; work = state.work;
+  neighbors {
+    from e in range(0, len(state.sources));
+    where state.targets[e] == b;
+    yield = state.sources[e];
+  }
+}
+fn check-regions() -> bool {
+  bind { var state = invoke Paths.new(); var ok = true; } {
+    push!(borrow(state.starts), typed[u32](1));
+    after!(borrow(state), typed[u32](4));
+    set ok = len(state.reached) == 2 and state.forward[2] == state.generation
+      and state.forward[3] == state.generation and state.forward[4] != state.generation;
+    clear!(borrow(state.starts)); push!(borrow(state.starts), typed[u32](5));
+    before!(borrow(state), typed[u32](1));
+    set ok = ok and state.backward[1] != state.generation
+      and (all i in range(2, 6): state.backward[i] == state.generation);
+    after!(borrow(state), typed[u32](0xffffffff));
+    set ok = ok and len(state.reached) == 4
+      and (all i in range(2, 6): state.forward[i] == state.generation);
+    paths-free!(borrow(state));
+    ok;
+  };
+}
+
+fn check-lifecycle() -> bool {
+  bind { var history = invoke History.new(); var copy = zero[History]; } {
+    push!(borrow(history.values), typed[u32](17));
+    push!(borrow(history.scratch), typed[u32](99));
+    set history.generation = typed[u32](42);
+    copy-history!(borrow(copy), borrow(history));
+    put(borrow(history.values), 0, typed[u32](43));
+    recycle-history!(borrow(history));
+    bind { ok = copy.values[0] == typed[u32](17) and copy.generation == typed[u32](42)
+      and len(copy.scratch) == 0 and len(history.values) == 0
+      and len(history.scratch) == 1 and history.scratch[0] == typed[u32](99)
+      and history.generation == typed[u32](7); } {
+      history-free!(borrow(copy)); history-free!(borrow(history)); ok;
+    };
+  };
+}
+
+# Independent plan client: rejected constraints leave rewrite effects unapplied.
+predicate clear-path?(state: ref[Paths], seed: u32, forbidden: u32) {
+  reach after! from { yield = seed; } until typed[u32](0xffffffff);
+  ensure not(state.forward[as[i64](forbidden)] == state.generation);
+}
+rewrite record-path!(state: ref[Paths], seed: u32, forbidden: u32) {
+  require clear-path?(state, seed, forbidden);
+  derive state.starts from {
+    from position in range(0, len(state.forward));
+    where state.forward[position] == state.generation;
+    yield = as[u32](position);
+  };
+  require len(state.starts) > 0;
+  apply claim-path!(state);
+}
+fn check-plans() -> bool {
+  bind { var state = invoke Paths.new(); } {
+    bind {
+      rejected = not(record-path!(borrow(state), typed[u32](1), typed[u32](3)));
+      unchanged = state.owners[0] == typed[u32](0);
+      accepted = record-path!(borrow(state), typed[u32](1), typed[u32](0));
+      ok = rejected and unchanged and accepted and state.owners[0] == typed[u32](0)
+        and (all position in range(2, 6): state.backward[position] == state.generation)
+        and len(state.starts) == 4 and state.starts[0] == typed[u32](2);
+    } { paths-free!(borrow(state)); ok; };
+  };
+}
+
+scatter claim-path!(state: ref[Paths]) {
+  from i in range(0, len(state.starts));
+  let position = as[i64](state.starts[i]);
+  write state.backward at position = state.generation;
+}
+
+# A diamond, a back edge and an unreachable node exercise the same dominator
+# equations independently of CIR's block/edge representation.
+record Flow {
+  starts: list[u32] = list[u32](typed[u32](0), typed[u32](2), typed[u32](3), typed[u32](4), typed[u32](5), typed[u32](6), typed[u32](6));
+  sources: list[u32] = list[u32](typed[u32](0), typed[u32](0), typed[u32](1), typed[u32](2), typed[u32](3), typed[u32](4));
+  targets: list[u32] = list[u32](typed[u32](1), typed[u32](2), typed[u32](3), typed[u32](3), typed[u32](4), typed[u32](3));
+  ranks: list[u32]; parents: list[u32]; order: list[u32]; work: list[u32];
+}
+construct Flow.new();
+release Flow as flow-free!(state);
+dominators solve-flow!(state: ref[Flow]) {
+  nodes = len(state.starts) - 1;
+  entry = typed[u32](0); absent = typed[u32](0xffffffff);
+  ranks = state.ranks; parents = state.parents; order = state.order; work = state.work;
+  successor-count = state.starts[as[i64](b) + 1] - state.starts[as[i64](b)];
+  successor = state.targets[as[i64](state.starts[as[i64](b)] + k)];
+  predecessors {
+    from e in range(0, len(state.sources));
+    where state.targets[e] == b;
+    yield = state.sources[e];
+  }
+}
+fn check-dominators() -> bool {
+  bind { var state = invoke Flow.new(); } {
+    solve-flow!(borrow(state));
+    bind { var ok = state.parents[0] == typed[u32](0) and state.parents[1] == typed[u32](0)
+      and state.parents[2] == typed[u32](0) and state.parents[3] == typed[u32](0)
+      and state.parents[4] == typed[u32](3) and state.parents[5] == typed[u32](0xffffffff)
+      and len(state.order) == 5; } {
+      solve-flow!(borrow(state));
+      set ok = ok and state.parents[4] == typed[u32](3) and len(state.order) == 5;
+      clear!(borrow(state.starts)); push!(borrow(state.starts), typed[u32](0));
+      solve-flow!(borrow(state));
+      set ok = ok and len(state.parents) == 0 and len(state.order) == 0;
+      flow-free!(borrow(state)); ok;
+    };
+  };
+}
+
+record StampEntry { key: u64; value: i64; gen: u32; }
+record Stamps { entries: list[StampEntry]; epoch: u32 = typed[u32](1); count: i64; }
+construct Stamps.new();
+release Stamps as stamps-free!(state);
+epoch-map stamps(state: ref[Stamps]) {
+  entries = state.entries; generation = state.epoch; count = state.count;
+  entry-type = StampEntry; key-type = u64; value-type = i64;
+  absent = -1;
+  hash = typed[u64](0);
+  initial = 2; load-denominator = 2;
+}
+fn check-epoch-map() -> bool {
+  bind { var state = invoke Stamps.new(); var ok = stamps-get(borrow(state), typed[u64](9)) == -1; } {
+    for i in range(0, 128) { stamps-set!(borrow(state), as[u64](i), i * 3); };
+    set ok = ok and state.count == 128 and (all i in range(0, 128): stamps-get(borrow(state), as[u64](i)) == i * 3);
+    stamps-set!(borrow(state), typed[u64](3), 99);
+    set ok = ok and state.count == 128 and stamps-get(borrow(state), typed[u64](3)) == 99;
+    stamps-reset!(borrow(state));
+    set ok = ok and state.count == 0 and stamps-get(borrow(state), typed[u64](3)) == -1;
+    stamps-set!(borrow(state), typed[u64](3), 77);
+    set state.epoch = typed[u32](0xffffffff);
+    stamps-set!(borrow(state), typed[u64](5), 88);
+    stamps-reset!(borrow(state));
+    set ok = ok and state.epoch == typed[u32](1) and state.count == 0
+      and stamps-get(borrow(state), typed[u64](3)) == -1 and stamps-get(borrow(state), typed[u64](5)) == -1;
+    stamps-set!(borrow(state), typed[u64](5), 66);
+    set ok = ok and state.count == 1 and stamps-get(borrow(state), typed[u64](5)) == 66;
+    stamps-free!(borrow(state)); ok;
+  };
+}
+
+consensus agreed-history(history: ref[History]) -> u32 {
+  initial = typed[u32](0);
+  rows { from value in history.values; yield = value; }
+}
+rewrite remember-agreement!(history: ref[History]) -> u32 else typed[u32](0xffffffff) {
+  let agreement = agreed-history(history);
+  require agreement.valid;
+  create value = agreement.value;
+  apply set-generation!(history, value);
+  result = value;
+}
+scatter set-generation!(history: ref[History], value: u32) {
+  field history.generation = value;
+}
+fn check-consensus() -> bool {
+  bind { var history = invoke History.new(); var ok = remember-agreement!(borrow(history)) == typed[u32](0); } {
+    push!(borrow(history.values), typed[u32](17)); push!(borrow(history.values), typed[u32](17));
+    set ok = ok and remember-agreement!(borrow(history)) == typed[u32](17) and history.generation == typed[u32](17);
+    push!(borrow(history.values), typed[u32](18));
+    set ok = ok and remember-agreement!(borrow(history)) == typed[u32](0xffffffff) and history.generation == typed[u32](17);
+    history-free!(borrow(history)); ok;
+  };
+}
+
+record Owned { counter: ref[i64] = counter; }
+construct Owned as owned-new(counter: ref[i64]);
+fn release-owned!(resource: ref[Owned]) -> void {
+  write(resource.counter, read(resource.counter) + 1);
+}
+record Holder {
+  item: Owned = owned-new(counter) drop release-owned!;
+  items: list[Owned] drop-each release-owned!;
+}
+construct Holder as holder-new(counter: ref[i64]);
+release Holder as holder-free!(holder);
+fn check-ownership() -> bool {
+  bind { var count = 0; var holder = holder-new(borrow(count)); } {
+    push!(borrow(holder.items), owned-new(borrow(count)));
+    push!(borrow(holder.items), owned-new(borrow(count)));
+    holder-free!(borrow(holder));
+    count == 3;
+  };
+}
+
+record Rows { values: list[u32]; ordinals: list[u32]; }
+construct Rows.new();
+release Rows as rows-free!(rows);
+insert append-row!(rows: ref[Rows], value: u32) -> u32 {
+  column rows.values = value;
+  column rows.ordinals = as[u32](len(rows.values));
+}
+fn check-insertion() -> bool {
+  bind { var rows = invoke Rows.new(); var ok = true; } {
+    for i in range(0, 2048) {
+      set ok = ok and append-row!(borrow(rows), as[u32](i * 3)) == as[u32](i);
+    };
+    set ok = ok and len(rows.values) == 2048 and len(rows.ordinals) == 2048
+      and (all i in range(0, 2048): rows.values[i] == as[u32](i * 3) and rows.ordinals[i] == as[u32](i));
+    rows-free!(borrow(rows)); ok;
+  };
+}
+
+record Samples { values: list[u32] = tabulate[u32](size, i: as[u32](i * i)); }
+construct Samples as samples-new(size: i64);
+release Samples as samples-free!(samples);
+fn check-tabulate() -> bool {
+  bind { var samples = samples-new(37); } {
+    bind { ok = len(samples.values) == 37 and (all i in range(0, 37): samples.values[i] == as[u32](i * i)); } {
+      samples-free!(borrow(samples)); ok;
+    };
+  };
+}
+
+# The sealed-SSA equations also serve a three-node loop with a different value
+# store: node 1 merges entry 0 and back edge 2, which reads node 1 again.
+record SsaPending { block: u32; var: u32; phi: u32; }
+record SsaMerge { block: u32; var: u32; }
+record SsaLoop {
+  definitions: list[u32] = repeat[u32](6, typed[u32](0xffffffff));
+  sealed: list[bool] = repeat[bool](3, true);
+  forwards: list[u32] = repeat[u32](128, typed[u32](0xffffffff));
+  merges: list[SsaMerge]; pending: list[SsaPending]; current: u32 = typed[u32](2);
+}
+construct SsaLoop.new();
+release SsaLoop as ssa-loop-free!(state);
+sealed-ssa toy-read!(state: ref[SsaLoop]) {
+  recursive = toy-demand!; seal = toy-seal!; use = toy-current!;
+  pending = state.pending; pending-type = SsaPending;
+  current = state.current;
+  absent = typed[u32](0xffffffff);
+  definition = state.definitions[2 * as[i64](block) + as[i64](var)];
+  resolved = toy-resolve(state, value);
+  variable-type = typed[i64](0);
+  sealed = state.sealed[as[i64](block)];
+  predecessor-count = if(block == typed[u32](1), typed[u32](2), if(block == typed[u32](2), typed[u32](1), typed[u32](0)));
+  only-predecessor = typed[u32](1);
+  publish = toy-publish!(state, var, block, value);
+  merge = toy-merge!(state, var, block);
+  complete = toy-complete!(state, var, phi);
+  undefined = toy-undefined!(state, ty);
+  close = toy-close!(state, block);
+}
+scatter toy-publish!(state: ref[SsaLoop], var: u32, block: u32, value: u32) {
+  write state.definitions at 2 * as[i64](block) + as[i64](var) = value;
+}
+fn toy-resolve(state: ref[SsaLoop], value: u32) -> u32 =
+  let next = state.forwards[as[i64](value)] in
+    if(next == typed[u32](0xffffffff), value, toy-resolve(state, next));
+fn toy-undefined!(state: ref[SsaLoop], ty: i64) -> u32 { typed[u32](0); }
+fn toy-merge!(state: ref[SsaLoop], var: u32, block: u32) -> u32 {
+  bind { value = typed[u32](32) + as[u32](len(state.merges)); } {
+    push!(borrow(state.merges), make SsaMerge { block = block; var = var; }); value;
+  };
+}
+fn toy-complete!(state: ref[SsaLoop], var: u32, phi: u32) -> u32 {
+  bind { var same = typed[u32](0xffffffff); var valid = true; } {
+    for i in range(0, 2) {
+      bind { parent = if(i == 0, typed[u32](0), typed[u32](2)); value = toy-read!(state, var, parent); } {
+        when(value != phi) {
+          if(same == typed[u32](0xffffffff), set same = value, when(same != value) { set valid = false; });
+        };
+      };
+    };
+    if(valid, do {
+      when(same == typed[u32](0xffffffff)) { set same = typed[u32](0); };
+      put(borrow(state.forwards), as[i64](phi), same); same;
+    }, phi);
+  };
+}
+fn check-ssa() -> bool {
+  bind { var state = invoke SsaLoop.new(); var ok = true; } {
+    toy-publish!(borrow(state), typed[u32](0), typed[u32](0), typed[u32](11));
+    put(borrow(state.sealed), 1, false);
+    bind { head = toy-read!(borrow(state), typed[u32](0), typed[u32](1));
+      empty = toy-read!(borrow(state), typed[u32](1), typed[u32](1)); } {
+      set ok = head == typed[u32](32) and empty == typed[u32](33) and len(state.pending) == 2
+        and toy-current!(borrow(state), typed[u32](0)) == head;
+      toy-seal!(borrow(state), typed[u32](1));
+      set ok = ok and len(state.pending) == 0 and state.sealed[1]
+        and toy-read!(borrow(state), typed[u32](0), typed[u32](1)) == typed[u32](11)
+        and toy-current!(borrow(state), typed[u32](0)) == typed[u32](11)
+        and toy-current!(borrow(state), typed[u32](1)) == typed[u32](0);
+      toy-seal!(borrow(state), typed[u32](1));
+      set ok = ok and len(state.merges) == 2;
+    };
+    ssa-loop-free!(borrow(state));
+    bind { var conflict = invoke SsaLoop.new(); } {
+      toy-publish!(borrow(conflict), typed[u32](0), typed[u32](0), typed[u32](11));
+      toy-publish!(borrow(conflict), typed[u32](0), typed[u32](2), typed[u32](22));
+      set ok = ok and toy-read!(borrow(conflict), typed[u32](0), typed[u32](1)) == typed[u32](32)
+        and conflict.forwards[32] == typed[u32](0xffffffff);
+      ssa-loop-free!(borrow(conflict)); ok;
+    };
+  };
+}
+
+scatter toy-close!(state: ref[SsaLoop], block: u32) {
+  write state.sealed at as[i64](block) = true;
+}
+
+# Resolving a row appends more storage, as recursive merge construction does.
+# Preallocated planes must retain their offsets across those nested appends.
+record Ragged {
+  data: list[u32]; flags: list[u32]; begin: u32; count: u32; planes: u32; configured: bool;
+}
+construct Ragged.new();
+release Ragged as ragged-free!(state);
+gather gather-three!(state: ref[Ragged]) -> u32 {
+  data = state.data; zero = state.flags; count = typed[u32](3);
+  configure = configure-ragged!(state, base, count, width);
+  rows { from i in range(0, 3); yield = as[u32](i); }
+  resolve = nested-row!(state, row);
+  column = value; column = row;
+  finish = ragged-done!(state);
+}
+scatter configure-ragged!(state: ref[Ragged], base: u32, count: u32, width: u32) {
+  field state.begin = base; field state.count = count; field state.planes = width; field state.configured = true;
+}
+fn nested-row!(state: ref[Ragged], row: u32) -> u32 {
+  unless(state.configured) { panic("row shape must be published before resolution"); };
+  push!(borrow(state.data), typed[u32](99)); push!(borrow(state.flags), typed[u32](0));
+  row * typed[u32](3);
+}
+fn ragged-done!(state: ref[Ragged]) -> u32 { state.begin; }
+fn check-gather() -> bool {
+  bind { var state = invoke Ragged.new(); var ok = true; } {
+    for round in range(0, 2) {
+      bind { base = gather-three!(borrow(state)); } {
+        set ok = ok and base == as[u32](round * 9) and state.count == typed[u32](3) and state.planes == typed[u32](2)
+          and len(state.data) == (round + 1) * 9 and len(state.flags) == len(state.data)
+          and (all i in range(0, 3): state.data[as[i64](base) + i] == as[u32](i * 3)
+            and state.data[as[i64](base) + 3 + i] == as[u32](i)
+            and state.data[as[i64](base) + 6 + i] == typed[u32](99));
+      };
+    };
+    ragged-free!(borrow(state)); ok;
+  };
+}
+
+record Log {
+  data: list[u32] = list[u32](typed[u32](10), typed[u32](11), typed[u32](12), typed[u32](20), typed[u32](21));
+  scratch: list[u32];
+  begins: list[u32] = list[u32](typed[u32](0), typed[u32](3));
+  ends: list[u32] = list[u32](typed[u32](3), typed[u32](5));
+  anchors: list[u32] = list[u32](typed[u32](10), typed[u32](11), typed[u32](21), typed[u32](20));
+  retained: list[bool] = tabulate[bool](32, i: i == 12 or i == 20);
+  marked: list[bool] = tabulate[bool](32, i: i == 10 or i == 11 or i == 21);
+}
+construct Log.new();
+release Log as log-free!(state);
+compact compact-log!(state: ref[Log]) {
+  input = state.data; output = state.scratch; anchors = state.anchors; absent = typed[u32](0xffffffff);
+  groups { from i in range(0, 2); yield = as[u32](i); }
+  begin = state.begins[as[i64](group)]; end = state.ends[as[i64](group)];
+  view = v;
+  keep = state.retained[as[i64](item)]; anchored = state.marked[as[i64](item)];
+  mark = mark-log!(state, v);
+  configure = configure-log!(state, group, begin, end);
+}
+scatter mark-log!(state: ref[Log], v: u32) inline { write state.marked at as[i64](v) = true; }
+scatter configure-log!(state: ref[Log], group: u32, begin: u32, end: u32) inline {
+  write state.begins at as[i64](group) = begin; write state.ends at as[i64](group) = end;
+}
+fn check-compaction() -> bool {
+  bind { var state = invoke Log.new(); } {
+    compact-log!(borrow(state));
+    bind { var ok = len(state.data) == 2 and len(state.scratch) == 5
+      and state.data[0] == typed[u32](12) and state.data[1] == typed[u32](20)
+      and state.begins[0] == typed[u32](0) and state.ends[0] == typed[u32](1)
+      and state.begins[1] == typed[u32](1) and state.ends[1] == typed[u32](2)
+      and state.anchors[0] == typed[u32](12) and state.anchors[1] == typed[u32](12)
+      and state.anchors[2] == typed[u32](0xffffffff) and state.anchors[3] == typed[u32](20)
+      and state.marked[12]; } {
+      compact-log!(borrow(state));
+      set ok = ok and len(state.data) == 2 and len(state.scratch) == 2
+        and state.data[0] == typed[u32](12) and state.data[1] == typed[u32](20);
+      log-free!(borrow(state)); ok;
+    };
+  };
+}
+
+record PruneGraph {
+  order: list[u32] = tabulate[u32](6, i: as[u32](i)); scratch: list[u32]; counts: list[u32];
+  sources: list[u32] = list[u32](typed[u32](1), typed[u32](2), typed[u32](3), typed[u32](4));
+  targets: list[u32] = list[u32](typed[u32](0), typed[u32](1), typed[u32](0), typed[u32](0));
+  roots: list[u32] = list[u32](typed[u32](0), typed[u32](5));
+  dead: list[bool] = repeat[bool](6, false); anchors: list[u32];
+  limit: u32 = typed[u32](6); observed: bool; compactions: i64;
+}
+construct PruneGraph.new();
+release PruneGraph as prune-graph-free!(state);
+prune prune-graph!(state: ref[PruneGraph]) {
+  count = 6; counts = state.counts; stream = state.order; view = v;
+  removable = item != typed[u32](0) and item != typed[u32](3);
+  uses {
+    from e in range(0, len(state.sources));
+    where not(state.dead[as[i64](state.sources[e])]);
+    yield = state.targets[e];
+  }
+  roots { from root in state.roots; yield = root; }
+  operands {
+    from e in range(0, len(state.sources));
+    where state.sources[e] == v;
+    yield = state.targets[e];
+  }
+  observe = observe-pruning!(state);
+  mark = mark-pruned!(state, v);
+  compact = compact-pruned!(state);
+}
+compact compact-pruned!(state: ref[PruneGraph]) {
+  input = state.order; output = state.scratch; anchors = state.anchors; absent = typed[u32](0xffffffff);
+  groups { yield = typed[u32](0); }
+  begin = typed[u32](0); end = state.limit; view = v;
+  keep = not(state.dead[as[i64](item)]); anchored = false;
+  mark = mark-pruned!(state, v);
+  configure = configure-pruned!(state, end);
+}
+scatter observe-pruning!(state: ref[PruneGraph]) inline { field state.observed = true; }
+scatter mark-pruned!(state: ref[PruneGraph], v: u32) inline { write state.dead at as[i64](v) = true; }
+scatter configure-pruned!(state: ref[PruneGraph], end: u32) inline {
+  field state.limit = end; field state.compactions = state.compactions + 1;
+}
+fn check-pruning() -> bool {
+  bind { var state = invoke PruneGraph.new(); } {
+    prune-graph!(borrow(state));
+    bind { var ok = state.observed and state.compactions == 1 and state.limit == typed[u32](3)
+      and len(state.order) == 3 and state.order[0] == typed[u32](0) and state.order[1] == typed[u32](3) and state.order[2] == typed[u32](5)
+      and state.dead[1] and state.dead[2] and state.dead[4] and not(state.dead[0]) and not(state.dead[3]) and not(state.dead[5])
+      and state.counts[0] == typed[u32](2) and state.counts[1] == typed[u32](0) and state.counts[5] == typed[u32](1); } {
+      set state.observed = false;
+      prune-graph!(borrow(state));
+      set ok = ok and state.observed and state.compactions == 1 and len(state.order) == 3 and len(state.scratch) == 6;
+      prune-graph-free!(borrow(state)); ok;
+    };
+  };
+}
+
+record Stages {
+  values: list[u32] = list[u32](typed[u32](3), typed[u32](1), typed[u32](0));
+  output: list[u32]; starts: list[u32] = repeat[u32](2, typed[u32](0));
+  counts: list[u32] = repeat[u32](2, typed[u32](0)); visited: list[bool] = repeat[bool](3, false);
+}
+construct Stages.new();
+release Stages as stages-free!(state);
+saturate drain!(state: ref[Stages]) inline {
+  rows { from i in range(0, len(state.values)); yield = as[u32](i); }
+  apply = decrement!(state, row);
+  changed = result != typed[u32](0);
+}
+rewrite decrement!(state: ref[Stages], index: u32) -> u32 else typed[u32](0) {
+  let previous = state.values[as[i64](index)];
+  require previous > typed[u32](0);
+  apply decrement-cell!(state, index, previous);
+  result = previous;
+}
+scatter decrement-cell!(state: ref[Stages], index: u32, previous: u32) inline {
+  write state.values at as[i64](index) = previous - typed[u32](1);
+}
+materialize group-stages!(state: ref[Stages]) inline {
+  target = state.output;
+  groups { from g in range(0, 2); yield = as[u32](g); }
+  rows {
+    from i in range(0, len(state.values));
+    where i % 2 == as[i64](group);
+    yield = state.values[i] + as[u32](i);
+  }
+  order = reverse;
+  configure = configure-stages!(state, group, begin, count);
+}
+scatter configure-stages!(state: ref[Stages], group: u32, begin: u32, count: u32) inline {
+  write state.starts at as[i64](group) = begin; write state.counts at as[i64](group) = count;
+}
+sweep visit-stages!(state: ref[Stages]) inline {
+  rows { from value in state.output; yield = value; }
+  apply = visit-stage!(state, row);
+}
+scatter visit-stage!(state: ref[Stages], row: u32) inline { write state.visited at as[i64](row) = true; }
+pipeline run-stages!(state: ref[Stages]) {
+  run drain!(state); run group-stages!(state); run visit-stages!(state);
+}
+fn check-scheduling() -> bool {
+  bind { var state = invoke Stages.new(); } {
+    run-stages!(borrow(state));
+    bind { var ok = (all value in state.values: value == typed[u32](0))
+      and (all visited in state.visited: visited) and len(state.output) == 3
+      and state.output[0] == typed[u32](2) and state.output[1] == typed[u32](0) and state.output[2] == typed[u32](1)
+      and state.starts[0] == typed[u32](0) and state.starts[1] == typed[u32](2)
+      and state.counts[0] == typed[u32](2) and state.counts[1] == typed[u32](1); } {
+      run-stages!(borrow(state));
+      set ok = ok and len(state.output) == 3 and state.output[1] == typed[u32](0);
+      stages-free!(borrow(state)); ok;
+    };
+  };
+}
+
+record SlotView {
+  ids: list[u32] = list[u32](typed[u32](8), typed[u32](4), typed[u32](9), typed[u32](2));
+  ordinals: list[u32] = repeat[u32](10, typed[u32](0xffffffff)); cutoff: u32 = typed[u32](10);
+}
+construct SlotView.new();
+release SlotView as slot-view-free!(state);
+retain retain-slots!(state: ref[SlotView]) inline {
+  data = state.ids; keep = v % typed[u32](2) == typed[u32](0) and v < state.cutoff;
+  configure = slot-ordinal!(state, v, index);
+}
+scatter slot-ordinal!(state: ref[SlotView], v: u32, index: u32) inline {
+  write state.ordinals at as[i64](v) = index;
+}
+compact compact-even-log!(state: ref[Log]) inline {
+  input = state.data; output = state.scratch;
+  groups { from i in range(0, 2); yield = as[u32](i); }
+  begin = state.begins[as[i64](group)]; end = state.ends[as[i64](group)];
+  view = v; keep = item % typed[u32](2) == typed[u32](0);
+  configure = configure-log!(state, group, begin, end);
+}
+fn check-retention() -> bool {
+  bind { var slots = invoke SlotView.new(); before-address = as[u64](slots.ids.data); var ok = true; } {
+    retain-slots!(borrow(slots));
+    set ok = len(slots.ids) == 3 and as[u64](slots.ids.data) == before-address
+      and slots.ids[0] == typed[u32](8) and slots.ids[1] == typed[u32](4) and slots.ids[2] == typed[u32](2)
+      and slots.ordinals[8] == typed[u32](0) and slots.ordinals[4] == typed[u32](1) and slots.ordinals[2] == typed[u32](2)
+      and slots.ordinals[9] == typed[u32](0xffffffff);
+    set slots.cutoff = typed[u32](0); retain-slots!(borrow(slots)); retain-slots!(borrow(slots));
+    set ok = ok and len(slots.ids) == 0 and as[u64](slots.ids.data) == before-address;
+    slot-view-free!(borrow(slots));
+    bind { var log = invoke Log.new(); } {
+      compact-even-log!(borrow(log));
+      set ok = ok and len(log.data) == 3 and log.data[0] == typed[u32](10) and log.data[1] == typed[u32](12) and log.data[2] == typed[u32](20)
+        and log.ends[0] == typed[u32](2) and log.begins[1] == typed[u32](2) and log.ends[1] == typed[u32](3)
+        and log.anchors[1] == typed[u32](11) and log.anchors[2] == typed[u32](21) and not(log.marked[12]);
+      log-free!(borrow(log)); ok;
+    };
+  };
+}
+
+count-rewrites drain-once!(state: ref[Stages]) inline {
+  rows { from i in range(0, len(state.values)); yield = as[u32](i); }
+  apply = decrement!(state, row);
+  changed = result != typed[u32](0);
+}
+tally tally-slots!(state: ref[SlotView]) inline {
+  count = 10; output = state.ordinals;
+  rows { from v in state.ids; yield = v; }
+}
+rewrite visit-if-ready!(state: ref[Stages]) -> void {
+  require len(state.output) > 0;
+  apply visit-stage!(state, typed[u32](0));
+}
+fn check-counting() -> bool {
+  bind { var state = invoke Stages.new(); var slots = invoke SlotView.new(); var ok = true; } {
+    visit-if-ready!(borrow(state));
+    set ok = not(state.visited[0]) and drain-once!(borrow(state)) == 2
+      and state.values[0] == typed[u32](2) and state.values[1] == typed[u32](0)
+      and drain-once!(borrow(state)) == 1 and drain-once!(borrow(state)) == 1 and drain-once!(borrow(state)) == 0;
+    group-stages!(borrow(state)); visit-if-ready!(borrow(state));
+    set ok = ok and state.visited[0];
+    push!(borrow(slots.ids), typed[u32](8)); tally-slots!(borrow(slots));
+    set ok = ok and len(slots.ordinals) == 10 and slots.ordinals[8] == typed[u32](2)
+      and slots.ordinals[4] == typed[u32](1) and slots.ordinals[9] == typed[u32](1) and slots.ordinals[2] == typed[u32](1)
+      and slots.ordinals[0] == typed[u32](0);
+    slot-view-free!(borrow(slots)); stages-free!(borrow(state)); ok;
+  };
+}
+
+rewrite shadowed-fallback(value: u32) -> u32 else value {
+  let value = typed[u32](17);
+  require false;
+  result = value;
+}
+rewrite created-value(value: u32) -> u32 inline {
+  create result = value + typed[u32](1);
+  result = result;
+}
+rewrite fallback-effect!(state: ref[Stages], value: u32) -> u32 else create fallback-visit!(state, value) {
+  require value == typed[u32](0);
+  result = typed[u32](77);
+}
+fn fallback-visit!(state: ref[Stages], value: u32) -> u32 {
+  visit-stage!(state, value); value;
+}
+fn check-rule-scope() -> bool {
+  bind { var state = invoke Stages.new(); } {
+    bind { ok = shadowed-fallback(typed[u32](3)) == typed[u32](3) and created-value(typed[u32](5)) == typed[u32](6)
+      and fallback-effect!(borrow(state), typed[u32](0)) == typed[u32](77) and not(state.visited[0])
+      and fallback-effect!(borrow(state), typed[u32](1)) == typed[u32](1) and state.visited[1]; } {
+      stages-free!(borrow(state)); ok;
+    };
+  };
+}
+
+follow count-down(start: u32) -> u32 {
+  start = start; view = node;
+  stop = node == typed[u32](0);
+  next = node - typed[u32](1); result = node;
+}
+follow sum-down(start: u32, base: u64) -> u64 {
+  start = start; view = node;
+  stop = node == typed[u32](0);
+  next = node - typed[u32](1);
+  initial = base; step = acc + as[u64](item); result = acc;
+}
+fn check-paths() -> bool = count-down(typed[u32](100000)) == typed[u32](0)
+  and sum-down(typed[u32](100000), typed[u64](7)) == typed[u64](5000050007)
+  and sum-down(typed[u32](0), typed[u64](9)) == typed[u64](9);
+
+record Memo {
+  slots: list[u32] = repeat[u32](4, typed[u32](0xffffffff));
+  keys: list[u32]; values: list[u32]; calls: u32;
+}
+construct Memo.new();
+release Memo as memo-free!(state);
+scatter note-computation!(state: ref[Memo]) inline { field state.calls = state.calls + typed[u32](1); }
+rewrite compute-square!(state: ref[Memo], value: u32) -> u32 {
+  apply note-computation!(state);
+  create square = value * value;
+  result = square;
+}
+intern small-square!(state: ref[Memo], value: u32) -> u32 {
+  values = state.slots; eligible = value < typed[u32](4); key = as[i64](value); absent = typed[u32](0xffffffff);
+  compute = compute-square!(state, value);
+}
+intern intern-square!(state: ref[Memo], value: u32) -> u32 {
+  keys = state.keys; values = state.values; key = value;
+  compute = compute-square!(state, value);
+}
+fn check-interning() -> bool {
+  bind { var state = invoke Memo.new(); } {
+    bind { ok = small-square!(borrow(state), typed[u32](2)) == typed[u32](4)
+      and small-square!(borrow(state), typed[u32](2)) == typed[u32](4) and state.calls == typed[u32](1)
+      and small-square!(borrow(state), typed[u32](8)) == typed[u32](64)
+      and small-square!(borrow(state), typed[u32](8)) == typed[u32](64) and state.calls == typed[u32](3)
+      and intern-square!(borrow(state), typed[u32](9)) == typed[u32](81)
+      and intern-square!(borrow(state), typed[u32](9)) == typed[u32](81) and state.calls == typed[u32](4)
+      and intern-square!(borrow(state), typed[u32](3)) == typed[u32](9) and state.calls == typed[u32](5)
+      and len(state.keys) == 2 and state.keys[0] == typed[u32](9) and state.keys[1] == typed[u32](3); } {
+      memo-free!(borrow(state)); ok;
+    };
+  };
+}
+
+# A second worklist client exercises append-triggered relocation and dynamic
+# discovery without a compiler graph or any CIR-specific traversal machinery.
+record Pending { items: list[u32]; }
+construct Pending.new();
+release Pending as pending-free!(state);
+insert publish-pending!(state: ref[Pending], value: u32) -> void { column state.items = value; }
+rewrite discover-next!(state: ref[Pending], value: u32) -> void {
+  require value < typed[u32](10000);
+  apply publish-pending!(state, value + typed[u32](1));
+}
+worklist discover-all!(state: ref[Pending]) {
+  queue = state.items;
+  apply = discover-next!(state, row);
+}
+fn check-worklist() -> bool {
+  bind { var state = invoke Pending.new(); } {
+    discover-all!(borrow(state));
+    publish-pending!(borrow(state), typed[u32](0));
+    discover-all!(borrow(state));
+    bind { ok = len(state.items) == 10001 and (all i in range(0, len(state.items)): state.items[i] == as[u32](i)); } {
+      pending-free!(borrow(state)); ok;
+    };
+  };
+}
+
+record ReleaseLog { order: u32; }
+construct ReleaseLog.new();
+record ScopedWork { log: ref[ReleaseLog] = log; id: u32 = id; items: list[u32]; }
+construct ScopedWork.new(log: ref[ReleaseLog], id: u32);
+release ScopedWork as scoped-storage-free!(state);
+scatter note-release!(state: ref[ScopedWork]) { field state.log.order = state.log.order * typed[u32](10) + state.id; }
+pipeline scoped-release!(state: ref[ScopedWork]) {
+  run scoped-storage-free!(state);
+  run note-release!(state);
+}
+insert publish-scoped!(state: ref[ScopedWork], value: u32) -> void { column state.items = value; }
+rewrite discover-scoped!(state: ref[ScopedWork], value: u32) -> void {
+  require value < typed[u32](10000);
+  apply publish-scoped!(state, value + typed[u32](1));
+}
+worklist drain-scoped!(state: ref[ScopedWork]) {
+  queue = state.items; order = lifo; apply = discover-scoped!(state, row);
+}
+rewrite scoped-work!(log: ref[ReleaseLog], accepted: bool) -> bool else false {
+  require accepted;
+  resource outer = invoke ScopedWork.new(log, typed[u32](1)) release scoped-release!(borrow(outer));
+  resource inner = invoke ScopedWork.new(log, typed[u32](2)) release scoped-release!(borrow(inner));
+  apply publish-scoped!(borrow(inner), typed[u32](0));
+  apply drain-scoped!(borrow(inner));
+  result = len(inner.items) == 0 and log.order == typed[u32](0);
+}
+fn check-scoped-worklist() -> bool {
+  bind { var log = invoke ReleaseLog.new(); } {
+    not(scoped-work!(borrow(log), false)) and log.order == typed[u32](0)
+      and scoped-work!(borrow(log), true) and log.order == typed[u32](21);
+  };
+}
+
+reduce decimal-fold(n: i64) -> u64 {
+  initial = typed[u64](9);
+  rows { from i in range(0, n); yield = as[u64](i); }
+  step = acc * typed[u64](10) + row;
+}
+fn check-reduction() -> bool = decimal-fold(0) == typed[u64](9) and decimal-fold(3) == typed[u64](9012);

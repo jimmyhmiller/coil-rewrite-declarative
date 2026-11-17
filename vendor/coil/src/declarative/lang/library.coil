@@ -1,0 +1,1294 @@
+;;; Explicit-argument library passes. Storage and algorithms use the same
+;;; collection vocabulary as graph passes, without an implicit graph state.
+;;; No Coil forms are accepted: records, types, references and control flow
+;;; are parsed here, with located errors, and Coil checks the resulting API.
+(module lang.library)
+(import "coil.alloc" :use [malloc-allocator])
+(import "coil.arraylist" :use [ArrayList])
+(import "lang.text" :as t)
+(import "lang.storage" :as storage)
+(import "lang.relation" :as relation)
+(import "lang.region" :as region)
+(import "lang.plan" :as plan)
+(import "lang.dominance" :as dominance)
+(import "lang.epoch-map" :as epoch-map)
+(import "lang.sealed-ssa" :as sealed-ssa)
+(import "lang.gather" :as gather)
+(import "lang.compact" :as compact)
+(import "lang.prune" :as prune)
+(import "lang.schedule" :as schedule)
+(import "lang.follow" :as follow)
+(import "lang.intern" :as intern)
+(import "lang.mutex" :as mutex)
+(import "lang.stable-index" :as stable-index)
+
+(defn name! [(c (mut t/Cur))] (-> (slice u8))
+  (let [(mut name) (t/name! (mut c) "a name")]
+    (while (t/accept! (mut c) "::")
+      (set! name (t/cat3 name "/" (t/name! (mut c) "a qualified name"))))
+    name))
+
+(defn type! [(c (mut t/Cur))] (-> (slice u8))
+  (let [name (name! (mut c))]
+    (if (or (= name "ref") (= name "mut") (= name "list") (= name "span"))
+        (do
+          (t/expect! (mut c) "[")
+          (let [inner (type! (mut c))]
+            (t/expect! (mut c) "]")
+            (t/cat4 "("
+                    (cond (= name "ref") "ptr"
+                          (= name "mut") "mut"
+                          (= name "list") "ArrayList"
+                          :else "slice")
+                    " "
+                    (t/cat2 inner ")"))))
+        name)))
+
+(defn sequence! [(c (mut t/Cur))] (-> (slice u8))
+  (let [(mut out) (t/out-new)]
+    (t/expect! (mut c) "{")
+    (while (not (t/accept! (mut c) "}"))
+      (when (t/eof? (mut c))
+        (t/die (mut c) (t/peek (mut c)) "unterminated library pass body"))
+      (t/line! (mut out) (expr! (mut c) 0))
+      (t/expect! (mut c) ";"))
+    (t/text-of (mut out))))
+
+(defn arguments! [(c (mut t/Cur))] (-> (slice u8))
+  (let [(mut out) (t/out-new)]
+    (t/expect! (mut c) "(")
+    (unless (t/accept! (mut c) ")")
+      (loop (t/emit! (mut out) (t/cat2 " " (expr! (mut c) 0)))
+        (when (t/accept! (mut c) ")") (break))
+        (t/expect! (mut c) ",")))
+    (t/text-of (mut out))))
+
+(defn precedence [(op (slice u8))] (-> i64)
+  (cond (= op "or") 1
+        (= op "and") 2
+        (or (= op "==")
+            (= op "!=")
+            (= op "<")
+            (= op "<=")
+            (= op ">")
+            (= op ">="))
+          3
+        (= op "|") 4
+        (= op "^") 5
+        (= op "&") 6
+        (or (= op "<<") (= op ">>")) 7
+        (or (= op "+") (= op "-")) 8
+        (or (= op "*") (= op "/") (= op "%")) 9
+        :else 0))
+
+(defn bind! [(c (mut t/Cur))] (-> (slice u8))
+  (let [(mut out) (t/out-new)]
+    (t/emit! (mut out) "(let [")
+    (t/expect! (mut c) "{")
+    (while (not (t/accept! (mut c) "}"))
+      (let [mutable (t/accept! (mut c) "var")
+            name (name! (mut c))]
+        (t/expect! (mut c) "=")
+        (t/emit! (mut out)
+                 (t/cat4 " "
+                         (if mutable (t/cat3 "(mut " name ")") name)
+                         " "
+                         (expr! (mut c) 0)))
+        (t/expect! (mut c) ";")))
+    (t/emit! (mut out) "] ")
+    (t/emit! (mut out) (sequence! (mut c)))
+    (t/emit! (mut out) ")")
+    (t/text-of (mut out))))
+
+(defn list-text [(c (mut t/Cur)) (type (slice u8))] (-> (slice u8))
+  (let [empty (t/cat3 "(ArrayList::new [" type "] (malloc-allocator))")]
+    (if (not (t/accept! (mut c) "("))
+        empty
+        (let [(mut out) (t/out-new)]
+          (t/emit! (mut out) (t/cat3 "(let [(mut items*) " empty "] "))
+          (unless (t/accept! (mut c) ")")
+            (loop (t/emit! (mut out)
+                           (t/cat3 "(push! (mut items*) "
+                                   (expr! (mut c) 0)
+                                   ") "))
+              (when (t/accept! (mut c) ")") (break))
+              (t/expect! (mut c) ",")))
+          (t/emit! (mut out) "items*)")
+          (t/text-of (mut out))))))
+
+(defn quantify! [(c (mut t/Cur)) (kind (slice u8))] (-> (slice u8))
+  (let [name (name! (mut c))]
+    (t/expect! (mut c) "in")
+    (let [domain (expr! (mut c) 0)]
+      (t/expect! (mut c) ":")
+      (let [test (expr! (mut c) 0)]
+        (if (= kind "count")
+            (t/cat4 "(let [(mut count*) 0] (for " name " "
+              (t/cat4 domain " (when " test " (set! count* (+ count* 1)))) count*)"))
+            (t/cat4 "(block :quantified* (for " name " "
+              (t/cat4 domain " (when " (if (= kind "all") (t/cat3 "(not " test ")") test)
+                (if (= kind "all") " (return-from :quantified* false))) true)" " (return-from :quantified* true))) false)"))))))))
+
+(defn atom! [(c (mut t/Cur))] (-> (slice u8))
+  (let [tok (t/advance! (mut c))
+        word (.text tok)]
+    (cond (= (.kind tok) t/T-NUM) word
+          (= (.kind tok) t/T-STR) (t/cat3 "\"" word "\"")
+          (= word "-") (t/cat3 "(- 0 " (expr! (mut c) 10) ")")
+          (= word "(")
+            (let [inner (expr! (mut c) 0)] (t/expect! (mut c) ")") inner)
+          (and (or (= word "all") (= word "any") (= word "count")) (t/at-ident? (mut c)) (t/tok-is? (t/peek-at (mut c) 1) "in"))
+            (quantify! (mut c) word)
+          (= word "copy-list")
+            (do (t/expect! (mut c) "[")
+                (let [type (type! (mut c))]
+                  (t/expect! (mut c) "]")
+                  (t/cat4 "(library-copy [" type "]" (t/cat2 (arguments! (mut c)) ")"))))
+          (= word "tabulate")
+            (do (t/expect! (mut c) "[")
+                (let [type (type! (mut c))]
+                  (t/expect! (mut c) "]") (t/expect! (mut c) "(")
+                  (let [count (expr! (mut c) 0)]
+                    (t/expect! (mut c) ",")
+                    (let [index (name! (mut c))]
+                      (t/expect! (mut c) ":")
+                      (let [value (expr! (mut c) 0)]
+                        (t/expect! (mut c) ")")
+                        (t/cat4 "(let [requested* " count " count* (if (< requested* 0) 0 requested*) (mut rows*) (ArrayList::new ["
+                          (t/cat4 type "] (malloc-allocator))] (reserve! (mut rows*) count*) (for " index
+                            (t/cat4 " (range 0 count*) (push! (mut rows*) " value ")) rows*)" ""))))))))
+          (= word "repeat")
+            (do (t/expect! (mut c) "[")
+                (let [type (type! (mut c))]
+                  (t/expect! (mut c) "]")
+                  (t/cat4 "(library-repeat [" type "]" (t/cat2 (arguments! (mut c)) ")"))))
+          (= word "let")
+            (let [(mut out) (t/out-new)]
+              (t/emit! (mut out) "(let [")
+              (loop
+                (let [name (name! (mut c))]
+                  (t/expect! (mut c) "=")
+                  (t/emit! (mut out) (t/cat4 " " name " " (expr! (mut c) 0))))
+                (unless (t/accept! (mut c) ",") (break)))
+              (t/expect! (mut c) "in")
+              (t/emit! (mut out) (t/cat3 "] " (expr! (mut c) 0) ")"))
+              (t/text-of (mut out)))
+          (= word "bind") (bind! (mut c))
+          (= word "do") (t/cat3 "(do " (sequence! (mut c)) ")")
+          (or (= word "while") (= word "when") (= word "unless"))
+            (do
+              (t/expect! (mut c) "(")
+              (let [test (expr! (mut c) 0)]
+                (t/expect! (mut c) ")")
+                (t/cat4 "(" word " " (t/cat4 test " " (sequence! (mut c)) ")"))))
+          (= word "forever") (t/cat3 "(loop " (sequence! (mut c)) ")")
+          (= word "for")
+            (let [var (name! (mut c))]
+              (t/expect! (mut c) "in")
+              (let [iter (expr! (mut c) 0)]
+                (t/cat4 "(for "
+                        var
+                        " "
+                        (t/cat4 iter " " (sequence! (mut c)) ")"))))
+          (= word "escape")
+            (let [label (name! (mut c))]
+              (t/cat4 "(block :" label " " (t/cat2 (sequence! (mut c)) ")")))
+          (= word "yield")
+            (let [label (name! (mut c))]
+              (t/expect! (mut c) "(")
+              (let [value (expr! (mut c) 0)]
+                (t/expect! (mut c) ")")
+                (t/cat4 "(return-from :" label " " (t/cat2 value ")"))))
+          (= word "choose")
+            (let [(mut out) (t/out-new)]
+              (t/emit! (mut out) "(cond ")
+              (t/expect! (mut c) "{")
+              (while (not (t/accept! (mut c) "}"))
+                (t/emit! (mut out) " ")
+                (t/emit! (mut out)
+                         (if (t/accept! (mut c) "else")
+                             ":else"
+                             (expr! (mut c) 0)))
+                (t/expect! (mut c) "=>")
+                (t/emit! (mut out) (t/cat2 " " (expr! (mut c) 0)))
+                (t/expect! (mut c) ";"))
+              (t/emit! (mut out) ")")
+              (t/text-of (mut out)))
+          (= word "set")
+            (let [place (expr! (mut c) 0)]
+              (t/expect! (mut c) "=")
+              (t/cat4 "(set! " place " " (t/cat2 (expr! (mut c) 0) ")")))
+          (or (= word "as") (= word "typed") (= word "zero") (= word "list"))
+            (do
+              (t/expect! (mut c) "[")
+              (let [type (type! (mut c))]
+                (t/expect! (mut c) "]")
+                (cond (= word "zero") (t/cat3 "(zeroed " type ")")
+                      (= word "list") (list-text (mut c) type)
+                      :else
+                        (do
+                          (t/expect! (mut c) "(")
+                          (let [value (expr! (mut c) 0)]
+                            (t/expect! (mut c) ")")
+                            (if (= word "as")
+                                (t/cat4 "(cast " type " " (t/cat2 value ")"))
+                                (t/cat4 "(: " value " " (t/cat2 type ")"))))))))
+          (= word "make")
+            (let [type (type! (mut c))
+                  (mut out) (t/out-new)]
+              (t/emit! (mut out) (t/cat2 "(" type))
+              (t/expect! (mut c) "{")
+              (while (not (t/accept! (mut c) "}"))
+                (let [field (name! (mut c))]
+                  (t/expect! (mut c) "=")
+                  (t/emit! (mut out) (t/cat4 " :" field " " (expr! (mut c) 0)))
+                  (t/expect! (mut c) ";")))
+              (t/emit! (mut out) ")")
+              (t/text-of (mut out)))
+          (= word "truncate")
+            (do
+              (t/expect! (mut c) "(")
+              (let [xs (expr! (mut c) 0)]
+                (t/expect! (mut c) ",")
+                (let [n (expr! (mut c) 0)]
+                  (t/expect! (mut c) ")")
+                  (t/cat4 "(set! (.len " xs ") " (t/cat2 n ")")))))
+          (= word "append-list")
+            (do
+              (t/expect! (mut c) "(")
+              (let [xs (expr! (mut c) 0)]
+                (t/expect! (mut c) ",")
+                (let [src (expr! (mut c) 0)]
+                  (t/expect! (mut c) ",")
+                  (let [n (expr! (mut c) 0)]
+                    (t/expect! (mut c) ")")
+                    (t/cat4 "(extend! " xs " (.data " (t/cat4 src ") " n ")"))))))
+          (= word "invoke")
+            (let [owner (name! (mut c))]
+              (t/expect! (mut c) ".")
+              (let [method (name! (mut c))]
+                (t/cat4 "(" (t/cat3 owner "::" method) (arguments! (mut c)) ")")))
+          (= word "match")
+            (do
+              (t/expect! (mut c) "(")
+              (let [value (expr! (mut c) 0)
+                    (mut out) (t/out-new)]
+                (t/expect! (mut c) ")")
+                (t/emit! (mut out) (t/cat3 "(match " value " "))
+                (t/expect! (mut c) "{")
+                (while (not (t/accept! (mut c) "}"))
+                  (let [variant (name! (mut c))
+                        (mut vars) (t/out-new)]
+                    (t/expect! (mut c) "(")
+                    (unless (t/accept! (mut c) ")")
+                      (loop (t/emit! (mut vars) (t/cat2 " " (name! (mut c))))
+                        (when (t/accept! (mut c) ")") (break))
+                        (t/expect! (mut c) ",")))
+                    (t/expect! (mut c) "=>")
+                    (t/emit! (mut out)
+                             (t/cat4 "("
+                                     variant
+                                     " ["
+                                     (t/cat4 (t/text-of (mut vars))
+                                             "] "
+                                             (expr! (mut c) 0)
+                                             ")")))
+                    (t/expect! (mut c) ";")))
+                (t/emit! (mut out) ")")
+                (t/text-of (mut out))))
+          (= word "address")
+            (do
+              (t/expect! (mut c) "(")
+              (let [object (expr! (mut c) 0)]
+                (t/expect! (mut c) ",")
+                (let [field (name! (mut c))]
+                  (t/expect! (mut c) ")")
+                  (t/cat4 "(field " object " " (t/cat2 field ")")))))
+          (= word "specialize")
+            (let [name (name! (mut c))
+                  (mut out) (t/out-new)]
+              (t/emit! (mut out) (t/cat3 "(" name " ["))
+              (t/expect! (mut c) "[")
+              (loop (t/emit! (mut out) (t/cat2 " " (type! (mut c))))
+                (when (t/accept! (mut c) "]") (break))
+                (t/expect! (mut c) ","))
+              (t/emit! (mut out) "]")
+              (t/emit! (mut out) (arguments! (mut c)))
+              (t/emit! (mut out) ")")
+              (t/text-of (mut out)))
+          (= (.kind tok) t/T-IDENT)
+            (let [(mut name) word]
+              (while (t/accept! (mut c) "::")
+                (set! name
+                      (t/cat3 name "/" (t/name! (mut c) "a qualified name"))))
+              (if (t/at? (mut c) "(")
+                  (let [op
+                          (cond (= name "borrow") "mut"
+                                (= name "read") "load"
+                                (= name "element") "elem"
+                                (or (= name "fill") (= name "fill!")) "library-fill!"
+                                (= name "put") "set!"
+                                (= name "write") "store!"
+                                (= name "offset") "library-primitive/index"
+                                (= name "span-of") "slice"
+                                :else name)]
+                    (t/cat4 "(" op (arguments! (mut c)) ")"))
+                  name))
+          :else (t/die (mut c) tok "expected a library pass expression"))))
+
+(defn expr! [(c (mut t/Cur)) (min i64)] (-> (slice u8))
+  (let [(mut lhs) (atom! (mut c))]
+    (loop (cond (t/accept! (mut c) ".")
+                  (let [field (name! (mut c))]
+                    (set! lhs (t/cat4 "(." field " " (t/cat2 lhs ")"))))
+                (t/accept! (mut c) "[")
+                  (let [i (expr! (mut c) 0)]
+                    (t/expect! (mut c) "]")
+                    (set! lhs (t/cat4 "(get " lhs " " (t/cat2 i ")"))))
+                :else
+                  (let [op (.text (t/peek (mut c)))
+                        prec (precedence op)]
+                    (when (or (= prec 0) (< prec min)) (break))
+                    (t/advance! (mut c))
+                    (let [rhs (expr! (mut c) (+ prec 1))]
+                      (set! lhs
+                            (t/cat4 "("
+                                    (if (= op "==") "=" op)
+                                    " "
+                                    (t/cat4 lhs " " rhs ")")))))))
+    lhs))
+
+(defn params! [(c (mut t/Cur))] (-> (slice u8))
+  (let [(mut out) (t/out-new)]
+    (t/emit! (mut out) "[")
+    (t/expect! (mut c) "(")
+    (unless (t/accept! (mut c) ")")
+      (loop (let [name (name! (mut c))]
+              (t/expect! (mut c) ":")
+              (t/emit! (mut out)
+                       (t/cat4 "(" name " " (t/cat2 (type! (mut c)) ")"))))
+        (when (t/accept! (mut c) ")") (break))
+        (t/expect! (mut c) ",")))
+    (t/emit! (mut out) "]")
+    (t/text-of (mut out))))
+
+(defstruct Field [(name (slice u8)) (type (slice u8)) (initial (slice u8))
+                  (snapshot bool) (reset (slice u8)) (fill (slice u8)) (capacity (slice u8)) (drop (slice u8)) (drop-each bool)])
+
+(defstruct Record [(name (slice u8)) (fields (ArrayList Field))])
+
+(defn default-for [(type (slice u8))] (-> (slice u8))
+  (if (and (> (len type) 11) (= (t/slice-of type 0 11) "(ArrayList "))
+      (t/cat3 "(ArrayList::new ["
+              (t/slice-of type 11 (- (len type) 1))
+              "] (malloc-allocator))")
+      (t/cat3 "(zeroed " type ")")))
+
+(defstruct Initial [(text (slice u8)) (capacity (slice u8))])
+(defn initial! [(c (mut t/Cur)) (type (slice u8))] (-> Initial)
+  (cond (t/accept! (mut c) "=") (Initial :text (expr! (mut c) 0) :capacity "")
+        (t/accept! (mut c) "capacity")
+          (do (unless (list-type? type) (t/die (mut c) (t/peek (mut c)) "capacity requires a list field"))
+              (let [capacity (expr! (mut c) 0)]
+                (Initial :capacity capacity :text
+                  (t/cat4 "(let [(mut items*) " (default-for type) "] (reserve! (mut items*) " (t/cat2 capacity ") items*)")))))
+        :else (Initial :text (default-for type) :capacity "")))
+
+(defn record-at [(records (ArrayList Record)) (name (slice u8)) (c (mut t/Cur))]
+  (-> Record)
+  (block :found
+    (for record records
+      (when (= (.name record) name) (return-from :found record)))
+    (t/die (mut c) (t/peek (mut c)) (t/cat2 "no storage record named " name))))
+
+(defn constructor! [(c (mut t/Cur)) (records (ArrayList Record))]
+  (-> (slice u8))
+  (let [record (record-at records (name! (mut c)) (mut c))
+        method (t/accept! (mut c) ".")]
+    (unless method (t/expect! (mut c) "as"))
+    (let [name (name! (mut c))
+          params (params! (mut c)) inline (t/accept! (mut c) "inline")
+          (mut out) (t/out-new)]
+      (when method (t/emit! (mut out) (t/cat3 "(impl " (.name record) " ")))
+      (t/emit! (mut out) (t/cat4 (if method "(" "(defn ") name (if inline " :inline (Always) " " ") params))
+      (t/emit! (mut out) (t/cat4 " (-> " (.name record) ") (" (.name record)))
+      (for field (.fields record)
+        (t/emit! (mut out) (t/cat4 " :" (.name field) " " (.initial field))))
+      (t/emit! (mut out) "))")
+      (when method (t/emit! (mut out) ")"))
+      (t/expect! (mut c) ";")
+      (t/text-of (mut out)))))
+
+(defn drop-text [(field Field) (root (slice u8))] (-> (slice u8))
+  (let [target (t/cat4 "(." (.name field) " " (t/cat2 root ")"))]
+    (if (= (.drop field) "") ""
+        (if (.drop-each field)
+            (t/cat4 "(for i* (range 0 (len " target ")) (" (t/cat4 (.drop field) " (mut (elem (mut " target ") i*))))"))
+            (t/cat4 "(" (.drop field) " (field " (t/cat4 root " " (.name field) "))"))))))
+
+;;; A release owns lists, not references or borrowed spans. Adding a scratch
+;;; column automatically updates construction and destruction.
+(defn release! [(c (mut t/Cur)) (records (ArrayList Record))] (-> (slice u8))
+  (let [record (record-at records (name! (mut c)) (mut c))]
+    (t/expect! (mut c) "as")
+    (let [name (name! (mut c))
+          param
+            (if (t/accept! (mut c) "(")
+                (let [name (name! (mut c))] (t/expect! (mut c) ")") name)
+                "self")
+          (mut out) (t/out-new)]
+      (t/emit! (mut out)
+               (t/cat4 "(defn "
+                       name
+                       " [("
+                       (t/cat4 param " (ptr " (.name record) "))] (-> void)")))
+      (for field (.fields record)
+        (let [type (.type field) target (t/cat4 "(." (.name field) " " (t/cat2 param ")"))]
+          (t/emit! (mut out) (drop-text field param))
+          (when (list-type? type)
+            (t/emit! (mut out) (t/cat3 " (free! (mut " target "))")))))
+      (t/expect! (mut c) ";")
+      (t/emit! (mut out) ")")
+      (t/text-of (mut out)))))
+
+;;; Relation expressions cannot perform mutations or introduce imperative
+;;; control flow: each query is replayed while counting and placing rows.
+(defn checked-expr! [(c (mut t/Cur)) (borrowable bool)] (-> (slice u8))
+  (let [begin (.pos c) text (expr! (mut c) 0)]
+    (for i (range begin (.pos c))
+      (let [tok (get (.toks c) i) word (.text tok)]
+        (when (or (= word "set") (= word "bind") (= word "do") (= word "for")
+                  (= word "while") (= word "forever") (and (= word "borrow") (not borrowable))
+                  (and (= (.kind tok) t/T-IDENT) (t/ends-with word "!")))
+          (t/die (mut c) tok "a relation row is a pure expression"))))
+    text))
+
+(defn pure-expr! [(c (mut t/Cur))] (-> (slice u8)) (checked-expr! (mut c) false))
+
+(defn clause! [(c (mut t/Cur)) (q (mut relation/Index)) (word (slice u8))] (-> bool)
+  (if (or (= word "from") (= word "let") (= word "chain") (= word "segments") (= word "where"))
+      (do
+        (cond (or (= word "from") (= word "let"))
+                (let [name (name! (mut c))]
+                  (t/expect! (mut c) (if (= word "from") "in" "="))
+                  (push! (mut (.clauses q)) (relation/Clause :kind word :name name :value (pure-expr! (mut c)) :second "" :next "" :end "")))
+              (= word "chain")
+                (let [name (name! (mut c))]
+                  (t/expect! (mut c) "from")
+                  (let [start (pure-expr! (mut c))]
+                    (t/expect! (mut c) "until")
+                    (let [end (pure-expr! (mut c))]
+                      (t/expect! (mut c) "next")
+                      (push! (mut (.clauses q)) (relation/Clause :kind word :name name :value start :end end
+                          :next (pure-expr! (mut c)) :second "")))))
+              (= word "segments")
+                (let [name (name! (mut c))]
+                  (t/expect! (mut c) ",")
+                  (let [second (name! (mut c))]
+                    (t/expect! (mut c) "in")
+                    (push! (mut (.clauses q)) (relation/Clause :kind word :name name :second second :value (pure-expr! (mut c)) :next "" :end ""))))
+              (= word "where")
+                (push! (mut (.clauses q)) (relation/Clause :kind word :name "" :value (pure-expr! (mut c)) :second "" :next "" :end ""))
+              :else 0)
+        true)
+      false))
+
+(defn tally! [(c (mut t/Cur))] (-> (slice u8))
+  (let [name (name! (mut c)) params (params! (mut c)) inline (t/accept! (mut c) "inline")
+        (mut count) "" (mut output) "" (mut rows) (relation/empty "" "")]
+    (t/expect! (mut c) "{")
+    (while (not (t/accept! (mut c) "}"))
+      (let [at (t/advance! (mut c)) word (.text at)]
+        (if (= word "rows")
+            (do (unless (= (.key rows) "") (t/die (mut c) at "duplicate tally rows")) (set! rows (row-query! (mut c))))
+            (do (t/expect! (mut c) "=")
+                (cond (= word "count") (do (unless (= count "") (t/die (mut c) at "duplicate tally count")) (set! count (pure-expr! (mut c))))
+                      (= word "output") (do (unless (= output "") (t/die (mut c) at "duplicate tally output")) (set! output (pure-expr! (mut c))))
+                      :else (t/die (mut c) at "unknown tally property"))
+                (t/expect! (mut c) ";")))))
+    (when (or (= count "") (= output "") (= (.key rows) "")) (t/die (mut c) (t/peek (mut c)) "tally requires count, output and rows"))
+    (relation/tally-text name params inline count output rows)))
+
+(defn relation! [(c (mut t/Cur))] (-> (slice u8))
+  (let [name (name! (mut c)) params (params! (mut c))
+        (mut q) (relation/Index :name name :params params :keys "" :offsets "" :cursor "" :key ""
+                 :clauses (ArrayList::new [relation/Clause] (malloc-allocator))
+                 :columns (ArrayList::new [relation/Column] (malloc-allocator)))]
+    (t/expect! (mut c) "{")
+    (while (not (t/accept! (mut c) "}"))
+      (let [tok (t/advance! (mut c)) word (.text tok)]
+        (cond (clause! (mut c) (mut q) word) 0
+              (= word "column")
+                (let [target (pure-expr! (mut c))]
+                  (t/expect! (mut c) "=")
+                  (push! (mut (.columns q)) (relation/Column :target target :value (pure-expr! (mut c)))))
+              :else
+                (do (t/expect! (mut c) "=")
+                    (let [value (pure-expr! (mut c))]
+                      (cond (= word "keys") (set! (.keys q) value)
+                            (= word "offsets") (set! (.offsets q) value)
+                            (= word "cursor") (set! (.cursor q) value)
+                            (= word "key") (set! (.key q) value)
+                            :else (t/die (mut c) tok "unknown relation property")))))
+        (t/expect! (mut c) ";")))
+    (when (or (= (.keys q) "") (= (.offsets q) "") (= (.cursor q) "") (= (.key q) "") (= (len (.columns q)) 0))
+      (t/die (mut c) (t/peek (mut c)) "relation requires keys, offsets, cursor, key and columns"))
+    (relation/index-text q)))
+
+(defn row-query! [(c (mut t/Cur))] (-> relation/Index)
+  (let [(mut q) (relation/Index :name "" :params "" :keys "" :offsets "" :cursor "" :key ""
+                 :clauses (ArrayList::new [relation/Clause] (malloc-allocator))
+                 :columns (ArrayList::new [relation/Column] (malloc-allocator)))]
+    (t/expect! (mut c) "{")
+    (while (not (t/accept! (mut c) "}"))
+      (let [at (t/advance! (mut c)) word (.text at)]
+        (cond (clause! (mut c) (mut q) word) 0
+          (= word "yield") (do (t/expect! (mut c) "=") (set! (.key q) (pure-expr! (mut c))))
+          :else (t/die (mut c) at "expected a pure row-query clause"))
+        (t/expect! (mut c) ";")))
+    (when (= (.key q) "") (t/die (mut c) (t/peek (mut c)) "row query requires yield"))
+    q))
+
+;;; Scatter writes are applied in row order. Query bindings and predicates are
+;;; pure; each row declares its target cells. Callers must not mutate the query's
+;;; domain or a later row's predicate inputs.
+(defn scatter! [(c (mut t/Cur))] (-> (slice u8))
+  (let [name (name! (mut c)) params (params! (mut c)) inline (t/accept! (mut c) "inline")
+        (mut q) (relation/empty name params) (mut writes) (t/out-new) (mut writing) false]
+    (t/expect! (mut c) "{")
+    (while (not (t/accept! (mut c) "}"))
+      (let [at (t/advance! (mut c)) word (.text at)]
+        (cond
+          (or (= word "write") (= word "field"))
+            (do (set! writing true)
+                (let [target (pure-expr! (mut c))
+                      index (if (= word "write") (do (t/expect! (mut c) "at") (pure-expr! (mut c))) "")]
+                  (t/expect! (mut c) "=")
+                  (let [value (pure-expr! (mut c))]
+                    (t/line! (mut writes)
+                      (if (= word "write")
+                          (t/cat4 "(set! (mut " target ") " (t/cat4 index " " value ")"))
+                          (t/cat4 "(set! " target " " (t/cat2 value ")")))))))
+          writing (t/die (mut c) at "scatter row clauses must precede writes")
+          (clause! (mut c) (mut q) word) 0
+          :else (t/die (mut c) at "expected a row clause or cell assignment"))
+        (t/expect! (mut c) ";")))
+    (unless writing (t/die (mut c) (t/peek (mut c)) "scatter requires cell assignments"))
+    (t/cat4 "(defn " name (if inline " :inline (Always) " " ")
+      (t/cat4 params " (-> void) " (relation/query q (t/cat3 "(do " (t/text-of (mut writes)) ")")) ")"))))
+
+;;; One logical row across parallel columns. The ordinal belongs to the first
+;;; column. All values are bound before storage grows, so expressions observe
+;;; pre-insertion lengths. Columns must name distinct, stable owned lists.
+(defn insert! [(c (mut t/Cur))] (-> (slice u8))
+  (let [name (name! (mut c)) params (params! (mut c))]
+    (t/expect! (mut c) "->")
+    (let [type (type! (mut c)) inline (t/accept! (mut c) "inline") (mut columns) (ArrayList::new [relation/Column] (malloc-allocator))
+          (mut out) (t/out-new)]
+      (unless (or (= type "void") (= type "u32") (= type "i64"))
+        (t/die (mut c) (t/peek (mut c)) "insert returns an ordinal (u32/i64) or void"))
+      (t/expect! (mut c) "{")
+      (while (not (t/accept! (mut c) "}"))
+        (t/expect! (mut c) "column")
+        (let [target (pure-expr! (mut c))]
+          (for column columns (when (= (.target column) target) (t/die (mut c) (t/peek (mut c)) "duplicate insertion column")))
+          (t/expect! (mut c) "=")
+          (push! (mut columns) (relation/Column :target target :value (pure-expr! (mut c)))))
+        (t/expect! (mut c) ";"))
+      (when (= (len columns) 0) (t/die (mut c) (t/peek (mut c)) "insert requires columns"))
+      (t/line! (mut out) (t/cat4 "(defn " name (if inline " :inline (Always) " " ") (t/cat4 params " (-> " type ")")))
+      (t/line! (mut out) (t/cat3 "(let [index* (len " (.target (get columns 0)) ")"))
+      (for i (range 0 (len columns))
+        (t/line! (mut out) (t/cat4 "row" (t/int-text i) "* " (.value (get columns i)))))
+      (t/line! (mut out) "]")
+      (for i (range 0 (len columns))
+        (t/line! (mut out) (t/cat4 "(push! (mut " (.target (get columns i)) ") row" (t/cat2 (t/int-text i) "*)"))))
+      (t/line! (mut out) (if (= type "void") "(do)))" (t/cat3 "(cast " type " index*)))")))
+      (t/text-of (mut out)))))
+
+(defn consensus! [(c (mut t/Cur))] (-> (slice u8))
+  (let [name (name! (mut c)) params (params! (mut c))]
+    (t/expect! (mut c) "->")
+    (let [type (type! (mut c))]
+      (t/expect! (mut c) "{") (t/expect! (mut c) "initial") (t/expect! (mut c) "=")
+      (let [initial (pure-expr! (mut c))]
+        (t/expect! (mut c) ";") (t/expect! (mut c) "rows")
+        (let [rows (row-query! (mut c)) (mut out) (t/out-new)]
+          (t/expect! (mut c) "}")
+          (t/line! (mut out) (t/cat4 "(defn " name " " (t/cat4 params " (-> (library-Consensus " type "))")))
+          (t/line! (mut out) (t/cat4 "(let [(mut value*) " initial " (mut empty*) true (mut valid*) true] "
+            (relation/query rows
+              (t/cat3 "(let [row* " (.key rows) "] (if empty* (do (set! value* row*) (set! empty* false)) (when (!= value* row*) (set! valid* false))))"))))
+          (t/line! (mut out) (t/cat3 "(library-Consensus [" type "] :value value* :valid valid*)))"))
+          (t/text-of (mut out)))))))
+
+;;; Solver hooks declare a call and pure arguments, not a client algorithm.
+(defn effect-call! [(c (mut t/Cur))] (-> (slice u8))
+  (let [at (t/peek (mut c)) name (name! (mut c)) (mut out) (t/out-new)]
+    (unless (t/ends-with name "!") (t/die (mut c) at "a solver effect must name an effectful function ending in !"))
+    (t/expect! (mut c) "(") (t/emit! (mut out) (t/cat2 "(" (if (= name "fill!") "library-fill!" name)))
+    (unless (t/accept! (mut c) ")")
+      (loop (t/emit! (mut out) (t/cat2 " " (checked-expr! (mut c) true)))
+        (when (t/accept! (mut c) ")") (break))
+        (t/expect! (mut c) ",")))
+    (t/emit! (mut out) ")") (t/text-of (mut out))))
+
+(defn sweep! [(c (mut t/Cur)) (mode i64)] (-> (slice u8))
+  (let [name (name! (mut c)) params (params! (mut c)) inline (t/accept! (mut c) "inline")
+        (mut rows) (relation/empty "" "") (mut effect) "" (mut changed) ""]
+    (t/expect! (mut c) "{")
+    (while (not (t/accept! (mut c) "}"))
+      (let [at (t/advance! (mut c)) word (.text at)]
+        (if (= word "rows")
+            (do (unless (= (.key rows) "") (t/die (mut c) at "duplicate schedule rows")) (set! rows (row-query! (mut c))))
+            (do (t/expect! (mut c) "=")
+                (cond (= word "apply") (do (unless (= effect "") (t/die (mut c) at "duplicate schedule effect")) (set! effect (effect-call! (mut c))))
+                      (and (!= mode 0) (= word "changed")) (do (unless (= changed "") (t/die (mut c) at "duplicate convergence condition")) (set! changed (pure-expr! (mut c))))
+                      :else (t/die (mut c) at "expected rows, apply, or a saturation changed equation"))
+                (t/expect! (mut c) ";")))))
+    (when (or (= (.key rows) "") (= effect "") (and (!= mode 0) (= changed "")))
+      (t/die (mut c) (t/peek (mut c)) "incomplete rule schedule"))
+    (schedule/sweep-text name params inline mode rows effect changed)))
+
+(defn worklist! [(c (mut t/Cur))] (-> (slice u8))
+  (let [name (name! (mut c)) params (params! (mut c)) inline (t/accept! (mut c) "inline")
+        (mut queue) "" (mut effect) "" (mut order) "fifo" (mut ordered) false]
+    (t/expect! (mut c) "{")
+    (while (not (t/accept! (mut c) "}"))
+      (let [at (t/advance! (mut c)) word (.text at)]
+        (t/expect! (mut c) "=")
+        (cond (= word "queue") (do (unless (= queue "") (t/die (mut c) at "duplicate worklist queue")) (set! queue (pure-expr! (mut c))))
+              (= word "apply") (do (unless (= effect "") (t/die (mut c) at "duplicate worklist effect")) (set! effect (effect-call! (mut c))))
+              (= word "order") (do (when ordered (t/die (mut c) at "duplicate worklist order"))
+                                    (set! ordered true) (set! order (name! (mut c)))
+                                    (unless (or (= order "fifo") (= order "lifo")) (t/die (mut c) at "worklist order must be fifo or lifo")))
+              :else (t/die (mut c) at "expected worklist queue, order or apply"))
+        (t/expect! (mut c) ";")))
+    (when (or (= queue "") (= effect "")) (t/die (mut c) (t/peek (mut c)) "worklist requires queue and apply"))
+    (schedule/worklist-text name params inline queue effect (= order "lifo"))))
+
+(defn reduce! [(c (mut t/Cur))] (-> (slice u8))
+  (let [name (name! (mut c)) params (params! (mut c))]
+    (t/expect! (mut c) "->")
+    (let [result (type! (mut c)) schema (schema! (mut c) ["initial" "step"] [] [] [] ["rows"] ["initial" "step" "rows"])]
+      (schedule/reduce-text name params result (property-value (.values schema) "initial" (mut c))
+                           (schema-rows schema "rows" (mut c)) (property-value (.values schema) "step" (mut c))))))
+
+(defn materialize! [(c (mut t/Cur))] (-> (slice u8))
+  (let [name (name! (mut c)) params (params! (mut c)) inline (t/accept! (mut c) "inline")
+        (mut bindings) (ArrayList::new [relation/Column] (malloc-allocator))
+        (mut groups) (relation/empty "" "") (mut rows) (relation/empty "" "") (mut order) ""]
+    (t/expect! (mut c) "{")
+    (while (not (t/accept! (mut c) "}"))
+      (let [at (t/advance! (mut c)) word (.text at)]
+        (if (or (= word "groups") (= word "rows"))
+            (let [query (row-query! (mut c))]
+              (if (= word "groups")
+                  (do (unless (= (.key groups) "") (t/die (mut c) at "duplicate materialization groups")) (set! groups query))
+                  (do (unless (= (.key rows) "") (t/die (mut c) at "duplicate materialization rows")) (set! rows query))))
+            (do (t/expect! (mut c) "=")
+                (if (= word "order")
+                    (do (unless (= order "") (t/die (mut c) at "duplicate group order"))
+                        (set! order (name! (mut c)))
+                        (unless (or (= order "forward") (= order "reverse")) (t/die (mut c) at "group order must be forward or reverse")))
+                    (do (for binding bindings (when (= (.target binding) word) (t/die (mut c) at "duplicate materialization property")))
+                        (push! (mut bindings) (relation/Column :target word :value
+                          (cond (= word "target") (pure-expr! (mut c)) (= word "configure") (effect-call! (mut c))
+                                :else (t/die (mut c) at "unknown materialization property"))))))
+                (t/expect! (mut c) ";")))))
+    (when (or (!= (len bindings) 2) (= (.key groups) "") (= (.key rows) ""))
+      (t/die (mut c) (t/peek (mut c)) "materialization requires target, configure, groups and rows"))
+    (schedule/grouped-text name params inline bindings groups rows (= order "reverse"))))
+
+(defn pipeline! [(c (mut t/Cur))] (-> (slice u8))
+  (let [name (name! (mut c)) params (params! (mut c)) inline (t/accept! (mut c) "inline") (mut out) (t/out-new)]
+    (t/expect! (mut c) "{")
+    (t/line! (mut out) (t/cat4 "(defn " name (if inline " :inline (Always) " " ") (t/cat2 params " (-> void)")))
+    (while (not (t/accept! (mut c) "}"))
+      (t/expect! (mut c) "run") (t/line! (mut out) (effect-call! (mut c))) (t/expect! (mut c) ";"))
+    (t/emit! (mut out) "(do))") (t/text-of (mut out))))
+
+(defn prune! [(c (mut t/Cur))] (-> (slice u8))
+  (let [name (name! (mut c)) params (params! (mut c))
+        schema (schema! (mut c) ["count" "counts" "stream" "view" "removable"] ["mark" "compact" "observe"] [] [] ["uses" "roots" "operands"]
+                        ["count" "counts" "stream" "view" "removable" "mark" "compact" "observe" "uses" "roots" "operands"])]
+    (prune/text name params (.values schema) (schema-rows schema "uses" (mut c))
+                (schema-rows schema "roots" (mut c)) (schema-rows schema "operands" (mut c)))))
+
+(defn has-property? [(bindings (ArrayList relation/Column)) (name (slice u8))] (-> bool)
+  (block :found (for binding bindings (when (= (.target binding) name) (return-from :found true))) false))
+
+(defstruct NamedRows [(name (slice u8)) (rows relation/Index)])
+(defstruct Schema [(values (ArrayList relation/Column)) (queries (ArrayList NamedRows))])
+
+(defn named? [(names (slice (slice u8))) (name (slice u8))] (-> bool)
+  (block :found (for candidate names (when (= candidate name) (return-from :found true))) false))
+
+(defn schema-has? [(schema Schema) (name (slice u8))] (-> bool)
+  (or (has-property? (.values schema) name)
+      (block :found (for query (.queries schema) (when (= (.name query) name) (return-from :found true))) false)))
+
+;;; One grammar for property schemas: required fields, duplicates, unknown
+;;; fields and expression purity are checked before a solver sees the schema.
+(defn schema! [(c (mut t/Cur)) (pure (slice (slice u8))) (effects (slice (slice u8)))
+               (names (slice (slice u8))) (types (slice (slice u8))) (queries (slice (slice u8)))
+               (required (slice (slice u8)))] (-> Schema)
+  (let [(mut schema) (Schema :values (ArrayList::new [relation/Column] (malloc-allocator))
+                             :queries (ArrayList::new [NamedRows] (malloc-allocator)))]
+    (t/expect! (mut c) "{")
+    (while (not (t/accept! (mut c) "}"))
+      (let [at (t/advance! (mut c)) word (.text at)]
+        (when (schema-has? schema word) (t/die (mut c) at (t/cat2 "duplicate property: " word)))
+        (if (named? queries word)
+            (push! (mut (.queries schema)) (NamedRows :name word :rows (row-query! (mut c))))
+            (do (t/expect! (mut c) "=")
+                (push! (mut (.values schema)) (relation/Column :target word :value
+                  (cond (named? pure word) (pure-expr! (mut c))
+                        (named? effects word) (effect-call! (mut c))
+                        (named? names word) (name! (mut c))
+                        (named? types word) (type! (mut c))
+                        :else (t/die (mut c) at (t/cat2 "unknown property: " word)))))
+                (t/expect! (mut c) ";")))))
+    (for property required
+      (unless (schema-has? schema property) (t/die (mut c) (t/peek (mut c)) (t/cat2 "missing required property: " property))))
+    schema))
+
+(defn property-value [(values (ArrayList relation/Column)) (name (slice u8)) (c (mut t/Cur))] (-> (slice u8))
+  (block :found
+    (for value values (when (= (.target value) name) (return-from :found (.value value))))
+    (t/die (mut c) (t/peek (mut c)) (t/cat2 "missing property: " name))))
+
+(defn schema-rows [(schema Schema) (name (slice u8)) (c (mut t/Cur))] (-> relation/Index)
+  (block :found
+    (for query (.queries schema) (when (= (.name query) name) (return-from :found (.rows query))))
+    (t/die (mut c) (t/peek (mut c)) (t/cat2 "missing row query: " name))))
+
+(defn stable-index! [(c (mut t/Cur)) (records (ArrayList Record))] (-> (slice u8))
+  (let [name (name! (mut c))]
+    (t/expect! (mut c) "(")
+    (let [context (name! (mut c))]
+      (t/expect! (mut c) ":") (t/expect! (mut c) "ref") (t/expect! (mut c) "[")
+      (let [owner (name! (mut c)) record (record-at records owner (mut c))]
+        (t/expect! (mut c) "]") (t/expect! (mut c) ",")
+        (let [item-name (name! (mut c))]
+          (t/expect! (mut c) ":")
+          (let [item-type (type! (mut c)) (mut chunks) "" (mut count) ""
+                (mut bindings) (ArrayList::new [relation/Column] (malloc-allocator))]
+            (t/expect! (mut c) ")") (t/expect! (mut c) "{")
+            (while (not (t/accept! (mut c) "}"))
+              (let [at (t/advance! (mut c)) word (.text at)]
+                (t/expect! (mut c) "=")
+                (cond (= word "chunks") (do (unless (= chunks "") (t/die (mut c) at "duplicate chunk field")) (set! chunks (name! (mut c))))
+                      (= word "count") (do (unless (= count "") (t/die (mut c) at "duplicate count field")) (set! count (name! (mut c))))
+                      :else
+                        (do (when (has-property? bindings word) (t/die (mut c) at "duplicate stable-index property"))
+                            (push! (mut bindings) (relation/Column :target word :value
+                              (cond (= word "shift") (pure-expr! (mut c))
+                                    (or (= word "lookup") (= word "length")) (name! (mut c))
+                                    (or (= word "acquire") (= word "release")) (effect-call! (mut c))
+                                    :else (t/die (mut c) at "unknown stable-index property"))))))
+                (t/expect! (mut c) ";")))
+            (for property ["shift" "lookup" "length"]
+              (unless (has-property? bindings property) (t/die (mut c) (t/peek (mut c)) (t/cat2 "stable index requires " property))))
+            (unless (= (has-property? bindings "acquire") (has-property? bindings "release"))
+              (t/die (mut c) (t/peek (mut c)) "stable-index acquisition and release must be paired"))
+            (unless (has-property? bindings "acquire")
+              (push! (mut bindings) (relation/Column :target "acquire" :value ""))
+              (push! (mut bindings) (relation/Column :target "release" :value "")))
+            (let [(mut capacity) "" (mut counted) false]
+              (for field (.fields record)
+                (when (= (.name field) chunks)
+                  (unless (= (.type field) (t/cat3 "(ArrayList (ArrayList " item-type "))"))
+                    (t/die (mut c) (t/peek (mut c)) "chunk storage must be a list of item lists"))
+                  (set! capacity (.capacity field)))
+                (when (= (.name field) count)
+                  (unless (= (.type field) "i64") (t/die (mut c) (t/peek (mut c)) "stable-index count field must be i64"))
+                  (set! counted true)))
+              (when (or (= capacity "") (not counted))
+                (t/die (mut c) (t/peek (mut c)) "stable index requires a reserved chunk field and an i64 count field"))
+              (push! (mut bindings) (relation/Column :target "limit" :value capacity)))
+            (push! (mut bindings) (relation/Column :target "chunks" :value (t/cat4 "(." chunks " " (t/cat2 context ")"))))
+            (push! (mut bindings) (relation/Column :target "count" :value (t/cat4 "(." count " " (t/cat2 context ")"))))
+            (stable-index/text name context owner item-name item-type bindings)))))))
+
+(defn mutex! [(c (mut t/Cur))] (-> (slice u8))
+  (let [name (name! (mut c))]
+    (t/expect! (mut c) "(")
+    (let [context (name! (mut c))]
+      (t/expect! (mut c) ":")
+      (let [type (type! (mut c))]
+        (t/expect! (mut c) ")")
+        (let [schema (schema! (mut c) ["active" "address"] [] ["initialize" "destroy" "acquire" "release"] [] []
+                              ["active" "address" "initialize" "destroy" "acquire" "release"])]
+          (mutex/text context type (.values schema)))))))
+
+(defn intern! [(c (mut t/Cur))] (-> (slice u8))
+  (let [name (name! (mut c)) params (params! (mut c))]
+    (t/expect! (mut c) "->")
+    (let [result (type! (mut c)) schema (schema! (mut c) ["values" "key" "keys" "eligible" "absent"] ["compute"] [] [] [] ["values" "key" "compute"])
+          bindings (.values schema) keyed (schema-has? schema "keys")]
+      (if keyed
+          (when (or (schema-has? schema "eligible") (schema-has? schema "absent"))
+            (t/die (mut c) (t/peek (mut c)) "keyed interning does not use a dense domain or absent marker"))
+          (unless (and (schema-has? schema "eligible") (schema-has? schema "absent"))
+            (t/die (mut c) (t/peek (mut c)) "dense interning requires eligible and absent")))
+      (intern/text name params result bindings keyed))))
+
+(defn follow! [(c (mut t/Cur))] (-> (slice u8))
+  (let [name (name! (mut c)) params (params! (mut c))]
+    (t/expect! (mut c) "->")
+    (let [result (type! (mut c)) inline (t/accept! (mut c) "inline")
+          schema (schema! (mut c) ["start" "view" "stop" "next" "result" "initial" "step"] [] [] [] [] ["start" "view" "stop" "next" "result"])]
+      (unless (= (schema-has? schema "initial") (schema-has? schema "step"))
+        (t/die (mut c) (t/peek (mut c)) "a path fold requires both initial and step"))
+      (follow/text name params result inline (.values schema) (schema-has? schema "initial")))))
+
+(defn retain! [(c (mut t/Cur))] (-> (slice u8))
+  (let [name (name! (mut c)) params (params! (mut c)) inline (t/accept! (mut c) "inline")
+        schema (schema! (mut c) ["data" "keep"] ["configure"] [] [] [] ["data" "keep" "configure"])]
+    (schedule/retain-text name params inline (.values schema))))
+
+(defn compact! [(c (mut t/Cur))] (-> (slice u8))
+  (let [name (name! (mut c)) params (params! (mut c)) inline (t/accept! (mut c) "inline")
+        schema (schema! (mut c) ["input" "output" "anchors" "absent" "begin" "end" "view" "keep" "anchored"]
+                        ["configure" "mark"] [] [] ["groups"] ["input" "output" "begin" "end" "view" "keep" "configure" "groups"])
+        tracked (schema-has? schema "anchors")]
+    (for property ["absent" "anchored" "mark"]
+      (unless (= (schema-has? schema property) tracked)
+        (t/die (mut c) (t/peek (mut c)) "compaction anchors require absent, anchored and mark together")))
+    (compact/text name params inline tracked (.values schema) (schema-rows schema "groups" (mut c)))))
+
+(defn gather! [(c (mut t/Cur))] (-> (slice u8))
+  (let [name (name! (mut c)) params (params! (mut c))]
+    (t/expect! (mut c) "->")
+    (let [result (type! (mut c)) (mut bindings) (ArrayList::new [relation/Column] (malloc-allocator))
+          (mut rows) (relation/empty "" "")
+          (mut columns) (ArrayList::new [(slice u8)] (malloc-allocator))
+          (mut zeros) (ArrayList::new [(slice u8)] (malloc-allocator))]
+      (t/expect! (mut c) "{")
+      (while (not (t/accept! (mut c) "}"))
+        (let [at (t/advance! (mut c)) word (.text at)]
+          (if (= word "rows")
+              (do (unless (= (.key rows) "") (t/die (mut c) at "duplicate gather rows"))
+                  (set! rows (row-query! (mut c))))
+              (do (t/expect! (mut c) "=")
+                  (cond (= word "column") (push! (mut columns) (pure-expr! (mut c)))
+                        (= word "zero") (push! (mut zeros) (pure-expr! (mut c)))
+                        :else
+                          (do (for binding bindings (when (= (.target binding) word) (t/die (mut c) at "duplicate gather property")))
+                              (push! (mut bindings) (relation/Column :target word :value
+                                (cond (or (= word "data") (= word "count")) (pure-expr! (mut c))
+                                      (or (= word "configure") (= word "resolve") (= word "finish")) (effect-call! (mut c))
+                                      :else (t/die (mut c) at "unknown gather property"))))))
+                  (t/expect! (mut c) ";")))))
+      (when (or (!= (len bindings) 5) (= (.key rows) "") (= (len columns) 0))
+        (t/die (mut c) (t/peek (mut c)) "gather requires data, count, configure, resolve, finish, rows and columns"))
+      (gather/text name params result bindings rows columns zeros))))
+
+(defn sealed-ssa! [(c (mut t/Cur))] (-> (slice u8))
+  (let [name (name! (mut c))]
+    (t/expect! (mut c) "(")
+    (let [context (name! (mut c))]
+      (t/expect! (mut c) ":")
+      (let [type (type! (mut c))]
+        (t/expect! (mut c) ")")
+        (let [schema (schema! (mut c)
+                ["definition" "resolved" "variable-type" "absent" "sealed" "pending" "predecessor-count" "only-predecessor" "current"]
+                ["publish" "merge" "complete" "undefined" "close"] ["recursive" "seal" "use"] ["pending-type"] []
+                ["definition" "resolved" "variable-type" "absent" "sealed" "pending" "predecessor-count" "only-predecessor" "current"
+                 "publish" "merge" "complete" "undefined" "close" "recursive" "seal" "use" "pending-type"])]
+          (sealed-ssa/text name context type (.values schema)))))))
+
+(defn epoch-map! [(c (mut t/Cur))] (-> (slice u8))
+  (let [name (name! (mut c))]
+    (t/expect! (mut c) "(")
+    (let [context (name! (mut c))]
+      (t/expect! (mut c) ":")
+      (let [type (type! (mut c)) (mut bindings) (ArrayList::new [relation/Column] (malloc-allocator))]
+        (t/expect! (mut c) ")") (t/expect! (mut c) "{")
+        (while (not (t/accept! (mut c) "}"))
+          (let [at (t/advance! (mut c)) word (.text at)]
+            (for binding bindings
+              (when (= (.target binding) word) (t/die (mut c) at "duplicate epoch-map property")))
+            (t/expect! (mut c) "=")
+            (let [value
+              (cond (or (= word "key-type") (= word "value-type") (= word "entry-type")) (type! (mut c))
+                    (or (= word "initial") (= word "load-denominator"))
+                      (let [n (t/num! (mut c) "a positive map capacity or load denominator")]
+                        (when (or (< n 2) (> n 0x7fffffffffffffff) (and (= word "initial") (!= (& n (- n 1)) 0))
+                                  (and (= word "load-denominator") (< n 2)))
+                          (t/die (mut c) at "initial capacity must be a power of two; load denominator must be at least two"))
+                        (t/int-text (cast i64 n)))
+                    (or (= word "entries") (= word "generation") (= word "count") (= word "hash") (= word "absent"))
+                      (pure-expr! (mut c))
+                    :else (t/die (mut c) at "unknown epoch-map property"))]
+              (push! (mut bindings) (relation/Column :target word :value value)))
+            (t/expect! (mut c) ";")))
+        (when (!= (len bindings) 10) (t/die (mut c) (t/peek (mut c)) "incomplete epoch-map schema"))
+        (epoch-map/text name context type bindings)))))
+
+(defn dominance! [(c (mut t/Cur))] (-> (slice u8))
+  (let [name (name! (mut c)) params (params! (mut c))
+        schema (schema! (mut c) ["nodes" "entry" "absent" "ranks" "parents" "order" "work" "successor-count" "successor"] [] [] [] ["predecessors"]
+                        ["nodes" "entry" "absent" "ranks" "parents" "order" "work" "successor-count" "successor" "predecessors"])]
+    (dominance/text name params (.values schema) (schema-rows schema "predecessors" (mut c)))))
+
+(defn meet! [(c (mut t/Cur))] (-> (slice u8))
+  (let [name (name! (mut c)) params (params! (mut c))
+        (mut values) "" (mut offsets) "" (mut users) "" (mut top) "" (mut boundary) ""]
+    (t/expect! (mut c) "{")
+    (while (not (t/accept! (mut c) "}"))
+      (let [at (t/advance! (mut c)) word (.text at)]
+        (t/expect! (mut c) "=")
+        (let [value (pure-expr! (mut c))]
+          (cond (= word "values") (set! values value) (= word "offsets") (set! offsets value)
+                (= word "users") (set! users value) (= word "top") (set! top value)
+                (= word "boundary") (set! boundary value)
+                :else (t/die (mut c) at "unknown meet equation property")))
+        (t/expect! (mut c) ";")))
+    (when (or (= values "") (= offsets "") (= users "") (= top "") (= boundary ""))
+      (t/die (mut c) (t/peek (mut c)) "meet requires values, offsets, users, top and boundary"))
+    (relation/meet-text name params values offsets users top boundary)))
+
+(defn list-type? [(type (slice u8))] (-> bool)
+  (and (> (len type) 11) (= (t/slice-of type 0 11) "(ArrayList ")))
+
+(defn snapshot! [(c (mut t/Cur)) (records (ArrayList Record))] (-> (slice u8))
+  (let [record (record-at records (name! (mut c)) (mut c))]
+    (t/expect! (mut c) "as")
+    (let [name (name! (mut c)) (mut out) (t/out-new)]
+      (for field (.fields record)
+        (when (and (.snapshot field) (!= (.drop field) ""))
+          (t/die (mut c) (t/peek (mut c)) "snapshot of an owned resource requires snapshot fresh")))
+      (t/expect! (mut c) "(")
+      (let [dst (name! (mut c))]
+        (t/expect! (mut c) ",")
+        (let [src (name! (mut c))]
+          (t/expect! (mut c) ")") (t/expect! (mut c) ";")
+          (t/emit! (mut out) (t/cat4 "(defn " name " [(" (t/cat4 dst " (ptr " (.name record) "))")))
+          (t/emit! (mut out) (t/cat4 "(" src " (ptr " (t/cat4 (.name record) "))] (-> void) (store! " dst " (")))
+          (t/emit! (mut out) (.name record))
+          (for field (.fields record)
+            (let [type (.type field) value (t/cat4 "(." (.name field) " " (t/cat2 src ")"))]
+              (t/emit! (mut out) (t/cat4 " :" (.name field) " "
+                (if (not (.snapshot field)) (.initial field)
+                    (if (list-type? type)
+                        (t/cat4 "(library-copy [" (t/slice-of type 11 (- (len type) 1)) "] " (t/cat2 value ")"))
+                        value))))))
+          (t/emit! (mut out) ")))")
+          (t/text-of (mut out)))))))
+
+(defn recycle! [(c (mut t/Cur)) (records (ArrayList Record))] (-> (slice u8))
+  (let [record (record-at records (name! (mut c)) (mut c))]
+    (t/expect! (mut c) "as")
+    (let [name (name! (mut c)) root (.text (t/peek-at (mut c) 1)) params (params! (mut c))
+          (mut overrides) (ArrayList::new [relation/Column] (malloc-allocator))
+          (mut after) "" (mut out) (t/out-new)]
+      (t/expect! (mut c) "{")
+      (while (not (t/accept! (mut c) "}"))
+        (let [field (name! (mut c))]
+          (t/expect! (mut c) "=")
+          (if (= field "after") (set! after (expr! (mut c) 0))
+              (do
+                (let [(mut known) false]
+                  (for member (.fields record) (when (= (.name member) field) (set! known true)))
+                  (unless known (t/die (mut c) (t/peek (mut c)) (t/cat2 "no lifecycle field named " field))))
+                (for entry overrides (when (= (.target entry) field) (t/die (mut c) (t/peek (mut c)) "duplicate lifecycle field")))
+                (push! (mut overrides) (relation/Column :target field :value (pure-expr! (mut c))))))
+          (t/expect! (mut c) ";")))
+      (t/line! (mut out) (t/cat4 "(defn " name " " (t/cat2 params " (-> void)")))
+      (for field (.fields record)
+        (let [target (t/cat4 "(." (.name field) " " (t/cat2 root ")"))
+              (mut initial) (.initial field) (mut overridden) false]
+          (for entry overrides
+            (when (= (.target entry) (.name field)) (set! initial (.value entry)) (set! overridden true)))
+          (unless (and (not overridden) (= (.reset field) "keep"))
+            (t/line! (mut out) (drop-text field root)))
+          (cond overridden (t/line! (mut out) (t/cat4 "(set! " target " " (t/cat2 initial ")")))
+                (= (.reset field) "keep") 0
+                (= (.reset field) "fill")
+                  (t/line! (mut out) (t/cat4 "(let [data* (.data " target ") value* "
+                    (t/cat4 (.fill field) "] (for i* (range 0 (len " target ")) (store! (library-primitive/index data* i*) value*)))")))
+                (list-type? (.type field)) (t/line! (mut out) (t/cat3 "(clear! (mut " target "))"))
+                :else (t/line! (mut out) (t/cat4 "(set! " target " " (t/cat2 initial ")"))))))
+      (t/line! (mut out) after) (t/line! (mut out) ")")
+      (t/text-of (mut out)))))
+
+(defn read-region! [(c (mut t/Cur))] (-> region/Region)
+  (let [name (name! (mut c))]
+    (t/expect! (mut c) "(")
+    (let [ctx (name! (mut c))]
+      (t/expect! (mut c) ":")
+      (let [type (type! (mut c))]
+        (t/expect! (mut c) ",")
+        (let [stop (name! (mut c))]
+          (t/expect! (mut c) ":") (t/expect! (mut c) "u32") (t/expect! (mut c) ")")
+          (let [(mut r) (region/Region :name name :context ctx :type type :stop stop :forward true :advance false
+                  :starts "" :partition "" :begin "" :end "" :marks "" :entered "" :generation "" :work "" :collect ""
+                  :neighbors (relation/empty "" ""))]
+            (t/expect! (mut c) "{")
+            (while (not (t/accept! (mut c) "}"))
+              (let [at (t/advance! (mut c)) word (.text at)]
+                (if (= word "neighbors") (set! (.neighbors r) (row-query! (mut c)))
+                    (do (t/expect! (mut c) "=")
+                        (cond (= word "direction")
+                                (let [direction (name! (mut c))]
+                                  (unless (or (= direction "forward") (= direction "backward")) (t/die (mut c) at "direction must be forward or backward"))
+                                  (set! (.forward r) (= direction "forward")))
+                              (= word "advance")
+                                (let [value (name! (mut c))]
+                                  (unless (or (= value "true") (= value "false")) (t/die (mut c) at "advance must be true or false"))
+                                  (set! (.advance r) (= value "true")))
+                              :else
+                                (let [value (pure-expr! (mut c))]
+                                  (cond (= word "starts") (set! (.starts r) value) (= word "partition") (set! (.partition r) value)
+                                        (= word "begin") (set! (.begin r) value) (= word "end") (set! (.end r) value)
+                                        (= word "marks") (set! (.marks r) value) (= word "entered") (set! (.entered r) value)
+                                        (= word "generation") (set! (.generation r) value) (= word "work") (set! (.work r) value)
+                                        (= word "collect") (set! (.collect r) value)
+                                        :else (t/die (mut c) at "unknown region property"))))
+                        (t/expect! (mut c) ";")))))
+            (when (or (= (.starts r) "") (= (.partition r) "") (= (.begin r) "") (= (.end r) "")
+                      (= (.marks r) "") (= (.entered r) "") (= (.generation r) "") (= (.work r) "") (= (.key (.neighbors r)) ""))
+              (t/die (mut c) (t/peek (mut c)) "region requires starts, partition, bounds, marks, entered, generation, work and neighbors"))
+            r))))))
+
+(defn plan! [(c (mut t/Cur)) (regions (ArrayList region/Region)) (rewrite bool)] (-> (slice u8))
+  (let [name (name! (mut c)) params (params! (mut c))
+        (mut steps) (ArrayList::new [plan/Step] (malloc-allocator)) (mut applying) false
+        (mut result) "bool" (mut failure) "false" (mut success) "true" (mut returned) false (mut inline) false]
+    (when (t/accept! (mut c) "->")
+      (unless rewrite (t/die (mut c) (t/peek (mut c)) "predicates return bool"))
+      (set! result (type! (mut c)))
+      (set! failure (if (t/accept! (mut c) "else")
+                       (if (t/accept! (mut c) "create") (effect-call! (mut c)) (pure-expr! (mut c)))
+                       (if (= result "void") "(do)" "")))
+      (set! success (if (= result "void") "(do)" "")))
+    (set! inline (t/accept! (mut c) "inline"))
+    (t/expect! (mut c) "{")
+    (while (not (t/accept! (mut c) "}"))
+      (let [at (t/advance! (mut c)) word (.text at)]
+        (when returned (t/die (mut c) at "result must be the last rewrite clause"))
+        (when (and applying (not (or (= word "apply") (= word "create") (= word "resource") (= word "result"))))
+          (t/die (mut c) at "rewrite constraints and derived relations must precede effects"))
+        (cond
+          (= word "resource")
+            (do (unless rewrite (t/die (mut c) at "only a rewrite may acquire resources"))
+                (set! applying true)
+                (let [name (name! (mut c))]
+                  (t/expect! (mut c) "=")
+                  (let [value (expr! (mut c) 0)]
+                    (t/expect! (mut c) "release")
+                    (let [cleanup (effect-call! (mut c))]
+                      (push! (mut steps) (plan/Step :kind "resource" :name name :value value :cleanup cleanup))))))
+          (or (= word "let") (= word "create"))
+            (let [name (name! (mut c))]
+              (when (= word "create")
+                (unless rewrite (t/die (mut c) at "only a rewrite may create values"))
+                (set! applying true))
+              (t/expect! (mut c) "=")
+              (push! (mut steps) (plan/Step :cleanup "" :kind word :name name
+                :value (if (= word "create") (expr! (mut c) 0) (pure-expr! (mut c))))))
+          (= word "result")
+            (do (unless rewrite (t/die (mut c) at "predicates have no result clause"))
+                (t/expect! (mut c) "=") (set! success (pure-expr! (mut c))) (set! returned true))
+          (or (= word "require") (= word "ensure"))
+            (push! (mut steps) (plan/Step :cleanup "" :kind "require" :name "" :value (pure-expr! (mut c))))
+          (= word "derive")
+            (let [target (pure-expr! (mut c))]
+              (t/expect! (mut c) "from")
+              (push! (mut steps) (plan/Step :cleanup "" :kind "derive" :name "" :value (plan/materialize target (row-query! (mut c))))))
+          (= word "reach")
+            (let [target (name! (mut c)) (mut found) false]
+              (for region regions
+                (when (= (.name region) target)
+                  (when found (t/die (mut c) at "ambiguous region name"))
+                  (set! found true)
+                  (t/expect! (mut c) "from")
+                  (let [rows (row-query! (mut c))]
+                    (t/expect! (mut c) "until")
+                    (let [stop (pure-expr! (mut c))]
+                      (push! (mut steps) (plan/Step :cleanup "" :kind "reach" :name "" :value
+                        (t/cat4 (plan/materialize (.starts region) rows) " (" target
+                          (t/cat4 " " (.context region) " " (t/cat2 stop ")")))))))))
+              (unless found (t/die (mut c) at (t/cat2 "no region named " target))))
+          (= word "apply")
+            (do (unless rewrite (t/die (mut c) at "only a rewrite may apply effects"))
+                (set! applying true)
+                (let [effect (expr! (mut c) 0)
+                      condition (if (t/accept! (mut c) "when") (pure-expr! (mut c)) "true")]
+                  (push! (mut steps) (plan/Step :cleanup "" :kind "apply" :name "" :value (t/cat4 "(when " condition " " (t/cat2 effect ")"))))))
+          :else (t/die (mut c) at "expected a binding, constraint, materialization or rewrite effect"))
+        (t/expect! (mut c) ";")))
+    (when (= success "") (t/die (mut c) (t/peek (mut c)) "a typed rewrite requires a result clause"))
+    (when (= failure "")
+      (for step steps (when (= (.kind step) "require")
+        (t/die (mut c) (t/peek (mut c)) "a guarded value rewrite requires an else result"))))
+    (plan/text name params inline steps result failure success)))
+
+(defn declarations! [(c (mut t/Cur)) (strict bool)] (-> (slice u8))
+  (let [(mut out) (t/out-new)
+        (mut records) (ArrayList::new [Record] (malloc-allocator))
+        (mut regions) (ArrayList::new [region/Region] (malloc-allocator)) (mut mutex-imported) false]
+    (while (not (t/eof? (mut c)))
+      (let [tok (t/advance! (mut c))
+            word (.text tok)]
+        (cond (= word "use")
+                (let [module (t/advance! (mut c))]
+                  (unless (= (.kind module) t/T-STR)
+                    (t/die (mut c) module "expected a module string"))
+                  (t/emit! (mut out) (t/cat3 "(import \"" (.text module) "\""))
+                  (when (t/accept! (mut c) "as")
+                    (t/emit! (mut out) (t/cat2 " :as " (name! (mut c)))))
+                  (when (t/accept! (mut c) "only")
+                    (if (t/accept! (mut c) "*")
+                        (t/emit! (mut out) " :use *")
+                        (do
+                          (t/expect! (mut c) "[")
+                          (t/emit! (mut out) " :use [")
+                          (while (not (t/accept! (mut c) "]"))
+                            (t/emit! (mut out) (t/cat2 " " (name! (mut c))))
+                            (t/accept! (mut c) ","))
+                          (t/emit! (mut out) "]"))))
+                  (t/expect! (mut c) ";")
+                  (t/line! (mut out) ")"))
+              (or (= word "sweep") (= word "saturate") (= word "count-rewrites"))
+                (t/line! (mut out) (sweep! (mut c) (cond (= word "sweep") 0 (= word "saturate") 1 :else 2)))
+              (= word "materialize") (t/line! (mut out) (materialize! (mut c)))
+              (= word "stable-index") (t/line! (mut out) (stable-index! (mut c) records))
+              (= word "mutex")
+                (do (unless mutex-imported
+                      (t/line! (mut out) "(import \"coil.sync\" :as library-sync)")
+                      (t/line! (mut out) "(import \"coil.result\" :use [Ok Err])")
+                      (set! mutex-imported true))
+                    (t/line! (mut out) (mutex! (mut c))))
+              (= word "intern") (t/line! (mut out) (intern! (mut c)))
+              (= word "follow") (t/line! (mut out) (follow! (mut c)))
+              (= word "retain") (t/line! (mut out) (retain! (mut c)))
+              (= word "reduce") (t/line! (mut out) (reduce! (mut c)))
+              (= word "worklist") (t/line! (mut out) (worklist! (mut c)))
+              (= word "pipeline") (t/line! (mut out) (pipeline! (mut c)))
+              (= word "prune") (t/line! (mut out) (prune! (mut c)))
+              (= word "compact") (t/line! (mut out) (compact! (mut c)))
+              (= word "gather") (t/line! (mut out) (gather! (mut c)))
+              (= word "sealed-ssa") (t/line! (mut out) (sealed-ssa! (mut c)))
+              (= word "insert") (t/line! (mut out) (insert! (mut c)))
+              (= word "consensus") (t/line! (mut out) (consensus! (mut c)))
+              (= word "epoch-map") (t/line! (mut out) (epoch-map! (mut c)))
+              (= word "dominators") (t/line! (mut out) (dominance! (mut c)))
+              (= word "scatter") (t/line! (mut out) (scatter! (mut c)))
+              (= word "meet") (t/line! (mut out) (meet! (mut c)))
+              (= word "region")
+                (let [region (read-region! (mut c))]
+                  (push! (mut regions) region)
+                  (t/line! (mut out) (region/text region)))
+              (or (= word "predicate") (= word "rewrite"))
+                (t/line! (mut out) (plan! (mut c) regions (= word "rewrite")))
+              (= word "tally") (t/line! (mut out) (tally! (mut c)))
+              (= word "relation") (t/line! (mut out) (relation! (mut c)))
+              (= word "byte-buffer")
+                (t/line! (mut out) (storage/buffer-text (mut c)))
+              (= word "record")
+                (let [name (name! (mut c))
+                      (mut fields) (ArrayList::new [Field] (malloc-allocator))]
+                  (t/emit! (mut out) (t/cat3 "(defstruct " name " ["))
+                  (t/expect! (mut c) "{")
+                  (while (not (t/accept! (mut c) "}"))
+                    (let [field (name! (mut c))]
+                      (t/expect! (mut c) ":")
+                      (let [type (type! (mut c))
+                            initial-spec (initial! (mut c) type) initial (.text initial-spec)
+                            (mut snapshot) true (mut reset) "default" (mut fill) "" (mut drop) "" (mut drop-each) false]
+                        (while (or (t/at? (mut c) "snapshot") (t/at? (mut c) "reset") (t/at? (mut c) "drop") (t/at? (mut c) "drop-each"))
+                          (cond
+                            (or (t/at? (mut c) "drop") (t/at? (mut c) "drop-each"))
+                              (do (unless (= drop "") (t/die (mut c) (t/peek (mut c)) "duplicate field drop policy"))
+                                  (set! drop-each (t/accept! (mut c) "drop-each"))
+                                  (unless drop-each (t/expect! (mut c) "drop"))
+                                  (when (and drop-each (not (list-type? type))) (t/die (mut c) (t/peek (mut c)) "drop-each requires a list field"))
+                                  (when (and (not drop-each) (list-type? type)) (t/die (mut c) (t/peek (mut c)) "list fields own their container; use drop-each for owned elements"))
+                                  (set! drop (name! (mut c))))
+                            (t/accept! (mut c) "snapshot")
+                              (do (t/expect! (mut c) "fresh") (set! snapshot false))
+                            :else
+                              (do (t/expect! (mut c) "reset")
+                                  (set! reset (t/name! (mut c) "keep or fill"))
+                                  (cond (= reset "fill") (set! fill (pure-expr! (mut c)))
+                                        (= reset "keep") 0
+                                        :else (t/die (mut c) (t/peek (mut c)) "reset requires keep or fill")))))
+                        (when (and (= reset "fill") (or (not (list-type? type)) (!= drop "")))
+                          (t/die (mut c) (t/peek (mut c)) "reset fill requires a list without an element destructor"))
+                        (push! (mut fields)
+                               (Field
+                                 :name field
+                                 :type type :initial initial :snapshot snapshot :reset reset :fill fill :capacity (.capacity initial-spec) :drop drop :drop-each drop-each))
+                        (t/emit! (mut out)
+                                 (t/cat4 "(" field " " (t/cat2 type ")"))))
+                      (t/expect! (mut c) ";")))
+                  (push! (mut records) (Record :name name :fields fields))
+                  (t/line! (mut out) "])"))
+              (= word "snapshot") (t/line! (mut out) (snapshot! (mut c) records))
+              (= word "recycle") (t/line! (mut out) (recycle! (mut c) records))
+              (= word "construct")
+                (t/line! (mut out) (constructor! (mut c) records))
+              (= word "release") (t/line! (mut out) (release! (mut c) records))
+              (= word "const")
+                (let [name (name! (mut c))]
+                  (t/expect! (mut c) "=")
+                  (t/line! (mut out)
+                           (t/cat4 "(const "
+                                   name
+                                   " "
+                                   (t/cat2 (expr! (mut c) 0) ")")))
+                  (t/expect! (mut c) ";"))
+              (or (= word "fn") (= word "method"))
+                (let [owner (if (= word "method") (name! (mut c)) "")]
+                  (when (= word "method") (t/expect! (mut c) "."))
+                  (let [name (name! (mut c))
+                        (mut generic) ""]
+                    (when (t/accept! (mut c) "[")
+                      (set! generic (t/cat3 "[" (name! (mut c)) "]"))
+                      (t/expect! (mut c) "]"))
+                    (let [params (params! (mut c))]
+                      (t/expect! (mut c) "->")
+                      (let [result (type! (mut c))
+                            body (if (t/accept! (mut c) "=")
+                                     (let [value (if (t/ends-with name "!") (effect-call! (mut c)) (pure-expr! (mut c)))] (t/expect! (mut c) ";") value)
+                                     (if strict (t/die (mut c) (t/peek (mut c)) "declarative libraries require function equations, not statement bodies")
+                                         (sequence! (mut c))))]
+                        (when (= word "method")
+                          (t/emit! (mut out) (t/cat3 "(impl " owner " ")))
+                        (t/line! (mut out)
+                                 (t/cat4 (if (= word "method") "(" "(defn ")
+                                         name
+                                         " "
+                                         (t/cat4 generic
+                                                 params
+                                                 " (-> "
+                                                 (t/cat4 result ") " body ")"))))
+                        (when (= word "method") (t/line! (mut out) ")"))))))
+              :else (t/die (mut c) tok "expected a library declaration"))))
+    (t/text-of (mut out))))
+
+(defn module-text [(context Code)] (-> (slice u8))
+  (let [path (t/path-of context)
+        (mut c) (t/cursor (t/source-of context) path)
+        (mut out) (t/out-new)]
+    (t/expect! (mut c) "library")
+    (let [strict (t/accept! (mut c) "declarative")]
+      (when strict
+        (for token (.toks c)
+          (when (and (= (.kind token) t/T-IDENT)
+                     (or (= (.text token) "bind") (= (.text token) "set") (= (.text token) "for")
+                         (= (.text token) "while") (= (.text token) "forever") (= (.text token) "escape") (= (.text token) "do")))
+            (t/die (mut c) token "procedural control and assignment are not allowed in a declarative library"))))
+    (t/emit! (mut out)
+             "(import \"coil.alloc\" :use [malloc-allocator abort])\n(import \"coil.arraylist\" :use [ArrayList])\n")
+    (t/line! (mut out) "(import \"coil.primitive\" :as library-primitive)")
+    (t/line! (mut out)
+             "(defn library-fill! [(T Eq)] [(xs (mut (ArrayList T))) (n i64) (v T)] (-> void) (clear! (mut xs)) (extend-zeroed! (mut xs) n) (when (!= v (zeroed T)) (let [data* (.data xs)] (for i* (range 0 n) (store! (library-primitive/index data* i*) v)))))")
+    (t/line! (mut out) "(defstruct library-Consensus [T] [(value T) (valid bool)])")
+    (t/line! (mut out) "(defn library-copy [T] [(xs (ArrayList T))] (-> (ArrayList T)) (let [(mut result*) (ArrayList::new [T] (malloc-allocator)) n* (len xs)] (when (> n* 0) (extend! (mut result*) (.data xs) n*)) result*))")
+    (t/line! (mut out) "(defn library-repeat [T] [(n i64) (value T)] (-> (ArrayList T)) (let [(mut xs*) (ArrayList::new [T] (malloc-allocator))] (when (> n 0) (extend-zeroed! (mut xs*) n) (let [data* (.data xs*)] (for i* (range 0 n) (store! (library-primitive/index data* i*) value)))) xs*))")
+    (t/emit! (mut out) (declarations! (mut c) strict))
+    (t/text-of (mut out)))))

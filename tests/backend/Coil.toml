@@ -1,0 +1,4 @@
+[package]
+name = "rewrite-backend-test"
+entry = "main.coil"
+source-roots = [".", "../../vendor/coil/src/compiler/declarative", "../../vendor/coil/src/compiler/native", "../../vendor/coil/src/declarative/tests"]

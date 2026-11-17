@@ -1,0 +1,4 @@
+;;; Run the retained backend's independent CIR behavior suite against its snapshot.
+(module rewrite.backend.test)
+(import "tests.direct" :as direct)
+(defn main [] (-> i64) (direct/main))
