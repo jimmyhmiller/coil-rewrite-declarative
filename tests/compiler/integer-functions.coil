@@ -38,3 +38,10 @@
 
 (defn sequential [(x i64)] (-> i64)
   (let [x (+ x 1) y (* x 2) x (+ y x)] (let [] x)))
+
+(defn sequence-body [(x i64)] (-> i64)
+  false
+  (let [x (+ x 1) y x]
+    (do)
+    x
+    (+ y x)))

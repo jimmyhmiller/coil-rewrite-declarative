@@ -10,7 +10,7 @@
   (Greater (left Expr) (right Expr))
   (GreaterEqual (left Expr) (right Expr))
   (Choose (condition Expr) (yes Expr) (no Expr))
-  (Variable (name Text)) (Let (name Text) (value Expr) (body Expr)) (Call (callee Expr) (arguments (many Expr))) (AddressOf (function Expr)))
+  (Sequence (items (many Expr))) (Variable (name Text)) (Let (name Text) (value Expr) (body Expr)) (Call (callee Expr) (arguments (many Expr))) (AddressOf (function Expr)))
 (bindings Expr (Variable (reference name)) (Let (scope body name)))
 (judgment Expr (Integer Int) (Boolean Bool)
   (Add Int (left Int) (right Int))
@@ -24,7 +24,7 @@
   (GreaterEqual Bool (left Int) (right Int))
 
   (Choose ?result (condition Bool) (yes ?result) (no ?result))
-  (Variable (lookup)) (Let ?body (value ?value) (body ?body (with ?value)))
+  (Sequence (last-type items Void)) (Variable (lookup)) (Let ?body (value ?value) (body ?body (with ?value)))
   (Call (apply callee arguments [value function]))
   (AddressOf ?signature (function (in [function] ?signature))))
 (lower Expr (Integer (const value)) (Boolean (bool value))
@@ -38,11 +38,13 @@
   (Greater (sgt left right))
   (GreaterEqual (sge left right))
   (Choose (if condition yes no))
-  (Variable (name)) (Let (let value body)) (Call (call callee (spread arguments))) (AddressOf (identity function)))
+  (Sequence (sequence items)) (Variable (name)) (Let (let value body)) (Call (call callee (spread arguments))) (AddressOf (identity function)))
 
 (node Parameter (name Text))
 (syntax Parameter (Parameter (list (symbol name) "i64")))
 (node Function (name Text :key) (parameters (many Parameter)) (body Expr))
+(wrap-tail Function "defn" 4 "do")
+(wrap-tail Expr "let" 2 "do")
 (fold-vector Expr "let" 2)
 (syntax Expr
   (Integer (int value))
@@ -59,6 +61,7 @@
   (GreaterEqual (list ">=" (ref left) (ref right)))
 
   (Choose (list "if" (ref condition) (ref yes) (ref no)))
+  (Sequence (list "do" (rest items)))
   (Let (list "let" (vector (symbol name) (ref value)) (ref body)))
   (AddressOf (list "fnptr-of" (ref function)))
   (Call (list (ref callee) (rest arguments))))

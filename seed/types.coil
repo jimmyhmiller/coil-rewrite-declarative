@@ -1,4 +1,4 @@
-;;; Canonical concrete types. IDs belong to one store, with scalar IDs 1..3.
+;;; Canonical concrete types. IDs belong to one store, with scalar IDs 1..4.
 (module rewrite.types)
 (import "coil.alloc" :as alloc :use [Allocator])
 (import "coil.arraylist" :use *)
@@ -81,7 +81,7 @@
   (free! (mut (.functions types))))
 
 (defn valid? [(types (ptr Types)) (id i64)] (-> bool)
-  (and (> id 0) (< id (+ 4 (len (.functions types))))))
+  (and (> id 0) (< id (+ 5 (len (.functions types))))))
 
 ;;; Canonical identity includes arity, ordered argument types and result type.
 ;;; Lookups borrow input; new signatures own a copy, never the caller's storage.
@@ -96,7 +96,7 @@
       (match (get (.index types) key)
         (Some [id] (Ok id))
         (None []
-              (let [id (+ 4 (len (.functions types)))]
+              (let [id (+ 5 (len (.functions types)))]
                 (when (> id 4294967295) (break :done (Err (TypeCapacity))))
                 (let [copy
                         (match (alloc/alloc [i64]
@@ -111,8 +111,8 @@
                   (Ok id))))))))
 
 (defn as-signature [(types (ptr Types)) (id i64)] (-> (Option Signature))
-  (if (and (>= id 4) (valid? types id))
-      (Some (get (.functions types) (- id 4)))
+  (if (and (>= id 5) (valid? types id))
+      (Some (get (.functions types) (- id 5)))
       (None)))
 
 (defn function [(types (mut Types)) (argument i64) (result i64)]

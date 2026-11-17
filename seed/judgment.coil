@@ -11,7 +11,11 @@
 (import "coil.str" :use *)
 
 (defn tag [(name (slice u8))] (-> i64)
-  (cond (= name "Int") 1 (= name "Bool") 2 (= name "Text") 3 :else 0))
+  (cond (= name "Int") 1
+        (= name "Bool") 2
+        (= name "Text") 3
+        (= name "Void") 4
+        :else 0))
 
 (defn variable? [(name (slice u8))] (-> bool)
   (and (> (len name) 1) (= (get name 0) (: 63 u8))))
@@ -319,6 +323,51 @@
                 :done
                   (Err (problem rule
                                 "judgment must check each declared scoped child once")))))))
+      (when (and (sexp-list? result)
+                 (> (sexp-count result) 0)
+                 (sexp-sym-is (sexp-nth result 0) "last-type"))
+        (unless (and (= (sexp-count result) 3)
+                     (= (sexp-count rule) 2)
+                     (not categorized?)
+                     (sexp-sym? (sexp-nth result 2)))
+          (break
+            :done
+              (Err (problem result "expected (last-type sequence empty-type)"))))
+        (let [slot (recursive-field n v (sexp-nth result 1) true)
+              empty (tag (sexp-sym (sexp-nth result 2)))]
+          (unless (and (>= slot 0) (> empty 0))
+            (break
+              :done
+                (Err (problem result "invalid last-type field or default type"))))
+          (push-str! (mut b) "(N")
+          (number! (mut b) ni)
+          (push-str! (mut b) "V")
+          (number! (mut b) vi)
+          (push-str! (mut b) " [")
+          (for [i 0 (len (.fields v))]
+            (push-str! (mut b) " f")
+            (number! (mut b) i))
+          (push-str! (mut b)
+                     "] (block :rule (let [(mut items) (ArrayList::new [N")
+          (number! (mut b) ni)
+          (push-str! (mut b)
+                     "Id] (.allocator type-store)) (mut answer) (Typed ")
+          (number! (mut b) empty)
+          (push-str! (mut b)
+                     ")] (defer (free! (mut items))) (match (sequence-materialize-")
+          (number! (mut b) ni)
+          (push-str! (mut b) " (.allocator type-store) store f")
+          (number! (mut b) slot)
+          (push-str! (mut b)
+                     " (mut items)) (Ok [_]) (Err [_] (break :rule (InvalidReference (.index id))))) (for item items (let [child (judge-worker-")
+          (number! (mut b) ni)
+          (push-str! (mut b)
+                     " (mut type-store) store rows item (- fuel 1) context)] (match child (Typed [_] (set! answer child)) (Classified [_ c] (break :rule (CategoryMismatch (.index item) c ")
+          (number! (mut b) (.lo result))
+          (push-str! (mut b) " ")
+          (number! (mut b) (.hi result))
+          (push-str! (mut b) "))) (_ (break :rule child))))) answer))) ")
+          (break :done (Ok 0))))
       (when (and (sexp-list? result)
                  (> (sexp-count result) 0)
                  (sexp-sym-is (sexp-nth result 0) "apply"))

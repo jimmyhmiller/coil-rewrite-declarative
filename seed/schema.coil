@@ -267,6 +267,7 @@
                        (> (sexp-count (elem forms i)) 0)
                        (or (sexp-sym-is (sexp-nth (elem forms i) 0)
                                         "pair-selection")
+                           (sexp-sym-is (sexp-nth (elem forms i) 0) "wrap-tail")
                            (sexp-sym-is (sexp-nth (elem forms i) 0)
                                         "fold-vector")
                            (sexp-sym-is (sexp-nth (elem forms i) 0)

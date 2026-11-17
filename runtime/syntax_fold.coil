@@ -37,3 +37,24 @@
               (set! tail (box! a Sexp list))
               (set! end start)))
           (Ok (load tail))))))
+
+;;; Group the trailing expressions under a supplied head, preserving their spans.
+(defn wrap-tail [(a (dyn Allocator))
+                 (form (ptr Sexp))
+                 (start i64)
+                 (head (slice u8))]
+  (-> (ptr Sexp))
+  (let [outer (box! a (ArrayList Sexp) (ArrayList::new [Sexp] a))
+        items (box! a (ArrayList Sexp) (ArrayList::new [Sexp] a))
+        (mut tag) (load (sexp-nth form 0))
+        (mut group) (load form)
+        (mut result) (load form)]
+    (set! (.kind tag) (KSym head))
+    (push! items tag)
+    (for [i 0 start] (push! outer (load (sexp-nth form i))))
+    (for [i start (sexp-count form)] (push! items (load (sexp-nth form i))))
+    (set! (.kind group) (KList items))
+    (set! (.lo group) (.lo (sexp-nth form start)))
+    (push! outer group)
+    (set! (.kind result) (KList outer))
+    (box! a Sexp result)))

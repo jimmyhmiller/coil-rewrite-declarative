@@ -60,6 +60,7 @@
                     (sexp-sym-is op "sge") "cir/P-SGE"
                     :else "")
             binary? (or (!= binary-op "") (!= predicate ""))
+            sequence? (sexp-sym-is op "sequence")
             call? (sexp-sym-is op "call")
             branch? (sexp-sym-is op "if")
             lookup? (sexp-sym-is op "name")
@@ -68,7 +69,7 @@
             arity
               (cond lookup? 0
                     bind? (- (sexp-count expression) 1)
-                    (or constant? boolean? identity?) 1
+                    (or constant? boolean? identity? sequence?) 1
                     call? (- (sexp-count expression) 1)
                     binary? 2
                     branch? 3
@@ -91,17 +92,19 @@
         (for [i 1 (+ arity 1)]
           (let [field (sexp-nth expression i)
                 index
-                  (if (and call?
-                           (> i 1)
-                           (sexp-list? field)
-                           (= (sexp-count field) 2)
-                           (sexp-sym-is (sexp-nth field 0) "spread"))
-                      (recursive-field n v (sexp-nth field 1) true)
-                      (field-number v
-                                    field
-                                    (cond constant? "Int"
-                                          boolean? "Bool"
-                                          :else (.name n))))]
+                  (if sequence?
+                      (recursive-field n v field true)
+                      (if (and call?
+                               (> i 1)
+                               (sexp-list? field)
+                               (= (sexp-count field) 2)
+                               (sexp-sym-is (sexp-nth field 0) "spread"))
+                          (recursive-field n v (sexp-nth field 1) true)
+                          (field-number v
+                                        field
+                                        (cond constant? "Int"
+                                              boolean? "Bool"
+                                              :else (.name n)))))]
             (when (< index 0)
               (break
                 :done
@@ -125,6 +128,20 @@
                   (number! (mut b) (get fields 0))
                   (when boolean? (push-str! (mut b) " 1 0)"))
                   (push-str! (mut b) ")"))
+              sequence?
+                (do
+                  (push-str! (mut b) "(let [(mut items) (ArrayList::new [N")
+                  (number! (mut b) ni)
+                  (push-str! (mut b)
+                             "Id] (malloc-allocator))] (defer (free! (mut items))) (match (sequence-materialize-")
+                  (number! (mut b) ni)
+                  (push-str! (mut b) " (malloc-allocator) store f")
+                  (number! (mut b) (get fields 0))
+                  (push-str! (mut b)
+                             " (mut items)) (Err [_] (panic \"invalid checked sequence\")) (Ok [_])) (if (= (len items) 0) (cir/iconst! function 0) (let [(mut value) (: 0 u32)] (for item items (set! value (lower-worker-")
+                  (number! (mut b) ni)
+                  (push-str! (mut b)
+                             " store rows item function context))) value)))"))
               identity?
                 (child! (mut b) ni (get fields 0) (recursive-sequence? n))
               lookup?
