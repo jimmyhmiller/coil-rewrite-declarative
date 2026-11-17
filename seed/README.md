@@ -93,3 +93,15 @@ Judgment result terms can construct function types:
 `Fn` terms nest recursively, and their leaves are scalars or previously inferred rule variables. The seed validates every nested term and rejects unbound variables before generation. Generated code interns the resulting type in the caller's `rewrite.types/Types` store; construction errors propagate as `TypeConstruction`. The generated module imports that runtime, which must accompany generated output. The acceptance harness copies the exact source into its isolated consumer projects.
 
 The public signature is now `judge-N(type-store, rows, id)`. Context bindings and type-variable equality operate on canonical IDs from that same store. Tests parse and check identity functions, let-bound functions and nested function results, then decompose the returned types before releasing the store. LambdaInt/LambdaBool are fixtures demonstrating domain-independent rule composition, not a claim to implement Coil lambda semantics or capture rules. Call typing, argument annotations, function-type pattern premises, polymorphism and elaboration remain pending.
+
+Premises can match structured function types and bind their components:
+
+```
+(Call ?result
+  (callee (Fn ?argument ?result))
+  (argument ?argument))
+```
+
+Patterns recurse through `Fn`; scalar leaves require exact type identity. The first occurrence of a variable, including inside a pattern, binds it. Later occurrences require equality, even within the same pattern, so `(Fn ?same ?same)` describes functions whose argument and result types agree. Variable slots are assigned by the first occurrence's source position, independent of spelling. A non-function where `Fn` is required returns `ExpectedFunction` identifying the child and actual type; scalar/component disagreement retains `Mismatch` and premise location.
+
+Source-driven tests cover successful calls, argument mismatch, non-callable values, nested calls, repeated pattern variables and nested function patterns. This is structural matching of already concrete types. It does not implement metavariable unification, overload search, polymorphic instantiation or Coil's complete call semantics.

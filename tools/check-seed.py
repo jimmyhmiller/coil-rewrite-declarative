@@ -84,6 +84,8 @@ with tempfile.TemporaryDirectory(prefix='rewrite-judgment-') as directory:
         (typing.replace(b'(Integer Int)', b'(Integer ?unbound)'), b'unbound result'),
         (typing.replace(b'(Fn Int ?body)', b'(Fn Int ?missing)'), b'unbound result'),
         (typing.replace(b'(Fn Int ?body)', b'(Fn Int)'), b'expected (Fn'),
+        (typing.replace(b'(Fn ?argument ?result)', b'(Fn ?argument)'), b'expected (Fn'),
+        (typing.replace(b'(Fn ?same ?same)', b'(Fn Unknown ?same)'), b'unknown judgment'),
         (typing.replace(b'(lookup name)', b'(lookup missing)'), b'lookup requires'),
         (typing.replace(b'(bind name ?value)', b'(bind value ?value)'), b'binding requires'),
         (typing.replace(b'(bind name ?value)', b'(bind name ?body)'), b'known before'),
