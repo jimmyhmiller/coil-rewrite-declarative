@@ -33,6 +33,9 @@
             `(match ~(get rule 2)
                (Ok [~(get rule 1)] ~(premises rule 3))
                (Err [problem] (return-from :judgment (Err problem))))
+          (p/code-eq tag `fail)
+            `(return-from
+               :judgment (Err (coil.reader.mk-diag -1 -1 ~(get rule 1))))
           (p/code-eq tag `accept) `(return-from :judgment (Ok 0))
           (p/code-eq tag `reject) (fail-at (get rule 1) (get rule 2))
           (p/code-eq tag `each-form)

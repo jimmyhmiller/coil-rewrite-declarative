@@ -363,3 +363,51 @@ for compiler in coil ./rewrite; do
     grep -F '/a.coil' diagnostic >/dev/null
     grep -F '/b.coil' diagnostic >/dev/null
 done
+
+mkdir -p dependencies/app/src dependencies/math/impl dependencies/constants/src dependencies/bare
+(
+    cd dependencies
+    cat > app/Coil.toml <<'TOML'
+[package]
+name = "app"
+entry = "src/main.coil"
+[dependencies]
+math = { path = "../math" }
+constants = { path = "../constants" }
+TOML
+    cat > math/Coil.toml <<'TOML'
+[package]
+name = "math"
+source-roots = ["impl"]
+[dependencies]
+constants = { path = "../constants" }
+[modules]
+"math.operations" = "impl/operations.coil"
+TOML
+    cat > constants/Coil.toml <<'TOML'
+[package]
+name = "constants"
+exclude = ["src/ignored.coil"]
+[dependencies]
+bare = { path = "../bare" }
+TOML
+    echo '(module app.main) (import "math.operations" :as m) (defn main [] (-> i64) (m/answer))' > app/src/main.coil
+    echo '(module math.operations) (import "constants.values" :use [value]) (defn answer [] (-> i64) (+ 2 (value)))' > math/impl/operations.coil
+    echo '(module constants.values) (import "bare.base" :as b) (defn value [] (-> i64) (b/value))' > constants/src/values.coil
+    echo '(module constants.values) (defn value [] (-> i64) 9)' > constants/src/ignored.coil
+    echo '(module bare.base) (defn value [] (-> i64) 40)' > bare/anything.coil
+    cd app
+    for compiler in coil ../../rewrite; do
+        "$compiler" check
+        status=0
+        "$compiler" run || status=$?
+        [ "$status" -eq 42 ]
+    done
+    mkdir -p ../outside
+    printf '[package]\nname = "math"\nsource-roots = ["../outside"]\n' > ../math/Coil.toml
+    for compiler in coil ../../rewrite; do
+        if "$compiler" check >diagnostic 2>&1; then exit 1; fi
+        grep -F 'source root outside the package' diagnostic >/dev/null
+    done
+
+)
