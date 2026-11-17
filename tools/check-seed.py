@@ -19,6 +19,7 @@ for flags in [[], ['--debug-checks'], ['--release']]:
     subprocess.run(['coil', 'run', 'tests/revision.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/refer.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/namespace.coil', *flags], cwd=ROOT, check=True)
+    subprocess.run(['coil', 'run', 'tests/use-lookup.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/rounds.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/promotion.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/stage-datum.coil', *flags], cwd=ROOT, check=True)
@@ -423,3 +424,4 @@ subprocess.run(['python3', 'tools/check-refer.py'], cwd=ROOT, check=True)
 
 subprocess.run(['python3', 'tools/check-search.py'], cwd=ROOT, check=True)
 subprocess.run(['python3', 'tools/check-export.py'], cwd=ROOT, check=True)
+subprocess.run(['python3', 'tools/check-selection.py'], cwd=ROOT, check=True)

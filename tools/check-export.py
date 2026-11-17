@@ -76,7 +76,7 @@ def main():
     assert graphs and all(len(g['queries']) == len(g['answers']) for g in graphs)
     expected = ''.join(f'{v if v is not None else "-"}\n' for g in graphs for v in g['answers'])
     driver = fixture(graphs)
-    runtimes = ['types', 'scope', 'resolution', 'source', 'sequence', 'refer_runtime', 'namespace', 'search_runtime']
+    runtimes = ['types', 'scope', 'resolution', 'source', 'sequence', 'refer_runtime', 'selection_runtime', 'namespace', 'search_runtime']
     inputs = [ROOT/f'seed/{name}.coil' for name in runtimes] + [ROOT/'seed/generated/name_forms.coil', ROOT/'seed/generated/export_search.coil']
     with tempfile.TemporaryDirectory(prefix='rewrite-export-') as directory:
         work = Path(directory)

@@ -13,3 +13,8 @@
 (node ExportModule (name Text :key) (restricted Bool) (exports (many Name)) (edges (many Reexport)))
 (node Reexport (target Text) (refer Refer))
 (node Namespace (declarations (many Declaration)) (aliases (many Alias)) (modules (many ExportModule)))
+
+(node Candidate (owner Text) (exported Text) (target Text))
+(selection macro-use Candidate first)
+(selection unique-use Candidate (agree-any owner target))
+(node Imports (uses (many Reexport)))

@@ -641,3 +641,21 @@ A false guard rejects the query. A preferred candidate succeeds immediately when
 `tests/namespace.coil` exercises visibility, direct/alias/reexport precedence, renamed edges, absent module records, the exact 64-depth boundary, and name/depth-sensitive memoization in cyclic graphs. `tools/check-search.py` compiles independent policies with reversed alternatives and a zero depth limit, using integer results instead of namespace names. It checks errors, guard behavior, ownership and invalid declarations in three configurations. These tests do not yet establish differential parity against the full reference resolver. Alias/slash/bare/use/core routing, ambiguity, scoped macro heads and derive admission remain incomplete.
 
 The export search now has differential helper coverage. `tools/capture-export-reference.py --reference ../coil` captures 25 graphs/2,688 answers from exact reference helpers at the installed compiler's reported revision. `tools/check-export.py`, included in the seed gate, replays the immutable capture through the production adapter in three configurations and checks allocation cleanup. Recapturing is an explicit action, separate from replay. Fixture namespace membership, reexport table storage and alias-table access are adapters; source parsing and complete resolver parity are not claimed. See `contracts/expansion-protocol.md` for the precise scope and next route matrix.
+
+### Ordered candidate selection
+
+Schema records can declare incremental selection policies:
+
+```
+(node Candidate (owner Text) (exported Text) (target Text))
+(selection macro-use Candidate first)
+(selection unique-use Candidate (agree-any owner target))
+```
+
+`select-NAME(prior, next)` returns a typed `rewrite.selection/Decision`: `Stop(value)`, `Continue(value)` or `Conflict(first, next)`. `first` stops on the first candidate and preserves an already supplied prior value. `agree-any` initializes from the first candidate, then compares each later candidate with that original witness. Equality of any selected scalar field permits continuing while retaining the original record; otherwise both conflicting records are returned. It is intentionally not transitive agreement between consecutive records. Selected fields must be distinct scalar Int/Bool/Text fields of a record, and the list must be nonempty. The compiler rejects unknown records/fields, sums and duplicate policies.
+
+The declaration compiles to typed comparisons over the schema's actual row layout. The runtime is only the decision sum; it performs no allocation and supplies no namespace-specific policy. `tools/check-selection.py` exercises an independent record with Int/Bool agreement and an unselected Text payload, as well as invalid declarations.
+
+`namespace/compile-uses` compiles an `Imports` record's ordered refer edges. The caller releases the owned policies with `release-edges!`; edge target strings still borrow the immutable source Store. Export modules and use lists share checked edge construction and partial-failure cleanup. `namespace/used` resolves referred names through the exported-name query, then feeds successful candidates to the declared macro or nominal selection policy. A miss contributes no candidate. Macro selection stops immediately; nominal selection continues until all edges agree with the first witness or a conflict occurs. Returned candidates and ambiguity witnesses borrow the namespace Store, use policies and query spelling. They retain the import owner, referred spelling and canonical declaration separately, ready for later source-route recording and diagnostic rendering.
+
+`tests/use-lookup.coil` covers empty/missing refers, exclusions, first-hit macros, same-declaration convergence, the same-import-owner exception, later ambiguity, first-witness preservation and allocator cleanup. These are targeted source-inspection tests; executable reference use-tier differential coverage is still pending. Source route recording, diagnostic text, full bare/slash/dotted/core routing and scoped macro lookup are not implemented by this operation.

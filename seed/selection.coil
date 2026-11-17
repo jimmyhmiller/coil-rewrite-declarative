@@ -1,0 +1,109 @@
+;;; Schema-directed selection of ordered candidates, preserving the first witness.
+(module rewrite.selectiongen)
+(import "rewrite.schema" :use *)
+(import "rewrite.protocol" :use [name?])
+(import "rewrite.contextpolicy" :use [find-node])
+(import "rewrite.resolve" :use [indexed!])
+(import "coil.alloc" :use [Allocator])
+(import "coil.arraylist" :use *)
+(import "coil.str" :use [StrBuf])
+(import "coil.reader" :use *)
+(import "coil.result" :use *)
+
+(defn emit [(a (dyn Allocator))
+            (schema (ptr Schema))
+            (forms (ptr (ArrayList Sexp)))]
+  (-> (Result (slice u8) Diag))
+  (block
+    :done
+      (let [(mut b) (StrBuf::new a)
+            (mut names) (ArrayList::new [(slice u8)] a)]
+        (defer (free! (mut names)))
+        (for [i 0 (len (load forms))]
+          (let [form (elem forms i)]
+            (when (and (sexp-list? form)
+                       (> (sexp-count form) 0)
+                       (sexp-sym-is (sexp-nth form 0) "selection"))
+              (unless (and (= (sexp-count form) 4)
+                           (sexp-sym? (sexp-nth form 1))
+                           (name? (sexp-sym (sexp-nth form 1)))
+                           (sexp-sym? (sexp-nth form 2)))
+                (break
+                  :done
+                    (Err (problem form
+                                  "expected (selection Name Record first|(agree-any fields...))"))))
+              (let [name (sexp-sym (sexp-nth form 1))
+                    n (find-node schema (sexp-sym (sexp-nth form 2)))
+                    policy (sexp-nth form 3)
+                    first? (sexp-sym-is policy "first")
+                    (mut selected) (ArrayList::new [i64] a)]
+                (defer (free! (mut selected)))
+                (for prior names
+                  (when (= prior name)
+                    (break
+                      :done (Err (problem form "duplicate selection policy")))))
+                (when (< n 0)
+                  (break :done (Err (problem form "unknown selection record"))))
+                (let [node (elem (field schema nodes) n)]
+                  (when (.sum? node)
+                    (break
+                      :done (Err (problem form "selection needs a record"))))
+                  (unless first?
+                    (unless (and (sexp-list? policy)
+                                 (> (sexp-count policy) 1)
+                                 (sexp-sym-is (sexp-nth policy 0) "agree-any"))
+                      (break
+                        :done
+                          (Err (problem policy
+                                        "selection needs first or nonempty agree-any"))))
+                    (let [fields (field (elem (field node variants) 0) fields)]
+                      (for [j 1 (sexp-count policy)]
+                        (let [term (sexp-nth policy j)
+                              (mut found) -1]
+                          (unless (sexp-sym? term)
+                            (break
+                              :done
+                                (Err (problem term
+                                              "expected selection field name"))))
+                          (for [f 0 (len (load fields))]
+                            (when (sexp-sym-is term (.name (elem fields f)))
+                              (set! found f)))
+                          (when (< found 0)
+                            (break
+                              :done
+                                (Err (problem term "unknown selection field"))))
+                          (for prior selected
+                            (when (= prior found)
+                              (break
+                                :done
+                                  (Err (problem term
+                                                "duplicate selection field")))))
+                          (let [field (elem fields found)]
+                            (unless (and (scalar? (.type-name field))
+                                         (not (.many? field)))
+                              (break
+                                :done
+                                  (Err (problem term
+                                                "selection fields must be scalar")))))
+                          (push! (mut selected) found))))))
+                (when (= (len names) 0)
+                  (push-str! (mut b)
+                             "(import \"rewrite.selection\" :as selection)\n"))
+                (push! (mut names) name)
+                (push-str! (mut b) "(defn select-")
+                (push-str! (mut b) name)
+                (indexed! (mut b) " [(prior (Option N" n "Row)) (next N")
+                (indexed! (mut b) "" n "Row)] (-> (selection/Decision N")
+                (indexed! (mut b) "" n "Row)) ")
+                (if first?
+                    (push-str! (mut b)
+                               "(selection/Stop (match prior (Some [first] first) (None [] next))))\n")
+                    (do
+                      (push-str! (mut b)
+                                 "(match prior (None [] (selection/Continue next)) (Some [first] (if (or ")
+                      (for f selected
+                        (indexed! (mut b) "(= (.f" f " first) (.f")
+                        (indexed! (mut b) "" f " next)) "))
+                      (push-str! (mut b)
+                                 ") (selection/Continue first) (selection/Conflict first next)))))\n")))))))
+        (Ok (str (load b))))))

@@ -2,6 +2,7 @@
 (module rewrite.namespace)
 (import "rewrite.nameforms" :as forms)
 (import "rewrite.refer" :as refer)
+(import "rewrite.selection" :as selection)
 (import "rewrite.exportsearch" :as policy)
 (import "rewrite.searchruntime" :as search)
 (import "rewrite.sequence" :as sequence)
@@ -36,10 +37,13 @@
 
 (defsum QueryError (InvalidView))
 
+(defn release-edges! [(edges (mut (ArrayList Edge)))] (-> void)
+  (for [i 0 (len edges)]
+    (refer/release! (mut (.refer (elem (mut edges) i)))))
+  (free! (mut edges)))
+
 (defn release-module! [(module (mut Module))] (-> void)
-  (for [i 0 (len (.edges module))]
-    (refer/release! (mut (.refer (elem (mut (.edges module)) i)))))
-  (free! (mut (.edges module)))
+  (release-edges! (mut (.edges module)))
   (free! (mut (.exports module))))
 
 (defn release! [(view (mut View))] (-> void)
@@ -51,6 +55,41 @@
   (free! (mut (.declarations view)))
   (free! (mut (.aliases view)))
   (free! (mut (.modules view))))
+
+(defn compile-edges [(a (dyn Allocator))
+                     (store (ptr forms/Store))
+                     (sequence forms/N6Seq)]
+  (-> (Result (ArrayList Edge) Error))
+  (block
+    :done
+      (let [(mut edges) (ArrayList::new [forms/N6Id] a)
+            (mut output) (ArrayList::new [Edge] a)
+            (mut complete?) false]
+        (defer (free! (mut edges)))
+        (defer (unless complete? (release-edges! (mut output))))
+        (match (forms/sequence-materialize-6 a store sequence (mut edges))
+          (Ok [_])
+          (Err [e] (break :done (Err (Sequence e)))))
+        (for id edges
+          (let [edge
+                  (match (forms/lookup-6 (field store rows6) id)
+                    (Some [edge] edge)
+                    (None [] (break :done (Err (Row 6 (.index id))))))
+                refer
+                  (match (forms/refer-imports a store (.f1 edge))
+                    (Ok [refer] refer)
+                    (Err [e] (break :done (Err (Refer (.index id) e)))))]
+            (push! (mut output) (Edge :target (.f0 edge) :refer refer))))
+        (set! complete? true)
+        (Ok output))))
+
+(defn compile-uses [(a (dyn Allocator))
+                    (store (ptr forms/Store))
+                    (root forms/N9Id)]
+  (-> (Result (ArrayList Edge) Error))
+  (match (forms/lookup-9 (field store rows9) root)
+    (None [] (Err (Row 9 (.index root))))
+    (Some [row] (compile-edges a store (.f0 row)))))
 
 (defn compile-module [(a (dyn Allocator))
                       (store (ptr forms/Store))
@@ -64,31 +103,19 @@
                 :exports (HashMap::new [(slice u8) bool] a (keyops-borrowed))
                 :edges (ArrayList::new [Edge] a))
             (mut names) (ArrayList::new [forms/N0Id] a)
-            (mut edges) (ArrayList::new [forms/N6Id] a)
             (mut complete?) false]
         (defer (unless complete? (release-module! (mut module))))
         (defer (free! (mut names)))
-        (defer (free! (mut edges)))
         (match (forms/sequence-materialize-0 a store (.f2 row) (mut names))
-          (Ok [_])
-          (Err [e] (break :done (Err (Sequence e)))))
-        (match (forms/sequence-materialize-6 a store (.f3 row) (mut edges))
           (Ok [_])
           (Err [e] (break :done (Err (Sequence e)))))
         (for id names
           (match (forms/lookup-0 (field store rows0) id)
             (None [] (break :done (Err (Row 0 (.index id)))))
             (Some [name] (set! (mut (.exports module)) (.f0 name) true))))
-        (for id edges
-          (let [edge
-                  (match (forms/lookup-6 (field store rows6) id)
-                    (Some [edge] edge)
-                    (None [] (break :done (Err (Row 6 (.index id))))))
-                refer
-                  (match (forms/refer-imports a store (.f1 edge))
-                    (Ok [refer] refer)
-                    (Err [e] (break :done (Err (Refer (.index id) e)))))]
-            (push! (mut (.edges module)) (Edge :target (.f0 edge) :refer refer))))
+        (match (compile-edges a store (.f3 row))
+          (Err [e] (break :done (Err e)))
+          (Ok [edges] (set! (.edges module) edges)))
         (set! complete? true)
         (Ok module))))
 
@@ -237,3 +264,60 @@
                             (search/Query :owner module :name name)
                             depth
                             (mut stats))))
+
+(defsum UseError
+  (Export [(error (search/Failure QueryError))])
+  (Ambiguous [(first forms/N8Row) (next forms/N8Row)]))
+
+;;; Ordered use lookup. Candidates and errors borrow the view, edges and spelling.
+;;; Macro selection stops immediately; nominal selection compares with the first
+;;; successful witness, including the declared same-import-owner exception.
+(defn used [(a (dyn Allocator))
+            (view (ptr View))
+            (edges (ptr (ArrayList Edge)))
+            (name (slice u8))
+            (macro? bool)] (-> (Result (Option forms/N8Row) UseError))
+  (block
+    :done
+      (let [(mut prior) (None [forms/N8Row])
+            (mut stats) (search/Stats :expanded 0 :cached 0)]
+        (for [i 0 (len (load edges))]
+          (let [edge (elem edges i)]
+            (match (refer/referred (field edge refer) name)
+              (None [])
+              (Some [exported-name]
+                    (match (exported a
+                                     view
+                                     (.target edge)
+                                     exported-name
+                                     0
+                                     (mut stats))
+                      (Err [e] (break :done (Err (Export e))))
+                      (Ok [answer]
+                          (match answer
+                            (None [])
+                            (Some [target]
+                                  (let [candidate
+                                          (forms/N8Row
+                                            :f0 (.target edge)
+                                            :f1 exported-name
+                                            :f2 target)
+                                        decision
+                                          (if macro?
+                                              (forms/select-macro-use prior
+                                                                      candidate)
+                                              (forms/select-unique-use prior
+                                                                       candidate))]
+                                    (match decision
+                                      (selection/Stop [chosen]
+                                                      (break
+                                                        :done (Ok (Some chosen))))
+                                      (selection/Continue [chosen]
+                                                          (set! prior
+                                                                (Some chosen)))
+                                      (selection/Conflict [first next]
+                                                          (break
+                                                            :done
+                                                              (Err (Ambiguous first
+                                                                              next))))))))))))))
+        (Ok prior))))

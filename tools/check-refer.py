@@ -69,7 +69,7 @@ other = '''(module fixture.refer)
 records = []
 with tempfile.TemporaryDirectory(prefix='rewrite-refer-') as directory:
     work = Path(directory)
-    for name in ['types', 'scope', 'resolution', 'source', 'sequence', 'refer_runtime']:
+    for name in ['types', 'scope', 'resolution', 'source', 'sequence', 'refer_runtime', 'selection_runtime']:
         shutil.copyfile(ROOT/f'seed/{name}.coil', work/f'{name}.coil')
     (work/'Coil.toml').write_text('[package]\nname="fixture"\nentry="main.coil"\nsource-roots=["."]\n')
     for alternate, schema in [(False, base), (True, other)]:
