@@ -31,8 +31,14 @@
   ("i32" -2147483648 2147483647) ("u32" 0 4294967295)
   ("i64") ("u64") ("i128") ("u128"))
 
+(predicate float-type? [(type (slice u8))]
+  (or (= type "f32") (= type "f64")))
+
+(predicate numeric-type? [(type (slice u8))]
+  (or (float-type? type) (integer-result? type 0)))
+
 (predicate contextual-number? [(expr (ptr coil.reader.Sexp))]
-  (cond (int-literal? expr) true
+  (cond (or (int-literal? expr) (float-literal? expr)) true
         (match (sequence-expression expr) (Sequence [] true) (_ false))
         (and (> (coil.reader.sexp-count expr) 1)
              (contextual-number? (coil.reader.sexp-nth expr (- (coil.reader.sexp-count expr) 1))))
@@ -43,7 +49,9 @@
                 (_ false))))
 
 (judgment check-type [(type (ptr coil.reader.Sexp))]
-  (require (or (and (coil.reader.sexp-sym? type) (integer-result? (coil.reader.sexp-sym type) 0)) (coil.reader.sexp-sym-is type "bool"))
+  (require (and (coil.reader.sexp-sym? type)
+               (or (integer-result? (coil.reader.sexp-sym type) 0)
+                   (float-type? (coil.reader.sexp-sym type)) (coil.reader.sexp-sym-is type "bool")))
            type "unsupported type"))
 
 (derive synthesize
@@ -51,6 +59,10 @@
    (checked (mut Checked))
    (locals (coil.amap.AMap (slice u8) i64)) (expr (ptr coil.reader.Sexp))
    (expected Expectation)] (slice u8)
+  (when (float-literal? expr)
+    (with type (match expected (Expect [t] t) (_ "f64"))
+      (require (float-type? type) expr "floating literal requires a floating-point type")
+      (conclude type)))
   (when (int-literal? expr)
     (with type (match expected (Expect [t] t) (_ "i64"))
       (require (integer-result? type (coil.reader.sexp-int expr))
@@ -75,7 +87,7 @@
     ((Convert [type value])
       (prove (check-type type))
       (obtain source (check-expression signatures (mut checked) locals value (Infer))
-        (require (and (integer-result? source 0) (integer-result? (coil.reader.sexp-sym type) 0))
+        (require (and (numeric-type? source) (numeric-type? (coil.reader.sexp-sym type)))
                  expr "cast requires numeric operands")
         (conclude (coil.reader.sexp-sym type))))
     (_))
@@ -249,12 +261,12 @@
       (obtain t (check-expression signatures (mut checked) locals (coil.reader.sexp-nth expr seed) (Infer))
         (when (and (= seed 2) (= t "never"))
           (obtain receiver (check-expression signatures (mut checked) locals left (Infer))
-            (require (rewrite.operators.accepts? op (integer-result? receiver 0)
+            (require (rewrite.operators.accepts? op (float-type? receiver) (integer-result? receiver 0)
                        (= (get receiver 0) #\i) (= receiver "bool")) expr "operator does not accept this operand type")
             (each-child operand expr 3 position
               (prove (check-expression signatures (mut checked) locals operand (Expect receiver))))
             (conclude (if (rewrite.operators.boolean-result? op) "bool" receiver))))
-        (require (rewrite.operators.accepts? op (integer-result? t 0)
+        (require (rewrite.operators.accepts? op (float-type? t) (integer-result? t 0)
                    (= (get t 0) #\i) (= t "bool")) expr "operator does not accept this operand type")
         (each-child operand expr 1 position
           (when (!= position seed)

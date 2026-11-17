@@ -5,6 +5,7 @@
   (list (capture name symbol) (capture type _)))
 (extract nullary-call CallExpression Call NoCall
   (list (capture callee symbol)))
+(recognize float-literal? floating)
 (recognize int-literal? integer)
 (recognize true-literal? "true")
 (recognize false-literal? "false")

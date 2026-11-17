@@ -14,6 +14,8 @@
           (plain-test `(coil.reader.sexp-sym? ~node))
         (primitive/code-eq pattern `string)
           (plain-test `(coil.reader.sexp-str? ~node))
+        (primitive/code-eq pattern `floating)
+          (plain-test `(coil.reader.sexp-float? ~node))
         (primitive/code-eq pattern `integer)
           (plain-test `(coil.reader.sexp-int? ~node))
         (primitive/code-string? pattern)

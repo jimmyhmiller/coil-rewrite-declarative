@@ -1,28 +1,40 @@
-(Add "+" fold integer same (ir/add! (mut g) type left right))
-(Subtract "-" fold integer same (ir/sub! (mut g) type left right))
-(Negate "-" unary signed same (ir/neg! (mut g) type left))
-(NamedNegate "neg" unary signed same (ir/neg! (mut g) type left))
-(Multiply "*" fold integer same (ir/mul! (mut g) type left right))
+(Add "+" fold integer same (ir/add! (mut g) type left right)
+  (ir/fadd! (mut g) type left right))
+(Subtract "-" fold integer same (ir/sub! (mut g) type left right)
+  (ir/fsub! (mut g) type left right))
+(Negate "-" unary signed same (ir/neg! (mut g) type left)
+  (ir/fneg! (mut g) type left))
+(NamedNegate "neg" unary signed same (ir/neg! (mut g) type left)
+  (ir/fneg! (mut g) type left))
+(Multiply "*" fold integer same (ir/mul! (mut g) type left right)
+  (ir/fmul! (mut g) type left right))
 (BitAnd "&" fold integer same (ir/and! (mut g) type left right))
 (BitOr "|" fold integer same (ir/or! (mut g) type left right))
 (BitXor "^" fold integer same (ir/xor! (mut g) type left right))
 (Equal "=" binary scalar bool
   (if (= type ir/T-BOOL) (ir/not! (mut g) type (ir/xor! (mut g) type left right))
-      (ir/eq! (mut g) left right)))
+      (ir/eq! (mut g) left right))
+  (ir/feq! (mut g) left right))
 (NotEqual "!=" binary scalar bool
-  (if (= type ir/T-BOOL) (ir/xor! (mut g) type left right) (ir/ne! (mut g) left right)))
+  (if (= type ir/T-BOOL) (ir/xor! (mut g) type left right) (ir/ne! (mut g) left right))
+  (ir/fne! (mut g) left right))
 (Less "<" binary integer bool
-  (if (ir/type-signed? type) (ir/lt! (mut g) left right) (ir/ult! (mut g) left right)))
+  (if (ir/type-signed? type) (ir/lt! (mut g) left right) (ir/ult! (mut g) left right))
+  (ir/flt! (mut g) left right))
 (LessEqual "<=" binary integer bool
-  (if (ir/type-signed? type) (ir/le! (mut g) left right) (ir/ule! (mut g) left right)))
+  (if (ir/type-signed? type) (ir/le! (mut g) left right) (ir/ule! (mut g) left right))
+  (ir/fle! (mut g) left right))
 (Greater ">" binary integer bool
-  (if (ir/type-signed? type) (ir/lt! (mut g) right left) (ir/ult! (mut g) right left)))
+  (if (ir/type-signed? type) (ir/lt! (mut g) right left) (ir/ult! (mut g) right left))
+  (ir/flt! (mut g) right left))
 (GreaterEqual ">=" binary integer bool
-  (if (ir/type-signed? type) (ir/le! (mut g) right left) (ir/ule! (mut g) right left)))
+  (if (ir/type-signed? type) (ir/le! (mut g) right left) (ir/ule! (mut g) right left))
+  (ir/fle! (mut g) right left))
 (ShiftLeft "<<" binary integer same (ir/shl! (mut g) type left right))
 (ShiftRight ">>" binary integer same
   (if (ir/type-signed? type) (ir/sar! (mut g) type left right) (ir/shr! (mut g) type left right)))
 (Divide "/" fold integer same
-  (if (ir/type-signed? type) (ir/sdiv! (mut g) type left right) (ir/udiv! (mut g) type left right)))
+  (if (ir/type-signed? type) (ir/sdiv! (mut g) type left right) (ir/udiv! (mut g) type left right))
+  (ir/fdiv! (mut g) type left right))
 (Remainder "%" binary integer same
   (if (ir/type-signed? type) (ir/srem! (mut g) type left right) (ir/urem! (mut g) type left right)))

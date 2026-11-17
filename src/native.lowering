@@ -23,6 +23,8 @@
    (locals (hm/HashMap i64 i32))])
 
 (translate machine-type [(type (slice u8)) (at (ptr Sexp))] (Result i32 Diag)
+  (where (= type "f32") (yield (Ok ir/T-F32)))
+  (where (= type "f64") (yield (Ok ir/T-F64)))
   (where (= type "i64") (yield (Ok ir/T-I64)))
   (where (= type "u64") (yield (Ok ir/T-U64)))
   (where (= type "i32") (yield (Ok ir/T-I32)))
@@ -37,8 +39,29 @@
   (otherwise (yield (Err (mk-diag-src (.source at) (.lo at) (.hi at)
                                       "type has no native representation yet")))))
 
-(translate convert-integer [(g (mut graph/Graph)) (value i32) (source i32) (target i32)] i32
+(translate float-literal-bits [(bits i64) (type i32)] u64
+  (where (= type ir/T-F32)
+    (yield (let [(mut wide) bits
+                 (mut narrow) (cast f32 (load (cast (ptr f64) (mut wide))))]
+             (cast u64 (load (cast (ptr u32) (mut narrow)))))))
+  (otherwise (yield (cast u64 bits))))
+
+(translate convert-number [(g (mut graph/Graph)) (value i32) (source i32) (target i32)] i32
   (where (= source target) (yield value))
+  (where (and (ir/type-float? source) (ir/type-float? target))
+    (yield (if (= target ir/T-F32) (ir/ftrunc! (mut g) target value) (ir/fext! (mut g) target value))))
+  (where (and (ir/type-float? source) (< (ir/type-bits target) 32))
+    (bind wide (cast i32 (if (ir/type-signed? target) ir/T-I32 ir/T-U32)))
+    (bind converted (convert-number (mut g) value source wide))
+    (yield (ir/trunc! (mut g) target converted)))
+  (where (and (ir/type-float? target) (< (ir/type-bits source) 32))
+    (bind wide (cast i32 (if (ir/type-signed? source) ir/T-I32 ir/T-U32)))
+    (bind extended (convert-number (mut g) value source wide))
+    (yield (convert-number (mut g) extended wide target)))
+  (where (ir/type-float? source)
+    (yield (if (ir/type-signed? target) (ir/ftosi! (mut g) target value) (ir/ftoui! (mut g) target value))))
+  (where (ir/type-float? target)
+    (yield (if (ir/type-signed? source) (ir/sitof! (mut g) target value) (ir/uitof! (mut g) target value))))
   (where (= (ir/type-bits source) (ir/type-bits target)) (yield (ir/bitcast! (mut g) target value)))
   (where (> (ir/type-bits source) (ir/type-bits target)) (yield (ir/trunc! (mut g) target value)))
   (where (ir/type-signed? source) (yield (ir/sext! (mut g) target value)))
@@ -80,6 +103,8 @@
   [(f (mut Frame)) (im (mut image/Image))
    (signatures modules/Lookup)
    (expr (ptr Sexp)) (expected i32)] (Result i32 Diag)
+  (on (.kind expr) (KFloat [bits])
+    (yield (Ok (nodes/literal (mut (.g f)) expected (float-literal-bits bits expected)))))
   (where (int-literal? expr)
     (yield (Ok (nodes/literal (mut (.g f)) expected (cast u64 (sexp-int expr))))))
   (where (true-literal? expr) (yield (Ok (nodes/literal (mut (.g f)) ir/T-BOOL 1))))
@@ -96,7 +121,7 @@
     (yield (lower-expression (mut f) (mut im) signatures value)))
   (on (numeric-cast expr) (Convert [_ value])
     (need operand (lower-expression (mut f) (mut im) signatures value) (< (.control f) 0))
-    (yield (Ok (convert-integer (mut (.g f)) operand (graph/ty (.g f) operand) expected))))
+    (yield (Ok (convert-number (mut (.g f)) operand (graph/ty (.g f) operand) expected))))
   (on (local-bindings expr) (Bindings [pairs])
     (walk-pairs name init pairs
       (need value (lower-expression (mut f) (mut im) signatures init) (< (.control f) 0))
