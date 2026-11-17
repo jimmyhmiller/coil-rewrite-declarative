@@ -1,0 +1,10 @@
+(syntax Expr
+  (Integer (int value))
+  (Boolean (bool value))
+  (Variable (symbol name))
+  (Add (list "+" (ref left) (ref right)))
+  (Choose (list "if" (ref condition) (ref yes) (ref no)))
+  (Let (list "let" (vector (symbol name) (ref value)) (ref body)))
+  (Call (list (ref callee) (ref argument))))
+(syntax Function
+  (Function (list "defn" (symbol name) (vector (list (symbol parameter) "i64")) (list "->" "i64") (ref body))))

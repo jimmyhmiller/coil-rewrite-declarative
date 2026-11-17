@@ -1,0 +1,5 @@
+(defn entry [(n i64)] (-> i64)
+  (let [f inc]
+    (if false 0 (f n))))
+(defn inc [(x i64)] (-> i64)
+  (+ x 1))

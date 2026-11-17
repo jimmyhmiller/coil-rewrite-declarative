@@ -41,3 +41,9 @@ Next baseline work: classify production source and embedded generated regions pr
 The installed compiler identifies itself as `coil 0.1.0 (commit de1f0fdeb823, 2026-11-15)` and uses `/Users/jimmyhmiller/.cargo/lib/coil/stdlib`. This differs from the pinned source-inventory revision. Current measurements are exploratory and cannot serve as the final matched-revision baseline. RSS is sampled process-group sum, not exact peak physical memory; OS caches are not flushed. A finalized baseline must also pin/hash the installed stdlib and relevant environment/settings.
 
 The initial source trace is in contracts/phases-and-backend.md. Pending contracts there are explicit implementation prerequisites.
+
+## Surface syntax checkpoint
+
+Schema-driven patterns now parse unary i64 `defn`, integer/boolean literals, symbols, calls, single-binding `let`, `if`, and binary `+` directly into generated rows with original source spans. `tests/surface-program.coil.in` is executed by both the rewrite and installed Coil as an exploratory comparison. It does not establish the full language or a matched-revision baseline.
+
+Open discrepancy: `tests/surface-function-value-gap.coil.in` is accepted by the prototype and rejected by installed Coil, because the prototype conflates function designators with first-class function-pointer values. `tools/check-lowering.py` explicitly reports the mismatch. A generic expression-category mechanism is needed in typing and elaboration; a passing legal-source fixture must not hide it.

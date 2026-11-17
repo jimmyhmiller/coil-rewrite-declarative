@@ -3,6 +3,7 @@
 (import "rewrite.emit" :as emit)
 (import "rewrite.index" :as index)
 (import "rewrite.readers" :as readers)
+(import "rewrite.syntax" :as syntax)
 (import "rewrite.judgment" :as judgment)
 (import "rewrite.lower" :as lower)
 (import "rewrite.program" :as program)
@@ -21,7 +22,7 @@
        (sexp-sym-is (sexp-nth form 0) "judgment")))
 
 (def compiler-phases
-  "(phases\n (input schema Schema)\n (phase program (needs (readers ReaderAPI) (indexes IndexAPI) (judgments JudgmentAPI) (lowering CIRAPI)) (makes (program ProgramAPI)))\n (phase readers (needs (tables Tables)) (makes (readers ReaderAPI)))\n (phase indexes (needs (tables Tables)) (makes (indexes IndexAPI)))\n (phase judgment (needs (tables Tables)) (makes (judgments JudgmentAPI)))\n (phase lower (needs (tables Tables)) (makes (lowering CIRAPI)))\n (phase tables (needs (schema Schema)) (makes (tables Tables))))")
+  "(phases\n (input schema Schema)\n (phase program (needs (surface SurfaceAPI) (readers ReaderAPI) (indexes IndexAPI) (judgments JudgmentAPI) (lowering CIRAPI)) (makes (program ProgramAPI)))\n (phase syntax (needs (readers ReaderAPI)) (makes (surface SurfaceAPI)))\n (phase readers (needs (tables Tables)) (makes (readers ReaderAPI)))\n (phase indexes (needs (tables Tables)) (makes (indexes IndexAPI)))\n (phase judgment (needs (tables Tables)) (makes (judgments JudgmentAPI)))\n (phase lower (needs (tables Tables)) (makes (lowering CIRAPI)))\n (phase tables (needs (schema Schema)) (makes (tables Tables))))")
 
 (defn compile-stage [(a (dyn Allocator))
                      (sp (ptr schema/Schema))
@@ -33,6 +34,7 @@
                 (= stage "readers")
                 (= stage "indexes")
                 (= stage "judgment")
+                (= stage "syntax")
                 (= stage "lower")
                 (= stage "program"))
       (break
@@ -50,6 +52,26 @@
             :else
               (for [i 0 (len (load forms))]
                 (let [form (elem forms i)]
+                  (when (and (= stage "syntax")
+                             (sexp-list? form)
+                             (> (sexp-count form) 0)
+                             (sexp-sym-is (sexp-nth form 0) "syntax"))
+                    (for [j 0 i]
+                      (let [previous (elem forms j)]
+                        (when (and (sexp-list? previous)
+                                   (>= (sexp-count previous) 2)
+                                   (>= (sexp-count form) 2)
+                                   (sexp-sym? (sexp-nth form 1))
+                                   (sexp-sym-is (sexp-nth previous 0) "syntax")
+                                   (sexp-sym-is (sexp-nth previous 1)
+                                                (sexp-sym (sexp-nth form 1))))
+                          (break
+                            :done
+                              (Err (schema/problem form
+                                                   "duplicate syntax declaration"))))))
+                    (match (syntax/compile-one a sp forms form)
+                      (Err [d] (break :done (Err d)))
+                      (Ok [text] (push-str! (mut output) text))))
                   (when (and (= stage "program")
                              (sexp-list? form)
                              (> (sexp-count form) 0)

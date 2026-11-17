@@ -188,3 +188,26 @@ The program compiler uses this contract to order its registration, all-body chec
 Representation names are checked nominal labels, not proofs that a phase implementation fulfills its contract. Stage implementations and their mapping to artifact storage remain trusted and handwritten; consumers reject unknown stage implementations. These plans describe finite single-assignment artifacts. They do not model mutation, capabilities, effects, failure recovery, dynamic discovery, expansion fixpoints, invalidation, cache identity, or typed artifact ownership. Those require further language mechanisms before this can represent Coil's full frontend protocol. Independent side effects must not be hidden in phases and assumed to be ordered merely by a ready-queue tie break.
 
 Planner storage belongs to the supplied arena, including failed plans, and returned phase names borrow the contract text. `tests/phases.coil` checks reverse-declared dependencies, independent roots joining with multiple prerequisite edges, input-only plans, malformed contracts, absent/multiple producers, representation mismatch, duplicate phases, and self/mutual cycles. It runs in debug, debug-checks, and release as part of `tools/check-seed.py`; the native suite checks the generated program client.
+
+Schema-checked source patterns now construct the same rows as constructor readers:
+
+```
+(syntax Expr
+  (Integer (int value))
+  (Boolean (bool value))
+  (Variable (symbol name))
+  (Add (list "+" (ref left) (ref right)))
+  (Choose (list "if" (ref condition) (ref yes) (ref no)))
+  (Let (list "let" (vector (symbol name) (ref value)) (ref body)))
+  (Call (list (ref callee) (ref argument))))
+```
+
+`int`, `bool`, `text`, and `symbol` capture schema scalar fields; `ref` recursively invokes the referenced schema's surface parser. `list` and `vector` describe exact container shape, and a literal string in a pattern matches a source symbol. Every schema field must be captured exactly once with the right type; capture order may differ from schema field order. Every constructor currently needs one rule. Referenced schemas must declare syntax. Rules generate `surface-N(store, form)` functions; constructor `parse-N` functions remain available.
+
+Root dispatch is ordered and committing. A literal-headed list rule claims that head before checking arity, so malformed `if` cannot fall through as a generic call. Scalar and container checks produce source diagnostics. Broader roots that would hide later rules are rejected, including symbols preceding booleans and a generic list preceding a literal-headed rule. Root references are rejected: recursion must consume a container before descending. This is not a backtracking PEG or a token grammar; it consumes `coil.reader` forms. Repetition, optional fields, multiple productions per constructor, quoting, arbitrary reader extensions, and full Coil syntax remain absent.
+
+Generated readers validate shape and scalar captures before recursively constructing fields. They append children before parents and retain the original Sexp for every row, including original source ID and span. They do not serialize or rewrite input text. As with constructor readers, a failed parse may retain previously appended children; release the input store/arena on failure if atomicity is required.
+
+`tests/schemas/surface.syntax` also describes unary i64 `defn` with its parameter vector and result annotation. Native tests exercise calls, lets, conditionals, invalid syntax, source origins, and wrong-type rejection. `tests/syntax.coil.in` is an independent record/vector client with reversed field order. The legal source in `tests/surface-program.coil.in` executes through both the rewrite and installed Coil in all three host configurations. The installed compiler is an exploratory reference, not the pinned final compatibility baseline.
+
+**Open semantic mismatch:** `tests/surface-function-value-gap.coil.in` binds a global function name directly to a local value. The prototype accepts it; current Coil rejects it and requires explicit pointer construction. The harness preserves and reports this mismatch. Canonical function types currently conflate function designators and first-class values; expression categories must become part of the judgment language before this slice can claim Coil compatibility. The project pad records the reproduction. Do not interpret the legal-source comparison as resolving this gap.

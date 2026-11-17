@@ -16,14 +16,14 @@
 (import "coil.cc" :as cc)
 (import "declarative.rt.jit" :as jit)
 (import "declarative.rt.image" :as image)
-(defn check [(text (slice u8)) (expected i64)] (-> bool)
+(defn check-with [(text (slice u8)) (expected i64) (surface? bool)] (-> bool)
   (let [(mut arena) (zeroed ScratchArena) initialized (init (mut arena) (malloc-allocator))
         a (allocator (mut arena)) (mut store) (store-new a) (mut ids) (ArrayList::new [N1Id] a)
         ok (block :done
           (match (read-all a text 0)
             (Err [_] (break :done false))
             (Ok [forms] (for [i 0 (len (load forms))]
-              (match (parse-1 (mut store) (elem forms i))
+              (match (if surface? (surface-1 (mut store) (elem forms i)) (parse-1 (mut store) (elem forms i)))
                 (Err [_] (break :done false)) (Ok [id] (push! (mut ids) id))))))
           (match (compile-program a (mut store) (mut ids))
                 (Err [e] (match e
@@ -37,6 +37,30 @@
                     (jit/unload! loaded)
                     (= value expected)))))]
     (store-free! (mut store)) (free! (mut ids)) (close! (mut arena)) ok))
+(defn check [(text (slice u8)) (expected i64)] (-> bool) (check-with text expected false))
+(defn surface-error [(text (slice u8)) (message (slice u8))] (-> bool)
+  (let [arena (arena-new 1048576) a (arena-view arena) (mut store) (store-new a)
+        ok (match (read-all a text 71)
+          (Err [_] false)
+          (Ok [forms] (match (surface-0 (mut store) (elem forms 0))
+            (Ok [_] false)
+            (Err [d] (and (= (.msg d) message) (= (.source d) 71)
+                         (>= (.lo d) 0) (<= (.hi d) (len text)))))))]
+    (store-free! (mut store)) (arena-release! arena) ok))
+(defn surface-origins [] (-> bool)
+  (let [arena (arena-new 1048576) a (arena-view arena) (mut store) (store-new a)
+        ok (match (read-all a "(let [x 40] (+ x 2))" 73)
+          (Err [_] false)
+          (Ok [forms] (let [form (elem forms 0)]
+            (match (surface-0 (mut store) form)
+              (Err [_] false)
+              (Ok [id] (let [origin (elem (mut (.origins0 store)) (.index id))
+                             initializer (sexp-nth (sexp-nth form 1) 1)
+                             first (elem (mut (.origins0 store)) 0)]
+                (and (= (len (.origins0 store)) (len (.rows0 store)))
+                     (= (.lo origin) (.lo form)) (= (.hi origin) (.hi form))
+                     (= (.source origin) 73) (= (.lo first) (.lo initializer)) (= (.hi first) (.hi initializer)))))))))]
+    (store-free! (mut store)) (arena-release! arena) ok))
 ; A large global environment must not become a large per-function CIR prelude.
 (defn sparse-symbols [(text (slice u8)) (parameter (slice u8)) (expected i64)] (-> bool)
   (let [(mut arena) (zeroed ScratchArena) initialized (init (mut arena) (malloc-allocator))
@@ -76,6 +100,15 @@
       (and correct (= count expected)))))
 (defn main [] (-> i64)
   (if (and
+    (surface-origins)
+    (surface-error "(+ 1)" "wrong syntax arity")
+    (surface-error "(if true 1)" "wrong syntax arity")
+    (surface-error "(let [1 2] 3)" "wrong syntax scalar")
+    (surface-error "(let (x 2) x)" "wrong syntax container")
+    (surface-error "(let [x 1 y 2] x)" "wrong syntax arity")
+    (check-with "(defn main [(n i64)] (-> i64) (inc n)) (defn inc [(x i64)] (-> i64) (+ x 1))" 42 true)
+    (check-with "(defn main [(n i64)] (-> i64) (let [inc inc] (if false 0 (inc n)))) (defn inc [(x i64)] (-> i64) (+ x 1))" 42 true)
+    (check-with "(defn main [(n i64)] (-> i64) (if true n false))" 2 true)
     (sparse-symbols "(Add (Variable \"x\") (Integer 1))" "x" 0)
     (sparse-symbols "(Add (Variable \"f1999\") (Integer 1))" "f1999" 0)
     (sparse-symbols "(Choose (Boolean true) (Call (Variable \"f1999\") (Variable \"x\")) (Call (Variable \"f1999\") (Variable \"x\")))" "x" 2)

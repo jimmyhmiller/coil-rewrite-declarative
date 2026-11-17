@@ -129,3 +129,32 @@ for source, diagnostic in [
     result = subprocess.run([str(ROOT/'build/schema-seed')], input=source, capture_output=True)
     assert result.returncode != 0 and not result.stdout and diagnostic in result.stderr, result
 print('Schema keys: content lookup, growth, subset identity, duplicate provenance and rejection passed')
+
+with tempfile.TemporaryDirectory(prefix='rewrite-syntax-') as directory:
+    work = Path(directory)
+    for name in ['types', 'scope']:
+        shutil.copyfile(ROOT/'seed'/f'{name}.coil', work/f'{name}.coil')
+    (work/'Coil.toml').write_text('[package]\nname="fixture"\nentry="main.coil"\nsource-roots=["."]\n')
+    source = b'(node Pair (first Text) (second Int)) (syntax Pair (Pair (vector (int second) (text first))))'
+    (work/'generated.coil').write_bytes(subprocess.check_output([str(ROOT/'build/schema-seed')], input=source))
+    (work/'main.coil').write_text((ROOT/'tests/syntax.coil.in').read_text())
+    for flags in [[], ['--debug-checks'], ['--release']]:
+        subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)
+source = ((ROOT/'tests/schemas/lowering.schema').read_bytes()
+          + b'\n(node Function (name Text :key) (parameter Text) (body Expr))\n'
+          + (ROOT/'tests/schemas/surface.syntax').read_bytes())
+for invalid, diagnostic in [
+    (source + b'(syntax Expr (Integer (int value)))', b'duplicate syntax declaration'),
+    (source.replace(b'(int value)', b'(int missing)'), b'unknown syntax field'),
+    (source.replace(b'(int value)', b'(text value)'), b'capture type disagrees'),
+    (source.replace(b'(ref left)', b'(ref right)'), b'captured more than once'),
+    (source.replace(b'(ref right)', b''), b'capture every schema field'),
+    (source.replace(b'(int value)', b'(ref value)'), b'root must consume'),
+    (source.replace(b'(list "+"', b'(list'), b'shadowed by an earlier root'),
+    (source.replace(b'(list "if"', b'(list "+"'), b'shadowed by an earlier root'),
+    (source.replace(b'  (Boolean (bool value))', b''), b'exactly one syntax rule'),
+    (source[:source.index(b'(syntax Expr')] + source[source.index(b'(syntax Function'):], b'referenced schema needs a syntax declaration'),
+]:
+    result = subprocess.run([str(ROOT/'build/schema-seed')], input=invalid, capture_output=True)
+    assert result.returncode != 0 and not result.stdout and diagnostic in result.stderr, result
+print('Typed syntax: record construction, reordered captures and malformed/ambiguous definitions passed')
