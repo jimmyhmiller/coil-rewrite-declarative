@@ -301,6 +301,7 @@
 (translate lower-function
   [(a (dyn Allocator)) (im (mut image/Image))
    (signatures modules/Lookup) (checked checker/Checked) (form (ptr Sexp))] (Result i64 Diag)
+  (on (primitive-header form) (Primitive [_]) (yield (Ok 0)))
   (on (modules/type-name form) (Some [_]) (yield (Ok 0)))
   (where (static-definition? form)
     (choose

@@ -97,3 +97,6 @@
 (extract declared-convention DeclaredConvention Convention NoConvention
   (list (spellings "defn" "defn*" "extern") symbol (keyword "cc") (list (capture name symbol)) ...)
   (list "extern" symbol (keyword "as") string (keyword "cc") (list (capture name symbol)) ...))
+
+(extract primitive-header PrimitiveHeader Primitive NoPrimitive
+  (list "defprimitive" (capture name symbol) ...))

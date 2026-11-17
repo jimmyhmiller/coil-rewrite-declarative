@@ -43,7 +43,9 @@
 (value declaration-name [(form (ptr coil.reader.Sexp))] (Option (ptr coil.reader.Sexp))
   (match (constant-declaration form)
     (Constant [name _] (Some name))
-    (_ (match (callable form) (Function [_ name _ _] (Some name)) (_ (None [(ptr coil.reader.Sexp)]))))))
+    (_ (match (primitive-header form)
+         (Primitive [name] (Some name))
+         (_ (match (callable form) (Function [_ name _ _] (Some name)) (_ (None [(ptr coil.reader.Sexp)]))))))))
 
 (predicate external? [(form (ptr coil.reader.Sexp))]
   (match (foreign-signature form) (External [_ _ _] true) (_ false)))

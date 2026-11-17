@@ -66,6 +66,13 @@ run_both() {
         }
     done
 }
+run_both 42 '(module app) (import "coil.primitive" :as p) (defn main [] (-> i64) (p/iadd (p/imul 5 8) (p/isub 8 6)))'
+run_both 42 '(module app) (import "coil.primitive" :use [fcmp-le fadd]) (defn main [] (-> i64) (if (fcmp-le (fadd 1.5 2.0) 3.5) 42 7))'
+run_both 42 '(module app) (module custom) (export combine) (defprimitive combine :ixor) (module app) (import "custom" :as c) (defn main [] (-> i64) (c/combine 40 2))'
+compare 1 '(module app) (import "coil.primitive" :as p) (defn main [] (-> i64) (p/iadd 1 2 3))'
+compare 1 '(module app) (import "coil.primitive" :as p) (defn main [] (-> bool) (p/icmp-eq true false))'
+compare 1 '(module app) (defprimitive add iadd)'
+run_both 42 '(defstruct Syntax [(code Code)]) (defsum Source (At [(syntax Syntax)])) (defn main [] (-> i64) 42)'
 run_both 42 '(defn main [] (-> i64) (identity (identity 42))) (defn identity [(x i64)] (-> i64) x)'
 run_both 42 '(defn main [] (-> i64) (+ \space \newline))'
 run_both 42 '(defn main [] (-> i64) (if (= (scale 3.5) 7.5) 42 1)) (defn scale [(x f32)] (-> f32) (+ (* 2.0 x) 0.5))'

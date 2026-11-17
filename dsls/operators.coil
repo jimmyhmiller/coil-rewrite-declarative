@@ -11,24 +11,32 @@
   (let [forms (p/code-read (get ctx 2) `(reader-config))
         variants (p/code-list-new)
         lookup (p/code-list-new)
+        primitives (p/code-list-new)
         emit (p/code-list-new)
         predicates (p/code-list-new)
         arguments (p/code-list-new)]
     (for [i 1 (p/code-count forms)]
-      (let [row (get forms i)]
-        (when (not (or (= (p/code-count row) 6) (= (p/code-count row) 7)))
+      (let [row (get forms i)
+            last (get row (- (p/code-count row) 1))
+            has-primitives (and (p/code-list? last) (> (p/code-count last) 0) (p/code-eq (get last 0) `primitives))
+            size (- (p/code-count row) (if has-primitives 1 0))]
+        (when (not (or (= size 6) (= size 7)))
           (p/error "expected (name spelling arity domain result graph-expression [float-graph-expression])"))
         (let [name (get row 0)
               spelling (get row 1)
               arity (get row 2)
               domain (get row 3)
               result (get row 4)
-              floats? (= (p/code-count row) 7)
+              floats? (= size 7)
               arity-test
                 (cond (p/code-eq arity `unary) `(= argc 1)
                       (p/code-eq arity `binary) `(= argc 2)
                       (p/code-eq arity `fold) `(>= argc 2)
                       :else (do (p/error "unknown operator arity") `false))]
+          (when has-primitives
+            (for [j 1 (p/code-count last)]
+              (p/code-list-push! primitives `(= opcode ~(get last j)))
+              (p/code-list-push! primitives `(Some (~name)))))
           (p/code-list-push! variants `(~name))
           (p/code-list-push! lookup `(and (= spelling ~spelling) ~arity-test))
           (p/code-list-push! lookup `(Some (~name)))
@@ -60,6 +68,8 @@
                                    (-> (Option Operator))
                                    (cond ~@(p/code-list-done lookup) :else
                                          (None [Operator])))
+                                 (defn primitive-operator [(opcode (slice u8))] (-> (Option Operator))
+                                   (cond ~@(p/code-list-done primitives) :else (None [Operator])))
                                  (defn boolean-result? [(op Operator)] (-> bool)
                                    (match op ~@(p/code-list-done predicates)))
                                  (defn accepts? [(op Operator)
