@@ -3,9 +3,9 @@
   "caveats": "Physical lines include comments and blanks. Templates count as authored source. This is not a code-only LOC count or a complete toolchain reduction claim. Host Coil/stdlib bootstrap dependencies are not vendored or included. Generated seed output is ephemeral and not included; retained generated backend is separate.",
   "totals": {
     "authored-seed-and-runtime": {
-      "files": 15,
-      "bytes": 145184,
-      "physical_lines": 2613
+      "files": 16,
+      "bytes": 150451,
+      "physical_lines": 2673
     },
     "retained-authored-machinery-and-specifications": {
       "files": 161,
@@ -29,13 +29,13 @@
     },
     "rewrite-build-and-validation-tools": {
       "files": 7,
-      "bytes": 34508,
-      "physical_lines": 592
+      "bytes": 35821,
+      "physical_lines": 610
     },
     "rewrite-tests-and-fixtures": {
-      "files": 23,
-      "bytes": 45788,
-      "physical_lines": 870
+      "files": 24,
+      "bytes": 51162,
+      "physical_lines": 956
     }
   },
   "files": [
@@ -49,8 +49,8 @@
     {
       "path": "seed/README.md",
       "category": "authored-seed-and-runtime",
-      "sha256": "c63f1395071f246c2a0392af069f2eb4f1a18832b50164233806ce95c3097853",
-      "bytes": 33798,
+      "sha256": "778c22eb3e748db3281031591db5ef41c1d9d316d3372bb7d3c19d7f40660beb",
+      "bytes": 34688,
       "physical_lines": 253
     },
     {
@@ -105,9 +105,9 @@
     {
       "path": "seed/readers.coil",
       "category": "authored-seed-and-runtime",
-      "sha256": "e3b4fd73429ca9ae837ae0befd617a55208433ba6863a64c6f00c60f055eb59b",
-      "bytes": 6111,
-      "physical_lines": 128
+      "sha256": "d397ce46408097e4bf44a76d96f24f9a881f61374a3661c43d47504a2444501b",
+      "bytes": 6866,
+      "physical_lines": 129
     },
     {
       "path": "seed/schema.coil",
@@ -124,18 +124,25 @@
       "physical_lines": 55
     },
     {
+      "path": "seed/source.coil",
+      "category": "authored-seed-and-runtime",
+      "sha256": "090c81a0015f5a4941deb45e3dc8ff582b33cd4da97296cde4e3454979dad640",
+      "bytes": 3492,
+      "physical_lines": 68
+    },
+    {
       "path": "seed/syntax.coil",
       "category": "authored-seed-and-runtime",
-      "sha256": "6fb29078cf3c3ddb404e9d85fbd336c134b4b23d166e2c4af80b775c8fe7513d",
-      "bytes": 13974,
-      "physical_lines": 311
+      "sha256": "82f4b6e8e427f101ec13f7c79993d05e86d24d5fb9eb5fcc85466a3322e90399",
+      "bytes": 14147,
+      "physical_lines": 312
     },
     {
       "path": "seed/transform.coil",
       "category": "authored-seed-and-runtime",
-      "sha256": "03d1019f0b09a9e02d2e153a2a127e055f6df829fd6bc4b1111dd79300872390",
-      "bytes": 15044,
-      "physical_lines": 323
+      "sha256": "742c03565720b2d93e3001318193740799374237898bae6b9b10ce5173639825",
+      "bytes": 15001,
+      "physical_lines": 313
     },
     {
       "path": "seed/types.coil",
@@ -285,11 +292,18 @@
       "physical_lines": 18
     },
     {
+      "path": "tests/transform-owned.coil.in",
+      "category": "rewrite-tests-and-fixtures",
+      "sha256": "3790f8b1837309fb21e87bd564ba50362bdf092db793d276170cb234ea9ce9f1",
+      "bytes": 4098,
+      "physical_lines": 69
+    },
+    {
       "path": "tests/transform.coil.in",
       "category": "rewrite-tests-and-fixtures",
-      "sha256": "94d2696cdb4ec14e794b019e6df592d2d403b8c93492b5cb5e0c5a8a193e61a3",
-      "bytes": 5585,
-      "physical_lines": 92
+      "sha256": "a52be6333d3af6ce8d62a1947142b08cc69d1ca5a6c6168828f15b769176ae25",
+      "bytes": 6861,
+      "physical_lines": 109
     },
     {
       "path": "tests/types.coil",
@@ -315,16 +329,16 @@
     {
       "path": "tools/check-lowering.py",
       "category": "rewrite-build-and-validation-tools",
-      "sha256": "084c35a4d5e04630fcbe34dd71ff1859dc3f01b462558171939d91b196337a11",
-      "bytes": 7894,
-      "physical_lines": 107
+      "sha256": "eb821a6b9ec95227700c61a7af17015cf39f591286cce0e63ca25d08ddd93ab9",
+      "bytes": 7959,
+      "physical_lines": 108
     },
     {
       "path": "tools/check-seed.py",
       "category": "rewrite-build-and-validation-tools",
-      "sha256": "1bae1a70c58bd150548bcf44cf6a3462d63264e7d2f797c0094b74d9fc70a62b",
-      "bytes": 13119,
-      "physical_lines": 184
+      "sha256": "3104d6e7ea49e3557746e0c02c66ab1f9f0f912b23c13b52d41e4b7b78681250",
+      "bytes": 14367,
+      "physical_lines": 201
     },
     {
       "path": "tools/count-rewrite.py",

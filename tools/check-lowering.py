@@ -15,6 +15,7 @@ with tempfile.TemporaryDirectory(prefix='rewrite-lowering-') as directory:
     (work/'Coil.toml').write_text('[package]\nname = "fixture"\nentry = "main.coil"\nsource-roots = '+json.dumps(roots)+'\n')
     shutil.copyfile(ROOT/'seed/types.coil', work/'types.coil')
     shutil.copyfile(ROOT/'seed/scope.coil', work/'scope.coil')
+    shutil.copyfile(ROOT/'seed/source.coil', work/'source.coil')
     shutil.copyfile(ROOT/'runtime/native.coil', work/'native.coil')
     (work/'generated.coil').write_bytes(subprocess.check_output([str(ROOT/'build/schema-seed')], input=(ROOT/'tests/schemas/lowering.schema').read_bytes()))
     rng = random.Random(90210)

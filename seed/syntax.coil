@@ -273,6 +273,7 @@
                         (push-str! (mut b)
                                    ") (Ok [id] id) (Err [d] (break :parsed (Err d)))) "))
                       (do
+                        (when (or (= mode "text") (= mode "symbol")) (push-str! (mut b) "(store-text! (mut store) "))
                         (push-str! (mut b)
                                    (cond (= mode "int") "(sexp-int "
                                          (= mode "text") "(sexp-str "
@@ -280,7 +281,7 @@
                                          :else "(sexp-sym-is "))
                         (push-str! (mut b) path)
                         (when (= mode "bool") (push-str! (mut b) " \"true\""))
-                        (push-str! (mut b) ") ")))))
+                        (push-str! (mut b) (if (or (= mode "text") (= mode "symbol")) ")) " ") "))))))
               (push-str! (mut b) "id (append-")
               (number! (mut b) ni)
               (push-str! (mut b) " (mut (.rows")
@@ -299,7 +300,7 @@
               (push-str! (mut b) "))] (push! (mut (.origins")
               (number! (mut b) ni)
               (push-str! (mut b)
-                         " store)) (load form)) (break :parsed (Ok id)))) "))))
+                         " store)) (origin-of form)) (break :parsed (Ok id)))) "))))
         (for [i 0 (len seen)]
           (unless (= (get seen i) 1)
             (break

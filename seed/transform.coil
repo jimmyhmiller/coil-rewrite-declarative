@@ -37,10 +37,12 @@
       (for [i 0 (len (.fields v))]
         (let [field (elem (field v fields) i)]
           (when (sexp-sym-is term (.name field))
-            (if (= (.type-name field) expected)
+            (if (and (scalar? expected) (= (.type-name field) expected))
                 (do
+                  (when (= expected "Text") (push-str! (mut b) "(store-text! (mut store) "))
                   (push-str! (mut b) "f")
                   (number! (mut b) i)
+                  (when (= expected "Text") (push-str! (mut b) ")"))
                   (break :done (Ok 0)))
                 (for [p 0 (len (load passes))]
                   (let [pass (elem passes p)]
@@ -63,7 +65,7 @@
       (cond (and (= expected "Int") (sexp-int? term))
               (number! (mut b) (sexp-int term))
             (and (= expected "Text") (sexp-str? term))
-              (quoted! (mut b) (sexp-str term))
+              (do (push-str! (mut b) "(store-text! (mut store) ") (quoted! (mut b) (sexp-str term)) (push-str! (mut b) ")"))
             (and (= expected "Bool")
                  (or (sexp-sym-is term "true") (sexp-sym-is term "false")))
               (push-str! (mut b) (sexp-sym term))
@@ -79,12 +81,7 @@
     (let [target (node-number s expected)
           node (elem (field s nodes) target)
           (mut vi) (- 0 1)]
-      (for [p 0 (len (load passes))]
-        (when (= target (.source (elem passes p)))
-          (break
-            :done
-              (Err (problem term
-                            "transform cannot construct nodes in a source schema")))))
+
       (for [i 0 (len (.variants node))]
         (when (sexp-sym-is (sexp-nth term 0)
                            (.name (elem (field node variants) i)))
@@ -126,7 +123,7 @@
         (push-str! (mut b) "))] (push! (mut (.origins")
         (number! (mut b) target)
         (push-str! (mut b)
-                   " store)) origin) (push! (mut (.traces state)) (TransformTrace :target-schema ")
+                   " store)) origin) (push! (mut (.traces store)) (source/Trace :target-schema ")
         (number! (mut b) target)
         (push-str! (mut b) " :target-node (.index out) :source-schema ")
         (number! (mut b) source)
@@ -173,22 +170,15 @@
                          :target target
                          :form (load form)))))))
         (when (= (len passes) 0) (break :done (Ok "")))
-        (for [i 0 (len passes)]
-          (for [j 0 (len passes)]
-            (when (= (.source (elem (mut passes) i))
-                     (.target (elem (mut passes) j)))
-              (break
-                :done
-                  (Err (problem (field (elem (mut passes) j) form)
-                                "transformation source and target schemas must be disjoint"))))))
+
         (push-str! (mut b)
-                   "(import \"coil.primitive\" :as transform-primitive)\n(defsum TransformError (TransformReference [(schema i64) (node i64)]) (TransformCycle [(schema i64) (node i64)]) (TransformOriginMissing [(schema i64) (node i64)]) (TransformSourceChanged [(schema i64)]))\n(defstruct TransformTrace [(target-schema i64) (target-node i64) (source-schema i64) (source-node i64) (rule-lo i64) (rule-hi i64)])\n(defstruct TransformState [(store (ptr Store)) (traces (ArrayList TransformTrace)) ")
+                   "(import \"coil.primitive\" :as transform-primitive)\n(defsum TransformError (TransformAliasedStores) (TransformSource [(error source/SourceError)]) (TransformReference [(schema i64) (node i64)]) (TransformCycle [(schema i64) (node i64)]) (TransformOriginMissing [(schema i64) (node i64)]) (TransformSourceChanged [(schema i64)]))\n(defstruct TransformState [(source (ptr Store)) (target (ptr Store)) (copied (HashMap i64 bool)) ")
         (for [p 0 (len passes)]
           (push-str! (mut b) "(memo")
           (number! (mut b) p)
           (push-str! (mut b) " (ArrayList i64)) "))
         (push-str! (mut b)
-                   "])\n(defn transform-state-new [(a (dyn Allocator)) (store (ptr Store))] (-> TransformState) (let [")
+                   "])\n(defn transform-state-new [(a (dyn Allocator)) (input (ptr Store)) (target (ptr Store))] (-> TransformState) (let [")
         (for [p 0 (len passes)]
           (push-str! (mut b) "(mut memo")
           (number! (mut b) p)
@@ -197,11 +187,11 @@
         (for [p 0 (len passes)]
           (push-str! (mut b) "(for [i 0 (len (.rows")
           (number! (mut b) (.source (elem (mut passes) p)))
-          (push-str! (mut b) " store))] (push! (mut memo")
+          (push-str! (mut b) " input))] (push! (mut memo")
           (number! (mut b) p)
           (push-str! (mut b) ") (- 0 1))) "))
         (push-str! (mut b)
-                   "(TransformState :store store :traces (ArrayList::new [TransformTrace] a) ")
+                   "(TransformState :source input :target target :copied (HashMap::new-scalar [i64 bool] a) ")
         (for [p 0 (len passes)]
           (push-str! (mut b) ":memo")
           (number! (mut b) p)
@@ -209,7 +199,7 @@
           (number! (mut b) p)
           (push-str! (mut b) " "))
         (push-str! (mut b)
-                   ")))\n(defn transform-state-free! [(state (mut TransformState))] (-> void) (free! (mut (.traces state))) ")
+                   ")))\n(defn transform-state-free! [(state (mut TransformState))] (-> void) (free! (mut (.copied state))) ")
         (for [p 0 (len passes)]
           (push-str! (mut b) "(free! (mut (.memo")
           (number! (mut b) p)
@@ -230,13 +220,13 @@
             (push-str! (mut b) "Id)] (-> (Result N")
             (number! (mut b) target)
             (push-str! (mut b)
-                       "Id TransformError)) (block :done (let [store (.store state) memo (transform-primitive/cast (ptr (ArrayList i64)) (mut (.memo")
+                       "Id TransformError)) (block :done (let [input (.source state) store (.target state) memo (transform-primitive/cast (ptr (ArrayList i64)) (mut (.memo")
             (number! (mut b) p)
             (push-str! (mut b)
-                       " state)))] (unless (= (len (load memo)) (len (.rows")
+                       " state)))] (when (= (transform-primitive/cast i64 input) (transform-primitive/cast i64 store)) (break :done (Err (TransformAliasedStores)))) (unless (= (len (load memo)) (len (.rows")
             (number! (mut b) source)
             (push-str! (mut b)
-                       " store))) (break :done (Err (TransformSourceChanged ")
+                       " input))) (break :done (Err (TransformSourceChanged ")
             (number! (mut b) source)
             (push-str! (mut b)
                        ")))) (unless (and (>= (.index id) 0) (< (.index id) (len (load memo)))) (break :done (Err (TransformReference ")
@@ -245,13 +235,13 @@
                        " (.index id))))) (unless (< (.index id) (len (.origins")
             (number! (mut b) source)
             (push-str! (mut b)
-                       " store))) (break :done (Err (TransformOriginMissing ")
+                       " input))) (break :done (Err (TransformOriginMissing ")
             (number! (mut b) source)
             (push-str! (mut b)
                        " (.index id))))) (let [cached (get (load memo) (.index id)) origin (get (.origins")
             (number! (mut b) source)
             (push-str! (mut b)
-                       " store) (.index id))] (when (>= cached 0) (break :done (Ok (N")
+                       " input) (.index id))] (match (source/transfer! (mut (.source-data store)) (field input source-data) origin (mut (.copied state))) (Err [error] (break :done (Err (TransformSource error)))) (Ok [_])) (when (>= cached 0) (break :done (Ok (N")
             (number! (mut b) target)
             (push-str! (mut b)
                        "Id :index cached)))) (when (= cached (- 0 2)) (break :done (Err (TransformCycle ")
@@ -262,11 +252,11 @@
                 (do
                   (push-str! (mut b) "(match (get (.rows")
                   (number! (mut b) source)
-                  (push-str! (mut b) " store) (.index id)) "))
+                  (push-str! (mut b) " input) (.index id)) "))
                 (do
                   (push-str! (mut b) "(let [row (get (.rows")
                   (number! (mut b) source)
-                  (push-str! (mut b) " store) (.index id)) ")))
+                  (push-str! (mut b) " input) (.index id)) ")))
             (for [r 3 (sexp-count form)]
               (let [rule (sexp-nth form r)
                     (mut vi) (- 0 1)]

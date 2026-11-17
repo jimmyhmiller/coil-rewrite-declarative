@@ -1,0 +1,68 @@
+;;; Owned interned text and source documents; row origins never retain reader trees.
+(module rewrite.source)
+(import "coil.alloc" :as alloc :use [Allocator])
+(import "coil.arraylist" :use *)
+(import "coil.hashmap" :use [HashMap])
+(import "coil.str" :use [keyops-borrowed])
+(import "coil.reader" :use [Sexp])
+(import "coil.result" :use *)
+
+(defstruct Origin [(source i64) (lo i64) (hi i64)])
+(defstruct Document [(name (slice u8)) (text (slice u8))])
+(defstruct Trace [(target-schema i64) (target-node i64) (source-schema i64) (source-node i64) (rule-lo i64) (rule-hi i64)])
+(defstruct Sources [(allocator (dyn Allocator)) (strings (ArrayList (slice u8)))
+                    (index (HashMap (slice u8) i64)) (documents (HashMap i64 Document))])
+(defsum SourceError (SourceConflict [(id i64)]) (SourceMissing [(id i64)])
+                    (SourceSpan [(id i64) (lo i64) (hi i64)]))
+
+(defn origin [(form (ptr Sexp))] (-> Origin)
+  (Origin :source (.source form) :lo (.lo form) :hi (.hi form)))
+
+(defn create [(a (dyn Allocator))] (-> Sources)
+  (Sources :allocator a :strings (ArrayList::new [(slice u8)] a)
+    :index (HashMap::new [(slice u8) i64] a (keyops-borrowed))
+    :documents (HashMap::new-scalar [i64 Document] a)))
+
+;;; The pool owns copies; its borrowed-key index only points into those copies.
+(defn intern! [(sources (mut Sources)) (text (slice u8))] (-> (slice u8))
+  (match (get (.index sources) text)
+    (Some [id] (get (.strings sources) id))
+    (None []
+      (let [copy (match (alloc/alloc [u8] (.allocator sources) (len text))
+                    (Some [bytes] bytes) (None [] (alloc/oom)))
+            id (len (.strings sources))]
+        (for [i 0 (len text)] (set! copy i (get text i)))
+        (push! (mut (.strings sources)) copy)
+        (set! (mut (.index sources)) copy id)
+        copy))))
+
+(defn release! [(sources (mut Sources))] (-> void)
+  (free! (mut (.index sources)))
+  (free! (mut (.documents sources)))
+  (for text (.strings sources) (alloc/free [u8] (.allocator sources) text))
+  (free! (mut (.strings sources))))
+
+;;; An identity may be reused only for the same immutable name and contents.
+(defn register! [(sources (mut Sources)) (id i64) (name (slice u8)) (text (slice u8))]
+  (-> (Result bool SourceError))
+  (match (get (.documents sources) id)
+    (Some [prior] (if (and (= (.name prior) name) (= (.text prior) text)) (Ok false) (Err (SourceConflict id))))
+    (None []
+      (let [owned-name (intern! (mut sources) name) owned-text (intern! (mut sources) text)]
+        (set! (mut (.documents sources)) id (Document :name owned-name :text owned-text))
+        (Ok true)))))
+
+;;; Copy each immutable document once per transformation state, validating every span.
+(defn transfer! [(target (mut Sources)) (input (ptr Sources)) (at Origin)
+                 (copied (mut (HashMap i64 bool)))] (-> (Result bool SourceError))
+  (block :done
+    (let [doc (match (get (.documents input) (.source at))
+                (None [] (break :done (Err (SourceMissing (.source at))))) (Some [doc] doc))]
+      (unless (and (>= (.lo at) 0) (>= (.hi at) (.lo at)) (<= (.hi at) (len (.text doc))))
+        (break :done (Err (SourceSpan (.source at) (.lo at) (.hi at)))))
+      (match (get (load copied) (.source at))
+        (Some [_] (Ok false))
+        (None []
+          (match (register! (mut target) (.source at) (.name doc) (.text doc))
+            (Err [error] (Err error))
+            (Ok [added] (set! (mut copied) (.source at) true) (Ok added))))))))

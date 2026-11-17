@@ -18,6 +18,7 @@ with tempfile.TemporaryDirectory(prefix='rewrite-schema-') as directory:
     work = Path(directory)
     shutil.copyfile(ROOT / "seed/types.coil", work / "types.coil")
     shutil.copyfile(ROOT / "seed/scope.coil", work / "scope.coil")
+    shutil.copyfile(ROOT / "seed/source.coil", work / "source.coil")
     (work / 'Coil.toml').write_text('[package]\nname = "fixture"\nentry = "main.coil"\nsource-roots = ["."]\n')
     (work / 'generated.coil').write_bytes(generated)
     client = (ROOT / 'tests/generated.coil.in').read_text()
@@ -37,6 +38,7 @@ with tempfile.TemporaryDirectory(prefix='rewrite-recursive-') as directory:
     work = Path(directory)
     shutil.copyfile(ROOT / "seed/types.coil", work / "types.coil")
     shutil.copyfile(ROOT / "seed/scope.coil", work / "scope.coil")
+    shutil.copyfile(ROOT / "seed/source.coil", work / "source.coil")
     (work / 'generated.coil').write_bytes(subprocess.check_output([str(ROOT / 'build/schema-seed')], input=recursive))
     subprocess.run(['coil', 'check', str(work / 'generated.coil')], check=True)
 invalid = subprocess.run([str(ROOT / 'build/schema-seed')], input=b'(node X (x Missing))', capture_output=True)
@@ -47,6 +49,7 @@ with tempfile.TemporaryDirectory(prefix='rewrite-variants-') as directory:
     work = Path(directory)
     shutil.copyfile(ROOT / "seed/types.coil", work / "types.coil")
     shutil.copyfile(ROOT / "seed/scope.coil", work / "scope.coil")
+    shutil.copyfile(ROOT / "seed/source.coil", work / "source.coil")
     (work / 'Coil.toml').write_text('[package]\nname = "fixture"\nentry = "main.coil"\nsource-roots = ["."]\n')
     (work / 'generated.coil').write_bytes(subprocess.check_output(
         [str(ROOT / 'build/schema-seed')], input=(ROOT / 'tests/schemas/recursive.schema').read_bytes()))
@@ -68,6 +71,7 @@ with tempfile.TemporaryDirectory(prefix='rewrite-judgment-') as directory:
     work = Path(directory)
     shutil.copyfile(ROOT / "seed/types.coil", work / "types.coil")
     shutil.copyfile(ROOT / "seed/scope.coil", work / "scope.coil")
+    shutil.copyfile(ROOT / "seed/source.coil", work / "source.coil")
     (work / 'Coil.toml').write_text('[package]\nname = "fixture"\nentry = "main.coil"\nsource-roots = ["."]\n')
     typing = (ROOT / 'tests/schemas/typing.schema').read_bytes()
     output = subprocess.check_output([str(ROOT / 'build/schema-seed')], input=typing)
@@ -108,6 +112,7 @@ with tempfile.TemporaryDirectory(prefix='rewrite-reader-') as directory:
     work = Path(directory)
     shutil.copyfile(ROOT / "seed/types.coil", work / "types.coil")
     shutil.copyfile(ROOT / "seed/scope.coil", work / "scope.coil")
+    shutil.copyfile(ROOT / "seed/source.coil", work / "source.coil")
     (work / 'Coil.toml').write_text('[package]\nname = "fixture"\nentry = "main.coil"\nsource-roots = ["."]\n')
     (work / 'generated.coil').write_bytes(subprocess.check_output(
         [str(ROOT / 'build/schema-seed')], input=(ROOT / 'tests/schemas/typing.schema').read_bytes()))
@@ -120,6 +125,7 @@ with tempfile.TemporaryDirectory(prefix='rewrite-index-') as directory:
     work = Path(directory)
     shutil.copyfile(ROOT/'seed/types.coil', work/'types.coil')
     shutil.copyfile(ROOT/'seed/scope.coil', work/'scope.coil')
+    shutil.copyfile(ROOT/'seed/source.coil', work/'source.coil')
     (work/'Coil.toml').write_text('[package]\nname="fixture"\nentry="main.coil"\nsource-roots=["."]\n')
     keyed = b'(node Entry (label Text :key) (serial Int :key) (flag Bool :key))'
     (work/'generated.coil').write_bytes(subprocess.check_output([str(ROOT/'build/schema-seed')], input=keyed))
@@ -137,7 +143,7 @@ print('Schema keys: content lookup, growth, subset identity, duplicate provenanc
 
 with tempfile.TemporaryDirectory(prefix='rewrite-syntax-') as directory:
     work = Path(directory)
-    for name in ['types', 'scope']:
+    for name in ['types', 'scope', 'source']:
         shutil.copyfile(ROOT/'seed'/f'{name}.coil', work/f'{name}.coil')
     (work/'Coil.toml').write_text('[package]\nname="fixture"\nentry="main.coil"\nsource-roots=["."]\n')
     source = b'(node Pair (first Text) (second Int)) (syntax Pair (Pair (vector (int second) (text first))))'
@@ -170,15 +176,26 @@ source = ((ROOT/'tests/schemas/lowering.schema').read_bytes()
           + (ROOT/'tests/schemas/transform.schema').read_bytes())
 for invalid, diagnostic in [
     (source + b'(transform Surface Expr (Integer (Integer value)))', b'duplicate schema transformation'),
-    (source.replace(b'(transform Surface Expr', b'(transform Surface Surface'), b'must be disjoint'),
     (source.replace(b'(Bump (Add value (Integer 1)))', b'(Bump (Unknown value))'), b'unknown target constructor'),
     (source.replace(b'(Bump (Add value (Integer 1)))', b'(Bump (Add value))'), b'wrong target constructor arity'),
     (source.replace(b'(Integer (Integer value))', b'(Integer (Integer true))'), b'transform scalar must be'),
     (source.replace(b'(Bump (Add value (Integer 1)))', b''), b'exactly one transformation rule'),
     (source.replace(b'(Bump (Add value (Integer 1)))', b'(Bogus (Integer 0))'), b'unknown transformation source constructor'),
     (source[:source.index(b'(transform Surface Expr')] + source[source.index(b'(transform SurfaceFunction Function'):], b'field type needs a matching schema map'),
-    (b'(sum S (Leaf (value Int))) (node T (child S)) (transform S T (Leaf (T (Leaf value))))', b'cannot construct nodes in a source schema'),
+    (b'(node Child (value Int)) (node S (child Child)) (node T (child Child)) (transform S T (S (T child)))', b'field type needs a matching schema map'),
 ]:
     result = subprocess.run([str(ROOT/'build/schema-seed')], input=invalid, capture_output=True)
     assert result.returncode != 0 and not result.stdout and diagnostic in result.stderr, result
 print('Typed transformations: schema and rule contract rejections passed')
+
+# Same-schema transformations must copy reference graphs into independent stores.
+identity_schema = b'(sum Tree (Leaf (text Text)) (Pair (left Tree) (right Tree))) (transform Tree Tree (Leaf (Leaf text)) (Pair (Pair left right)))'
+with tempfile.TemporaryDirectory(prefix='rewrite-owned-transform-') as directory:
+    work = Path(directory)
+    for name in ['types', 'scope', 'source']:
+        shutil.copyfile(ROOT/'seed'/f'{name}.coil', work/f'{name}.coil')
+    (work/'Coil.toml').write_text('[package]\nname = "fixture"\nentry = "main.coil"\nsource-roots = ["."]\n')
+    (work/'generated.coil').write_bytes(subprocess.check_output([str(ROOT/'build/schema-seed')], input=identity_schema))
+    (work/'main.coil').write_text((ROOT/'tests/transform-owned.coil.in').read_text())
+    for flags in [[], ['--debug-checks'], ['--release']]:
+        subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)

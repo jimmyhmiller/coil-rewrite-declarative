@@ -47,3 +47,10 @@ The initial source trace is in contracts/phases-and-backend.md. Pending contract
 Schema-driven patterns now parse unary i64 `defn`, integer/boolean literals, symbols, calls, single-binding `let`, `if`, and binary `+` directly into generated rows with original source spans. `tests/surface-program.coil.in` is executed by both the rewrite and installed Coil as an exploratory comparison. It does not establish the full language or a matched-revision baseline.
 
 The discovered bare-function discrepancy is now a rejection regression in `tests/surface-function-value-invalid.coil.in`: both implementations reject binding a function designator as a value. Explicit `fnptr-of` and the resulting pointer call are exercised by the shared legal-source fixture. This closes that observed mismatch within the unary subset. General function-pointer signatures, calling conventions, generic functions, references, closures, and real macro/name resolution remain unimplemented.
+
+
+## Independent transformation storage checkpoint
+
+Generated readers and representation maps now own interned Text and compact source spans. Target Stores retain copied source documents and transformation traces after input teardown. The native fixture poisons and frees its source arena before core checking and execution; a separate same-schema fixture checks recursive reference copying into offset target IDs, malloc-backed teardown, and structured source errors.
+
+This establishes the lifetime boundary for the current context-free normalization subset. It does not yet satisfy imported custom-reader compatibility, expansion ancestry, introduced declarations, effects, or statically checked phase ownership. No replacement or performance gate is claimed.
