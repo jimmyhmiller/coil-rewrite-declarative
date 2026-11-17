@@ -111,3 +111,47 @@
                 (Err [e] (break :done (Err e)))
                 (Ok [id] (push! (mut roots) id))))))
       (Ok (forms/sequence-0 (mut (.store syntax)) (mut roots))))))
+
+(defsum PromotionError
+  (PromotionShape [(error forms/TransformError)])
+  (PromotionContextMissing [(row i64)]))
+
+;;; Promote a reachable syntax graph into independent storage. Generated rules
+;;; copy structure, texts, origins and documents; the row map transports opaque
+;;; metadata without resolving, renaming or inventing lexical identities.
+;;; Failed promotion publishes no root but may retain unreachable target rows.
+(defn promote! [(target (mut Syntax)) (input (ptr Syntax)) (root forms/N0Id)]
+  (-> (Result forms/N0Id PromotionError))
+  (let [(mut state)
+          (forms/transform-state-new (.allocator (.source-data (.store target)))
+                                     (field input store)
+                                     (field target store))]
+    (defer (forms/transform-state-free! (mut state)))
+    (let [result (forms/transform-0-0 (mut state) root)]
+      (while (< (len (.contexts target)) (len (.rows0 (.store target))))
+        (push! (mut (.contexts target))
+               (forms/N1Row
+                 :f0 0
+                 :f1 ""
+                 :f2 0)))
+      (block
+        :done
+          (let [out
+                  (match result
+                    (Ok [id] id)
+                    (Err [e] (break :done (Err (PromotionShape e)))))]
+            (for [row 0 (len (.memo0 state))]
+              (let [destination (get (.memo0 state) row)]
+                (when (>= destination 0)
+                  (unless (< row (len (.contexts input)))
+                    (break :done (Err (PromotionContextMissing row))))
+                  (let [context (get (.contexts input) row)]
+                    (set! (mut (.contexts target))
+                          destination
+                          (forms/N1Row
+                            :f0 (.f0 context)
+                            :f1
+                              (forms/store-text! (mut (.store target))
+                                                 (.f1 context))
+                            :f2 (.f2 context)))))))
+            (Ok out))))))

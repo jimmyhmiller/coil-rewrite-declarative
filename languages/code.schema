@@ -18,3 +18,12 @@
   (CString (cstring text))
   (List (list (rest items)))
   (Vector (vector (rest items))))
+(transform Syntax Syntax
+  (Integer (Integer value))
+  (Float (Float bits))
+  (Symbol (Symbol text))
+  (Keyword (Keyword text))
+  (String (String text))
+  (CString (CString text))
+  (List (List items))
+  (Vector (Vector items)))

@@ -11,21 +11,21 @@
       "generated_sha256": "40813e20d8b78374281adace11b7178478113ba7315d066d29272238794f3333"
     },
     "languages/code.schema": {
-      "specification_sha256": "8e814c80f79a68b47b92338610b8eb568754d2997a80d6d696e05c2855827ec8",
+      "specification_sha256": "791ca47a635e2391dfe479f0fd46389ace758461befbc18d27194db654665e62",
       "output": "seed/generated/code_forms.coil",
-      "generated_sha256": "49ba56eec974d7afee002995f313146095dce1dbf0d7ade62a59b4cc9cb40b0a"
+      "generated_sha256": "26195af93f040d82932b6084f97a97e50551907bbe26c685a4a3944219d53c2a"
     }
   },
   "isolated_rebuild_regeneration_equal": true,
   "seed_inputs": {
     "seed/alpha.coil": "d347508e4a43a6386354cc45ff671b3bf79e1490ba8cc226a271add33d4e692f",
     "seed/binding.coil": "fbf0c4c2c7cc44569e950741419458a49d616c6380e9314b76afcefdbf5f8d98",
-    "seed/code.coil": "4570c75e0aa5b6891dc2a57cca950294673003cd634a5721ebffc4a8385a5686",
+    "seed/code.coil": "74a6d5e401f16e5679d9aaaf4a0d957f2ba203b24cbc45a0258ef0d91a170899",
     "seed/emit.coil": "5a3d9a6e35ffe9975c77eb398b9a6e145db15a91b451bc5df5b6ea123a9df9c2",
-    "seed/generated/code_forms.coil": "49ba56eec974d7afee002995f313146095dce1dbf0d7ade62a59b4cc9cb40b0a",
+    "seed/generated/code_forms.coil": "26195af93f040d82932b6084f97a97e50551907bbe26c685a4a3944219d53c2a",
     "seed/generated/schema_forms.coil": "40813e20d8b78374281adace11b7178478113ba7315d066d29272238794f3333",
     "seed/index.coil": "071ce0d6f87d28036b19158a770c5324bdef1d46278e4326fcb5730e31337a31",
-    "seed/invocation.coil": "9b236916bf20786e9db4d2b3fd15b9f84d8da962f8e195e331ab8a77d2c19e23",
+    "seed/invocation.coil": "9102c0710b9b46bddcfa1e3cfcf632c6733d9b1c65eb7dbf41ad1ed77d13087c",
     "seed/judgment.coil": "5c89d13c8af1532e8cfbb5d5808cdbf0d58de0989d354bac8762c2cbde2aa504",
     "seed/lower.coil": "2421bc11672e988aef991f081125c869b563d1b762239229fa8bf39bd10e59cb",
     "seed/main.coil": "996b6dcdc20b7840ecf05fa6cae7e78b19f3abc72dd45a115cfe7b56c0db07b2",

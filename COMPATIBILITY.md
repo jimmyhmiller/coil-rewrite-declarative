@@ -135,3 +135,11 @@ Native syntax operations now validate positive opaque handles in an explicit inv
 The checked API currently offers first/last container selection and integer projection. This does not establish the complete Code API, hygiene operations, syntax promotion, semantic-query capabilities, cumulative phase declarations or language resumption. Context storage and executable-entry lifetimes remain caller-managed. Validation is local to this Mac; no cross-target or full compiler performance claim follows.
 
 Validation: `python3 tools/check-seed.py` and `python3 tools/check-lowering.py` passed, including debug/debug-checks/release invocation fixtures. The handle-growth fixture was also rerun in all three configurations after extending it to 2,000 reads. The isolated grammar bootstrap records the current installed host compiler in `evidence/schema-bootstrap.json`.
+
+## Syntax result promotion checkpoint
+
+A declared `Syntax -> Syntax` transformation now derives structural promotion into independent storage. A metadata adapter transports opaque scope/context identities and owns module-name text. Shared rows remain shared in the destination. The invocation API validates a returned handle and promotes its root before teardown. This covers owned syntax graphs, not runtime Code views/joins, scope-domain remapping or arbitrary metaprogram builders.
+
+The promotion fixture covers all scalar kinds, exact negative-zero bits, lists/vectors, shared child identity, aliased-store rejection, source-document conflicts and use after source text poisoning/release. A native fixture promotes its selected result, unloads its image and closes its invocation before using the result. The implementation still allocates source-sized memo tables, scans them to transport metadata, and uses recursive generated row transforms; no full-compiler memory or compile-time improvement is claimed.
+
+Validation: seed and native suites passed in debug/debug-checks/release, including isolated grammar regeneration. The extended promotion fixture additionally verifies missing metadata, successful retry after failure and cycle rejection; it passed separately in all three configurations.

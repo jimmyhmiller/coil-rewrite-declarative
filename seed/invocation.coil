@@ -21,7 +21,8 @@
   (ExpectedContainer [(handle i64)])
   (EmptyContainer [(handle i64)])
   (ExpectedInteger [(handle i64)])
-  (SyntaxFailure [(error code/SyntaxError)]))
+  (SyntaxFailure [(error code/SyntaxError)])
+  (PromotionFailure [(error code/PromotionError)]))
 
 (defstruct Invocation
   [(syntax code/Syntax)
@@ -224,3 +225,17 @@
         (match (lookup invocation handle)
           (Ok [_] (Ok handle))
           (Err [e] (Err e))))))
+
+;;; Copy a completed invocation result before closing its owned syntax store.
+(defn promote! [(target (mut code/Syntax))
+                (invocation (ptr Invocation))
+                (handle i64)]
+  (-> (Result forms/N0Id InvocationError))
+  (if (.running invocation)
+      (Err (InvocationBusy))
+      (match (lookup invocation handle)
+        (Err [e] (Err e))
+        (Ok [id]
+            (match (code/promote! (mut target) (field invocation syntax) id)
+              (Ok [out] (Ok out))
+              (Err [e] (Err (PromotionFailure e))))))))
