@@ -37,6 +37,9 @@
     (Struct [name _] (Some name))
     (_ (match (sum-declaration form) (Sum [name] (Some name)) (_ (None [(ptr coil.reader.Sexp)]))))))
 
+(value variant-start [(form (ptr coil.reader.Sexp))] i64
+  (match (nominal-parameters form) (TypeParameters [_] 3) (_ 2)))
+
 (value declaration-name [(form (ptr coil.reader.Sexp))] (Option (ptr coil.reader.Sexp))
   (match (constant-declaration form)
     (Constant [name _] (Some name))
@@ -539,7 +542,7 @@
               (_))
             (cases (sum-declaration form)
               ((Sum [_])
-                (each-child variant form 2 i
+                (each-child variant form (variant-start form) i
                   (cases (variant-name variant)
                     ((VariantNamed [name])
                       (with canonical (definition-name allocator (load namespace) false (coil.reader.sexp-sym name))

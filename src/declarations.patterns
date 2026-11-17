@@ -73,7 +73,13 @@
         (capture parameters (vector ...)) (capture result _)))
 (extract structure StructDeclaration Struct NoStruct
   (list "defstruct" (capture name symbol) (capture fields (vector ...)))
+  (list "defstruct" (capture name symbol) (vector ...) (capture fields (vector ...)))
   (list "defstruct" (capture name symbol) (keyword "layout") _ (capture fields (vector ...))))
+(extract nominal-parameters NominalParameters TypeParameters NoTypeParameters
+  (list "defstruct" symbol (capture parameters (vector ...)) (vector ...))
+  (list "defsum" symbol (capture parameters (vector ...)) ...))
+(extract type-application TypeApplication AppliedType NoAppliedType
+  (list (capture constructor symbol) ...))
 (extract layout-annotation LayoutAnnotation Annotated NoAnnotation
   (list "defstruct" symbol (keyword "layout") (capture expression _) _))
 (extract layout-constructor LayoutConstructor Constructor NoConstructor

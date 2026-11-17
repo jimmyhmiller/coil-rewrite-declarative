@@ -15,6 +15,7 @@
 (context ConstantValue [(layout-dependent bool) (contextual bool) (reads-storage bool) (literal (ptr coil.reader.Sexp)) (type (slice u8))])
 (context Checked
   [(allocator (dyn coil.alloc.Allocator))
+   (parameters (Option (ptr coil.reader.Sexp)))
    (payload-sizes (coil.hashmap.HashMap i64 i64))
    (field-offsets (coil.hashmap.HashMap i64 i64))
    (layouts (coil.hashmap.HashMap i64 Layout)) (layout-started (coil.hashmap.HashMap i64 bool))
@@ -171,7 +172,7 @@
          ((Sum [name])
            (require (not (builtin-type-name? name)) name "sum name is a built-in type")
            (with (mut largest) 0
-             (each-child variant form 2 i
+             (each-child variant form (rewrite.modules.variant-start form) i
                (cases (variant-fields variant)
                  ((Payload [fields])
                    (obtain bytes (payload-fields-size (rewrite.modules.lookup-for unit form) (mut checked) fields)
@@ -238,17 +239,29 @@
   (obtain result (inspect-type lookup (mut checked) type true)
     (cases result ((Some [layout]) (conclude layout)) (_ (reject type "type has no native layout")))))
 
+(predicate parameter-type? [(parameters (Option (ptr coil.reader.Sexp))) (name (slice u8))]
+  (match parameters
+    (Some [items]
+      (block :found
+        (for [i 0 (coil.reader.sexp-count items)]
+          (when (coil.reader.sexp-sym-is (coil.reader.sexp-nth items i) name) (return-from :found true)))
+        false))
+    (_ false)))
+
 (derive inspect-type [(lookup rewrite.modules.Lookup) (checked (mut Checked))
                       (type (ptr coil.reader.Sexp)) (measure? bool)] (Option Layout)
   (when (coil.reader.sexp-sym? type)
     (with name (scalar-type type)
-      (when (and (not measure?) (> (integer-width name) 0)) (conclude (None [Layout])))
+      (when (and (not measure?) (or (parameter-type? (.parameters checked) name) (> (integer-width name) 0))) (conclude (None [Layout])))
       (with bytes (scalar-bytes name)
         (when (> bytes 0) (conclude (if measure? (Some (Layout :size bytes :alignment bytes)) (None [Layout])))))
       (require (not (builtin-type-name? type)) type "type has no supported native layout")
       (obtain resolved (rewrite.modules.find-name lookup type (rewrite.modules.TypeNames))
         (cases resolved
           ((Some [form])
+            (cases (nominal-parameters form)
+              ((TypeParameters [params]) (require (= (coil.reader.sexp-count params) 0) type "generic type requires arguments"))
+              (_))
             (when (not measure?) (conclude (None [Layout])))
             (obtain layout (nominal-layout (.unit lookup) (mut checked) form) (conclude (Some layout))))
           (_ (reject type "unknown type"))))))
@@ -279,7 +292,22 @@
               (require (or (= (.size item) 0) (<= n (/ 9223372036854775807 (.size item)))) count "array size overflows")
               (conclude (Some (Layout :size (* n (.size item)) :alignment (.alignment item)))))
             (_ (conclude (None [Layout])))))))
-    (_ (reject type "type has no known layout"))))
+    (_))
+  (cases (type-application type)
+    ((AppliedType [head])
+      (obtain resolved (rewrite.modules.find-name lookup head (rewrite.modules.TypeNames))
+        (cases resolved
+          ((Some [definition])
+            (cases (nominal-parameters definition)
+              ((TypeParameters [params])
+                (require (= (coil.reader.sexp-count params) (- (coil.reader.sexp-count type) 1)) type "incorrect type argument count")
+                (each-child argument type 1 i (prove (inspect-type lookup (mut checked) argument false)))
+                (when (not measure?) (conclude (None [Layout])))
+                (reject type "generic type layout has not been specialized"))
+              (_)))
+          (_))))
+    (_))
+  (reject type "type has no known layout"))
 
 (value layout-integer [(allocator (dyn coil.alloc.Allocator)) (n i64) (expr (ptr coil.reader.Sexp))] ConstantValue
   (ConstantValue :type "i64" :layout-dependent true :contextual false :reads-storage false
@@ -746,10 +774,35 @@
              (each-child parameter parameters 0 position (prove (check-type parameter))))
            (_ (require (or (match (rewrite.modules.type-name form) (Some [_] true) (_ false)) (match (constant-declaration form) (Constant [_ _] true) (_ false))) form "unsupported declaration")))))))
 
+(judgment check-parametric-fields [(lookup rewrite.modules.Lookup) (checked (mut Checked)) (fields (ptr coil.reader.Sexp))]
+  (distinct names (.allocator checked)
+    (each-child field fields 0 i
+      (cases (typed-parameter field)
+        ((Parameter [name type])
+          (insert-unique names name field "duplicate field")
+          (prove (inspect-type lookup (mut checked) type false)))
+        (_ (reject field "expected a named field"))))))
+
+(judgment check-nominal [(unit (ptr rewrite.modules.SourceUnit)) (checked (mut Checked)) (form (ptr coil.reader.Sexp))]
+  (cases (nominal-parameters form)
+    ((TypeParameters [parameters])
+      (each-child param parameters 0 i
+        (require (coil.reader.sexp-sym? param) param "expected a type parameter name"))
+      (perform (set! (.parameters checked) (Some parameters)))
+      (with lookup (rewrite.modules.lookup-for unit form)
+        (cases (structure form)
+          ((Struct [_ fields]) (prove (check-parametric-fields lookup (mut checked) fields)))
+          (_ (each-child variant form (rewrite.modules.variant-start form) i
+               (cases (variant-fields variant)
+                 ((Payload [fields]) (prove (check-parametric-fields lookup (mut checked) fields)))
+                 (_))))))
+      (perform (set! (.parameters checked) (None [(ptr coil.reader.Sexp)]))))
+    (_ (prove (nominal-layout unit (mut checked) form)))))
+
 (derive check-functions
   [(allocator (dyn coil.alloc.Allocator))
    (unit (ptr rewrite.modules.SourceUnit))] Checked
-  (with (mut checked) (Checked :payload-sizes (coil.hashmap.HashMap::new-scalar [i64 i64] allocator)
+  (with (mut checked) (Checked :parameters (None [(ptr coil.reader.Sexp)]) :payload-sizes (coil.hashmap.HashMap::new-scalar [i64 i64] allocator)
                                :field-offsets (coil.hashmap.HashMap::new-scalar [i64 i64] allocator)
                                :layouts (coil.hashmap.HashMap::new-scalar [i64 Layout] allocator)
                                :layout-started (coil.hashmap.HashMap::new-scalar [i64 bool] allocator)
@@ -781,6 +834,6 @@
             (prove (check-body (rewrite.modules.lookup-for unit form) (mut checked) locals form (rewrite.modules.function-body-start form parameters)
                      (if (coil.reader.sexp-sym-is result "void") (Discard)
                          (Expect (scalar-type result)))))))
-        (_ (cases (rewrite.modules.type-name form) ((Some [_]) (prove (nominal-layout unit (mut checked) form)))
+        (_ (cases (rewrite.modules.type-name form) ((Some [_]) (prove (check-nominal unit (mut checked) form)))
              (_ (when (not (rewrite.modules.external? form)) (prove (constant-value unit (mut checked) form))))))))
     (conclude checked)))
