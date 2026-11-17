@@ -1,0 +1,200 @@
+;;; Derive structural comparison from schema fields; metadata is an explicit hook.
+(module rewrite.equalgen)
+(import "rewrite.schema" :use *)
+(import "rewrite.resolve" :use [indexed! node-number])
+(import "rewrite.emit" :use [number!])
+(import "coil.alloc" :use [Allocator])
+(import "coil.arraylist" :use *)
+(import "coil.str" :use [StrBuf])
+(import "coil.reader" :use *)
+(import "coil.result" :use *)
+
+(defn fields! [(b (mut StrBuf)) (schema (ptr Schema)) (variant (ptr Variant))]
+  (-> void)
+  (push-str! (mut b) "(block :fields ")
+  (for [f 0 (len (.fields variant))]
+    (let [field (elem (field variant fields) f)]
+      (when (scalar? (.type-name field))
+        (indexed! (mut b) "(unless (= l" f " r")
+        (number! (mut b) f)
+        (push-str! (mut b) ") (break :fields (Ok false))) "))))
+  (for [f 0 (len (.fields variant))]
+    (let [field (elem (field variant fields) f)]
+      (unless (scalar? (.type-name field))
+        (let [target (node-number schema (.type-name field))]
+          (if (.many? field)
+              (do
+                (indexed! (mut b) "(match (equality-sequence-" target " left l")
+                (number! (mut b) f)
+                (indexed! (mut b)
+                          " right r"
+                          f
+                          " work) (Err [e] (break :fields (Err e))) (Ok [same?] (unless same? (break :fields (Ok false))))) "))
+              (do
+                (indexed! (mut b)
+                          "(equality/enqueue! work (equality/Pair :schema "
+                          target
+                          " :left (.index l")
+                (number! (mut b) f)
+                (indexed! (mut b) ") :right (.index r" f "))) ")))))))
+  (push-str! (mut b) "(Ok true))"))
+
+(defn sequence! [(b (mut StrBuf)) (n i64)] (-> void)
+  (indexed! (mut b) "(defn equality-sequence-" n " [(left (ptr Store)) (ls N")
+  (indexed! (mut b) "" n "Seq) (right (ptr Store)) (rs N")
+  (indexed! (mut b)
+            ""
+            n
+            "Seq) (work (ptr equality/Work))] (-> (Result bool equality/Error)) (block :done (let [lc (match (sequence-size-")
+  (indexed! (mut b)
+            ""
+            n
+            " left ls) (Some [n] n) (None [] (break :done (Err (equality/InvalidSequence ")
+  (indexed! (mut b) "" n " false (.index ls)))))) rc (match (sequence-size-")
+  (indexed! (mut b)
+            ""
+            n
+            " right rs) (Some [n] n) (None [] (break :done (Err (equality/InvalidSequence ")
+  (indexed! (mut b)
+            ""
+            n
+            " true (.index rs))))))] (unless (= lc rc) (break :done (Ok false))) (let [(mut xs) (ArrayList::new [N")
+  (indexed! (mut b) "" n "Id] (.allocator work)) (mut ys) (ArrayList::new [N")
+  (indexed! (mut b)
+            ""
+            n
+            "Id] (.allocator work))] (defer (free! (mut xs))) (defer (free! (mut ys))) (match (sequence-materialize-")
+  (indexed! (mut b)
+            ""
+            n
+            " (.allocator work) left ls (mut xs)) (Err [e] (break :done (Err (equality/SequenceFailure e)))) (Ok [_])) (match (sequence-materialize-")
+  (indexed! (mut b)
+            ""
+            n
+            " (.allocator work) right rs (mut ys)) (Err [e] (break :done (Err (equality/SequenceFailure e)))) (Ok [_])) (for [i 0 lc] (equality/enqueue! work (equality/Pair :schema ")
+  (indexed! (mut b)
+            ""
+            n
+            " :left (.index (get xs i)) :right (.index (get ys i))))) (Ok true)))))\n"))
+
+(defn emit [(a (dyn Allocator))
+            (schema (ptr Schema))
+            (forms (ptr (ArrayList Sexp)))]
+  (-> (Result (slice u8) Diag))
+  (block
+    :done
+      (let [(mut roots) (ArrayList::new [i64] a)
+            (mut b) (StrBuf::new a)]
+        (for [i 0 (len (load forms))]
+          (let [form (elem forms i)]
+            (when (and (sexp-list? form)
+                       (> (sexp-count form) 0)
+                       (sexp-sym-is (sexp-nth form 0) "equality"))
+              (unless (and (= (sexp-count form) 2)
+                           (sexp-sym? (sexp-nth form 1)))
+                (break :done (Err (problem form "expected (equality Schema)"))))
+              (let [(mut found) (- 0 1)]
+                (for [n 0 (len (.nodes schema))]
+                  (when (sexp-sym-is (sexp-nth form 1)
+                                     (.name (elem (field schema nodes) n)))
+                    (set! found n)))
+                (when (< found 0)
+                  (break :done (Err (problem form "unknown equality schema"))))
+                (for n roots
+                  (when (= n found)
+                    (break
+                      :done
+                        (Err (problem form "duplicate equality declaration")))))
+                (push! (mut roots) found)))))
+        (when (= (len roots) 0) (break :done (Ok "")))
+        (push-str! (mut b)
+                   "(import \"rewrite.equality\" :as equality)\n(import \"coil.cc\" :as eqcc)\n(import \"coil.primitive\" :as eqprimitive)\n(defstruct EqualityContext [C] [(left (ptr Store)) (right (ptr Store)) (user (ptr C)) (metadata (fnptr (eqcc/C) [(ptr C) (ptr equality/Pair)] (Result bool equality/Error)))])\n(defn equality-ignore :cc (eqcc/C) [(user (ptr i64)) (pair (ptr equality/Pair))] (-> (Result bool equality/Error)) (Ok true))\n")
+        (for [n 0 (len (.nodes schema))] (sequence! (mut b) n))
+        (push-str! (mut b)
+                   "(defn equality-step :cc (eqcc/C) [C] [(context (ptr (EqualityContext C))) (work (ptr equality/Work)) (pair (ptr equality/Pair))] (-> (Result bool equality/Error)) (block :done (let [left (.left context) right (.right context)] (cond ")
+        (for [n 0 (len (.nodes schema))]
+          (let [node (elem (field schema nodes) n)]
+            (indexed! (mut b)
+                      "(= (.schema pair) "
+                      n
+                      ") (do (unless (and (>= (.left pair) 0) (< (.left pair) (len (.rows")
+            (indexed! (mut b)
+                      ""
+                      n
+                      " left)))) (break :done (Err (equality/InvalidReference ")
+            (indexed! (mut b)
+                      ""
+                      n
+                      " false (.left pair))))) (unless (and (>= (.right pair) 0) (< (.right pair) (len (.rows")
+            (indexed! (mut b)
+                      ""
+                      n
+                      " right)))) (break :done (Err (equality/InvalidReference ")
+            (indexed! (mut b)
+                      ""
+                      n
+                      " true (.right pair))))) (let [metadata (.metadata context)] (match (metadata (.user context) pair) (Err [e] (break :done (Err e))) (Ok [same?] (unless same? (break :done (Ok false)))))) (let [l (get (.rows")
+            (indexed! (mut b) "" n " left) (.left pair)) r (get (.rows")
+            (indexed! (mut b) "" n " right) (.right pair))] ")
+            (if (.sum? node)
+                (do
+                  (push-str! (mut b) "(match l ")
+                  (for [v 0 (len (.variants node))]
+                    (let [variant (elem (field node variants) v)]
+                      (indexed! (mut b) "(N" n "V")
+                      (number! (mut b) v)
+                      (push-str! (mut b) " [")
+                      (for [f 0 (len (.fields variant))]
+                        (indexed! (mut b) "l" f " "))
+                      (indexed! (mut b) "] (match r (N" n "V")
+                      (number! (mut b) v)
+                      (push-str! (mut b) " [")
+                      (for [f 0 (len (.fields variant))]
+                        (indexed! (mut b) "r" f " "))
+                      (push-str! (mut b) "] ")
+                      (fields! (mut b) schema variant)
+                      (push-str! (mut b) ") (_ (Ok false))))")))
+                  (push-str! (mut b) ")"))
+                (let [variant (elem (field node variants) 0)]
+                  (push-str! (mut b) "(let [")
+                  (for [f 0 (len (.fields variant))]
+                    (indexed! (mut b) "l" f " (.f")
+                    (number! (mut b) f)
+                    (push-str! (mut b) " l) ")
+                    (indexed! (mut b) "r" f " (.f")
+                    (number! (mut b) f)
+                    (push-str! (mut b) " r) "))
+                  (push-str! (mut b) "] ")
+                  (fields! (mut b) schema variant)
+                  (push-str! (mut b) ")")))
+            (push-str! (mut b) ")) ")))
+        (push-str! (mut b)
+                   ":else (Err (equality/InvalidSchema (.schema pair)))))))\n")
+        (for n roots
+          (indexed! (mut b)
+                    "(defn equal-"
+                    n
+                    "-with [C] [(a (dyn Allocator)) (left (ptr Store)) (l N")
+          (indexed! (mut b) "" n "Id) (right (ptr Store)) (r N")
+          (indexed! (mut b)
+                    ""
+                    n
+                    "Id) (user (ptr C)) (metadata (fnptr (eqcc/C) [(ptr C) (ptr equality/Pair)] (Result bool equality/Error)))] (-> (Result bool equality/Error)) (let [(mut context) (EqualityContext [C] :left left :right right :user user :metadata metadata)] (equality/run a (mut context) (equality/Pair :schema ")
+          (indexed! (mut b)
+                    ""
+                    n
+                    " :left (.index l) :right (.index r)) (eqprimitive/fnptr-of equality-step [C]))))\n")
+          (indexed! (mut b)
+                    "(defn equal-"
+                    n
+                    " [(a (dyn Allocator)) (left (ptr Store)) (l N")
+          (indexed! (mut b) "" n "Id) (right (ptr Store)) (r N")
+          (indexed! (mut b)
+                    ""
+                    n
+                    "Id)] (-> (Result bool equality/Error)) (let [(mut user) 0] (equal-")
+          (indexed! (mut b)
+                    ""
+                    n
+                    "-with a left l right r (mut user) (eqprimitive/fnptr-of equality-ignore))))\n"))
+        (Ok (str (load b))))))

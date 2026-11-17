@@ -1,0 +1,150 @@
+(module rewrite.testequality)
+(import "rewrite.code" :as code)
+(import "rewrite.codeforms" :as forms)
+(import "rewrite.equality" :as equality)
+(import "coil.alloc" :use *)
+(import "coil.arraylist" :use *)
+(import "coil.result" :use *)
+(import "coil.primitive" :as primitive)
+(import "coil.cc" :as cc)
+
+(defn expect [(result (Result bool equality/Error)) (expected bool)] (-> void)
+  (match result
+    (Ok [value] (unless (= value expected) (panic "wrong equality")))
+    (Err [_] (panic "unexpected equality error"))))
+
+(defn count-pair :cc (cc/C) [(count (ptr i64)) (pair (ptr equality/Pair))]
+  (-> (Result bool equality/Error))
+  (store! count (+ (load count) 1))
+  (Ok true))
+
+(defn row [(s (mut code/Syntax)) (value forms/N0Row)] (-> forms/N0Id)
+  (push! (mut (.contexts s)) (zeroed forms/N1Row))
+  (forms/append-0 (mut (.rows0 (.store s))) value))
+
+(defn branch [(a (dyn Allocator))
+              (s (mut code/Syntax))
+              (left forms/N0Id)
+              (right forms/N0Id)] (-> forms/N0Id)
+  (let [(mut items) (ArrayList::new [forms/N0Id] a)]
+    (defer (free! (mut items)))
+    (push! (mut items) left)
+    (push! (mut items) right)
+    (row (mut s) (forms/N0V6 (forms/sequence-0 (mut (.store s)) (mut items))))))
+
+(defn main [] (-> i64)
+  (let [a (malloc-allocator)
+        (mut left) (code/create a)
+        (mut right) (code/create a)]
+    (defer (code/release! (mut left)))
+    (defer (code/release! (mut right)))
+    (let [l (row (mut left) (forms/N0V0 42))
+          r (row (mut right) (forms/N0V0 42))
+          other (row (mut right) (forms/N0V0 43))
+          shared (branch a (mut left) l l)
+          same (branch a (mut right) r r)]
+      (expect (code/equal? a (mut left) shared (mut right) same) true)
+      ; Either child can differ: a memo keyed only by the left row is unsound.
+      (expect (code/equal? a
+                           (mut left)
+                           shared
+                           (mut right)
+                           (branch a (mut right) r other))
+              false)
+      (expect (code/equal? a
+                           (mut left)
+                           shared
+                           (mut right)
+                           (branch a (mut right) other r))
+              false)
+      (expect (code/source-equal? a (mut left) shared (mut right) same) true)
+      (set! (.f0 (elem (field (mut right) contexts) (.index r))) 9)
+      (expect (code/equal? a (mut left) shared (mut right) same) true)
+      (expect (code/source-equal? a (mut left) shared (mut right) same) false)
+      (set! (.f0 (elem (field (mut right) contexts) (.index r))) 0)
+      (set! (.f1 (elem (field (mut right) contexts) (.index r))) "other.module")
+      (expect (code/source-equal? a (mut left) shared (mut right) same) false)
+      (set! (.f1 (elem (field (mut right) contexts) (.index r))) "")
+      (set! (.f2 (elem (field (mut right) contexts) (.index r))) 77)
+      (set! (.f3 (elem (field (mut right) contexts) (.index r))) 88)
+      (set! (.f4 (elem (field (mut right) contexts) (.index r))) 99)
+      (set! (.f5 (elem (field (mut right) contexts) (.index r))) 100)
+      (expect (code/source-equal? a (mut left) shared (mut right) same) true)
+      (match (code/equal? a
+                          (mut left)
+                          (forms/N0Id :index (- 0 1))
+                          (mut right)
+                          r)
+        (Err [e]
+             (match e
+               (equality/InvalidReference [_ right? _]
+                                          (when right? (panic "side")))
+               (_ (panic "reference error"))))
+        (_ (panic "bad reference accepted")))
+      ; Exponentially many logical paths, but exactly one visit per row pair.
+      (let [(mut deep-left) l
+            (mut deep-right) r
+            (mut count) 0]
+        (for [i 0 25000]
+          (set! deep-left (branch a (mut left) deep-left deep-left))
+          (set! deep-right (branch a (mut right) deep-right deep-right)))
+        (expect (forms/equal-0-with a
+                                    (field (mut left) store)
+                                    deep-left
+                                    (field (mut right) store)
+                                    deep-right
+                                    (mut count)
+                                    (primitive/fnptr-of count-pair))
+                true)
+        (unless (= count 25001) (panic "pair memo visit count")))
+      ; Inject a row cycle; the checked comparison must return, then remain reusable.
+      (set! (mut (.rows0 (.store left)))
+            (.index l)
+            (get (.rows0 (.store left)) (.index shared)))
+      (set! (mut (.rows0 (.store right)))
+            (.index r)
+            (get (.rows0 (.store right)) (.index same)))
+      (match (code/equal? a (mut left) l (mut right) r)
+        (Err [e]
+             (match e (equality/ComparisonCycle [_]) (_ (panic "cycle error"))))
+        (_ (panic "cycle accepted")))
+      (set! (mut (.rows0 (.store left))) (.index l) (forms/N0V0 42))
+      (set! (mut (.rows0 (.store right))) (.index r) (forms/N0V0 42))
+      (expect (code/equal? a (mut left) shared (mut right) same) true))
+    (let [positive (row (mut left) (forms/N0V1 0))
+          negative
+            (row (mut right) (forms/N0V1 (- (- 0 9223372036854775807) 1)))
+          nan (row (mut left) (forms/N0V1 9221120237041090626))
+          same-nan (row (mut right) (forms/N0V1 9221120237041090626))
+          other-nan (row (mut right) (forms/N0V1 9221120237041090627))]
+      (expect (code/equal? a (mut left) positive (mut right) negative) false)
+      (expect (code/equal? a (mut left) nan (mut right) same-nan) true)
+      (expect (code/equal? a (mut left) nan (mut right) other-nan) false))
+    (let [(mut values) (ArrayList::new [forms/N0Row] a)
+          (mut ids) (ArrayList::new [forms/N0Id] a)]
+      (defer (free! (mut values)))
+      (defer (free! (mut ids)))
+      (push! (mut values) (forms/N0V2 "text"))
+      (push! (mut values) (forms/N0V3 "text"))
+      (push! (mut values) (forms/N0V4 "text"))
+      (push! (mut values) (forms/N0V5 "text"))
+      (push! (mut values)
+             (forms/N0V6 (forms/sequence-0 (mut (.store left)) (mut ids))))
+      (push! (mut values)
+             (forms/N0V7 (forms/sequence-0 (mut (.store left)) (mut ids))))
+      (for value values (push! (mut ids) (row (mut left) value)))
+      (for [i 0 (len ids)]
+        (for [j 0 (len ids)]
+          (expect (code/equal? a (mut left) (get ids i) (mut left) (get ids j))
+                  (= i j)))))
+    (let [id (row (mut right) (forms/N0V0 7))]
+      (pop! (mut (.contexts right)))
+      (expect (code/equal? a (mut right) id (mut right) id) true)
+      (match (code/source-equal? a (mut right) id (mut right) id)
+        (Err [e]
+             (match e
+               (equality/MissingMetadata [_])
+               (_ (panic "metadata error"))))
+        (_ (panic "missing metadata accepted"))))
+    (println "schema equality: raw bits, tags, metadata, pair memo, 25000-depth DAG, cycle and retry passed")
+    0))

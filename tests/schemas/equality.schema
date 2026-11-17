@@ -1,0 +1,3 @@
+(node Atom (number Int) (label Text) (enabled Bool))
+(node Group (head Atom) (tail (many Atom)))
+(equality Group)

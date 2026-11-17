@@ -15,6 +15,7 @@ for flags in [[], ['--debug-checks'], ['--release']]:
     subprocess.run(['coil', 'run', 'tests/protocol.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/types.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/code.coil', *flags], cwd=ROOT, check=True)
+    subprocess.run(['coil', 'run', 'tests/equality.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/promotion.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/invocation.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/sequences.coil', *flags], cwd=ROOT, check=True)
@@ -399,3 +400,5 @@ print('Raw float-bit and C-string syntax capture type checks passed')
 subprocess.run(['python3', 'tools/check-protocol.py', '--compiler', 'build/schema-seed'], cwd=ROOT, check=True)
 
 subprocess.run(['python3', 'tools/check-expansion-policy.py'], cwd=ROOT, check=True)
+
+subprocess.run(['python3', 'tools/check-equality.py'], cwd=ROOT, check=True)

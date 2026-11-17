@@ -245,6 +245,7 @@
           (unless (and (sexp-list? (elem forms i))
                        (> (sexp-count (elem forms i)) 0)
                        (or (sexp-sym-is (sexp-nth (elem forms i) 0) "module")
+                           (sexp-sym-is (sexp-nth (elem forms i) 0) "equality")
                            (sexp-sym-is (sexp-nth (elem forms i) 0) "bindings")
                            (sexp-sym-is (sexp-nth (elem forms i) 0) "transform")
                            (sexp-sym-is (sexp-nth (elem forms i) 0) "syntax")

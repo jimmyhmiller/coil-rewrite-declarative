@@ -19,7 +19,7 @@ with tempfile.TemporaryDirectory(prefix='rewrite-lowering-') as directory:
     shutil.copyfile(ROOT/'seed/source.coil', work/'source.coil')
     shutil.copyfile(ROOT/'seed/sequence.coil', work/'sequence.coil')
     shutil.copyfile(ROOT/'runtime/native.coil', work/'native.coil')
-    for name in ['code', 'invocation', 'syntax_reader']:
+    for name in ['code', 'invocation', 'syntax_reader', 'equality_runtime']:
         shutil.copyfile(ROOT/f'seed/{name}.coil', work/f'{name}.coil')
     shutil.copyfile(ROOT/'seed/generated/code_forms.coil', work/'code_forms.coil')
     shutil.copyfile(ROOT/'seed/generated/stage_protocol.coil', work/'stage_protocol.coil')
