@@ -1,0 +1,8 @@
+(module rewrite.nameforms)
+(node Name (text Text))
+(node Rename (exported Text) (local Text))
+(node Refer (all Bool) (selected (many Name)) (excluded (many Name)) (renames (many Rename)))
+(refer-policy imports Refer
+  (selection all selected text)
+  (exclude excluded text)
+  (rename renames exported local))

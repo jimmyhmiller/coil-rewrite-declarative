@@ -251,6 +251,8 @@
                            (sexp-sym-is (sexp-nth (elem forms i) 0) "equality")
                            (sexp-sym-is (sexp-nth (elem forms i) 0)
                                         "equivalence")
+                           (sexp-sym-is (sexp-nth (elem forms i) 0)
+                                        "refer-policy")
                            (sexp-sym-is (sexp-nth (elem forms i) 0) "bindings")
                            (sexp-sym-is (sexp-nth (elem forms i) 0) "transform")
                            (sexp-sym-is (sexp-nth (elem forms i) 0) "syntax")

@@ -596,3 +596,26 @@ A single `Supply` defines one compilation's identity scope. It must cover all or
 `stagedrequests/run-with!` adds a typed admission callback after each original root is expanded/normalized, before the next root executes. It receives the original root/index, both syntax stores and the temporary normalized array. It can inspect or consume entries in place; it cannot retain that array. Retained syntax must borrow the caller-owned output or be independently promoted. Admission failure reports the original root index, returns no batch array and does not roll back prior callback effects. `run!` selects no-op admission and keeps the existing structural API.
 
 Tracking must use the normalized count before admission consumes registrations, matching the reference's singleton decision. The batch fixture connects admission to revision tracking and checks ordering, failure, retry without recycling IDs, changed/split/unchanged forms and independent output lifetime. Actual derive and declaration registration remains unimplemented; an admission hook alone is not that policy.
+
+### Import refer policies
+
+`languages/names.schema` describes refer data and declares:
+
+```
+(refer-policy imports Refer
+  (selection all selected text)
+  (exclude excluded text)
+  (rename renames exported local))
+```
+
+The root must be a record: `all` is Bool, the three collections contain records, and selected name/rename fields are Text. Field and record names are checked against the schema; neither layout nor numbered field offsets are hardcoded. Policy names must be unique. The policy compiler derives `refer-NAME(allocator, store, root)` with checked root/child/sequence access and cleanup on failure. The generated builder returns an independently owned `rewrite.refer/Policy`; the input store may then be released. Invalid roots, referenced rows and sequences return structured errors without publishing a policy.
+
+The language's refer semantics are shared by three indexed queries. Forward lookup maps a local name to its exported spelling. Renames are processed in source order: each row first supplies its local name, then suppresses its old exported name; the first decision for a spelling wins. Renames take precedence over both exclusion and selection. Exclusions then suppress names. Selected names refer themselves; `all` supplies an identity fallback for otherwise undecided names.
+
+Reverse lookup maps an exported spelling to its local name using its first rename, then exclusion/selection. It is the reference's `use-local-of` operation, not a mathematical inverse under overlapping rename rows. `drops?` separately records every excluded or renamed source spelling, even for self-renames. Absence from an explicit selection is not a deliberate drop. These distinctions matter for ambient names and trait-method visibility.
+
+`refer/referred`, `refer/local-name` and `refer/drops?` use owned hash indexes. Explicit answers borrow the policy's string pool; an all-names identity fallback borrows the query string. `refer/release!` frees the indexes and owned text. Build a new snapshot when import data changes. The low-level builder operations assume rename/exclude/select order; consumers use the schema-derived builder. This replaces scans per query with hash lookup, but is not a measured whole-compiler performance claim.
+
+`tools/capture-refer-reference.py` extracts exact refer helper/type definitions from the installed reference compiler's reported source revision and compiles them in isolation. Its evidence covers 43 policies and 387 queries in three configurations. `tools/check-refer.py` replays those observations through two different generated record layouts in all three configurations. Some collision cases exercise helper data that may not be accepted by the source import parser; no source-import compatibility follows. `tests/refer.coil` checks 2,000 renames, independent ownership, invalid references/sequences, late failure and retry with explicit allocator leak checking.
+
+This is the edge-level refer operation shared by use imports, reexports and ambient core, not a complete namespace resolver. Alias routing, declaration aliases, export visibility, recursive reexports, tier priority, ambiguity, core-provider ownership and hygiene-based macro-head lookup remain to be implemented and integrated with admission.

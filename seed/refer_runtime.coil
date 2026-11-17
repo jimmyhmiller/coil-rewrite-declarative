@@ -1,0 +1,77 @@
+;;; Owned indexes for import refer policies. Insertions preserve first decisions.
+(module rewrite.refer)
+(import "rewrite.source" :as source)
+(import "rewrite.sequence" :as sequence)
+(import "coil.alloc" :use [Allocator])
+(import "coil.hashmap" :use [HashMap])
+(import "coil.str" :use [keyops-borrowed])
+(import "coil.result" :use *)
+
+(defstruct Policy
+  [(strings source/Sources)
+   (forward (HashMap (slice u8) (Option (slice u8))))
+   (reverse (HashMap (slice u8) (Option (slice u8))))
+   (dropped (HashMap (slice u8) bool))
+   (all? bool)])
+
+(defsum Error
+  (InvalidRow [(schema i64) (row i64)])
+  (InvalidSequence [(schema i64) (error sequence/SequenceError)]))
+
+(defn create [(a (dyn Allocator))] (-> Policy)
+  (Policy
+    :strings (source/create a)
+    :forward (HashMap::new [(slice u8) (Option (slice u8))] a (keyops-borrowed))
+    :reverse (HashMap::new [(slice u8) (Option (slice u8))] a (keyops-borrowed))
+    :dropped (HashMap::new [(slice u8) bool] a (keyops-borrowed))
+    :all? false))
+
+(defn release! [(policy (mut Policy))] (-> void)
+  (free! (mut (.forward policy)))
+  (free! (mut (.reverse policy)))
+  (free! (mut (.dropped policy)))
+  (source/release! (mut (.strings policy))))
+
+(defn first! [(map (mut (HashMap (slice u8) (Option (slice u8)))))
+              (key (slice u8))
+              (value (Option (slice u8)))] (-> void)
+  (match (get (load map) key) (Some [_]) (None [] (set! (mut map) key value))))
+
+;;; Builders call all renames in order, then exclusions, then selected names.
+;;; A rename wins over selection/exclusion; forward lookup settles both names.
+(defn rename! [(policy (mut Policy)) (exported (slice u8)) (local (slice u8))]
+  (-> void)
+  (let [from (source/intern! (mut (.strings policy)) exported)
+        to (source/intern! (mut (.strings policy)) local)]
+    (first! (mut (.forward policy)) to (Some from))
+    (first! (mut (.forward policy)) from (None))
+    (first! (mut (.reverse policy)) from (Some to))
+    (set! (mut (.dropped policy)) from true)))
+
+(defn exclude! [(policy (mut Policy)) (name (slice u8))] (-> void)
+  (let [owned (source/intern! (mut (.strings policy)) name)]
+    (first! (mut (.forward policy)) owned (None))
+    (first! (mut (.reverse policy)) owned (None))
+    (set! (mut (.dropped policy)) owned true)))
+
+(defn select! [(policy (mut Policy)) (name (slice u8))] (-> void)
+  (let [owned (source/intern! (mut (.strings policy)) name)]
+    (first! (mut (.forward policy)) owned (Some owned))
+    (first! (mut (.reverse policy)) owned (Some owned))))
+
+;;; Stored answers borrow policy. An all-names fallback borrows the query name.
+(defn referred [(policy (ptr Policy)) (name (slice u8))]
+  (-> (Option (slice u8)))
+  (match (get (.forward policy) name)
+    (Some [answer] answer)
+    (None [] (if (.all? policy) (Some name) (None)))))
+
+(defn local-name [(policy (ptr Policy)) (exported (slice u8))]
+  (-> (Option (slice u8)))
+  (match (get (.reverse policy) exported)
+    (Some [answer] answer)
+    (None [] (if (.all? policy) (Some exported) (None)))))
+
+;;; Deliberate exclusion/renaming is independent of ordinary membership.
+(defn drops? [(policy (ptr Policy)) (name (slice u8))] (-> bool)
+  (match (get (.dropped policy) name) (Some [_] true) (None [] false)))
