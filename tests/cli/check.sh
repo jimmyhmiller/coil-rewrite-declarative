@@ -447,3 +447,49 @@ for declarations in '(extern labs [i64] (-> i64)) (extern labs [i32] (-> i32))' 
         grep -F "conflicting signatures" diagnostic >/dev/null
     done
 done
+
+mkdir -p mixed/src 'mixed/native files' 'mixed/include files' 'mixed/library files'
+(
+    cd mixed
+    cat > Coil.toml <<'TOML'
+[package]
+name = "mixed"
+entry = "src/main.coil"
+[cc]
+sources = ["native files/calculate.c"]
+include-dirs = ["include files"]
+flags = ["-DDELTA=3"]
+[link]
+objects = ["native files/start.o"]
+search-paths = ["library files"]
+libs = ["increment"]
+TOML
+    echo '(module mixed.main) (extern calculate [i64] (-> i64)) (defn main [] (-> i64) (calculate 10))' > src/main.coil
+    echo 'long start(long); long increment(long);' > 'include files/math_parts.h'
+    printf '#include "math_parts.h"\nlong calculate(long x) { return increment(start(x)) + DELTA; }\n' > 'native files/calculate.c'
+    echo 'long start(long x) { return x * 3; }' > start.c
+    echo 'long increment(long x) { return x + 4; }' > increment.c
+    cc -c start.c -o 'native files/start.o'
+    cc -c increment.c -o increment.o
+    ar rcs 'library files/libincrement.a' increment.o
+    for compiler in coil ../rewrite; do
+        "$compiler" build -o executable
+        status=0
+        ./executable || status=$?
+        [ "$status" -eq 37 ]
+        status=0
+        "$compiler" run || status=$?
+        [ "$status" -eq 37 ]
+    done
+    cp executable previous-build
+    cp 'native files/calculate.c' working.c
+    printf '#error invalid native source\n' > 'native files/calculate.c'
+    if ../rewrite build -o executable >diagnostic 2>&1; then exit 1; fi
+    grep -F 'invalid native source' diagnostic >/dev/null
+    cmp previous-build executable
+    cp working.c 'native files/calculate.c'
+    echo 'flags = ["-Wl,--unknown-coil-test-option"]' >> Coil.toml
+    if ../rewrite build -o executable >diagnostic 2>&1; then exit 1; fi
+    grep -F -- '--unknown-coil-test-option' diagnostic >/dev/null
+    cmp previous-build executable
+)
