@@ -164,7 +164,7 @@
                       (type (ptr coil.reader.Sexp)) (layout Layout)] i64
   (when (coil.reader.sexp-sym? type)
     (when (= (scalar-bytes (scalar-type type)) 0)
-      (obtain resolved (rewrite.modules.find-name lookup type true)
+      (obtain resolved (rewrite.modules.find-name lookup type (rewrite.modules.TypeNames))
         (cases resolved
           ((Some [form])
             (cases (structure form)
@@ -221,7 +221,7 @@
       (with bytes (scalar-bytes name)
         (when (> bytes 0) (conclude (if measure? (Some (Layout :size bytes :alignment bytes)) (None [Layout])))))
       (require (not (builtin-type-name? type)) type "type has no supported native layout")
-      (obtain resolved (rewrite.modules.find-name lookup type true)
+      (obtain resolved (rewrite.modules.find-name lookup type (rewrite.modules.TypeNames))
         (cases resolved
           ((Some [form])
             (when (not measure?) (conclude (None [Layout])))
@@ -235,7 +235,8 @@
         (conclude (Some (Layout :alignment word :size (if (coil.reader.sexp-sym-is kind "slice") (* word 2) word))))))
     (_))
   (cases (function-pointer-layout type)
-    ((FunctionPointer [parameters result])
+    ((FunctionPointer [convention parameters result])
+      (prove (native-convention lookup convention))
       (each-child param parameters 0 i (prove (inspect-type lookup (mut checked) param false)))
       (when (not (or (coil.reader.sexp-sym-is result "void") (coil.reader.sexp-sym-is result "never")))
         (prove (inspect-type lookup (mut checked) result false)))
@@ -269,7 +270,7 @@
     (_))
   (cases (field-offset-query expr)
     ((OffsetOf [type field])
-      (obtain resolved (rewrite.modules.find-name lookup type true)
+      (obtain resolved (rewrite.modules.find-name lookup type (rewrite.modules.TypeNames))
         (cases resolved
           ((Some [form])
             (prove (nominal-layout (.unit lookup) (mut checked) form))
@@ -677,10 +678,29 @@
     (record (.types checked) (.node-id expr) actual)
     (conclude actual)))
 
+(predicate native-convention-name? [(name (slice u8))]
+  (or (= name "coil.cc.C") (= name "coil.cc.Fast") (= name "coil.cc.Cold")
+      (= name "coil.cc.Tail") (= name "coil.cc.SwiftTail")))
+
+(derive native-convention [(lookup rewrite.modules.Lookup) (name (ptr coil.reader.Sexp))] (slice u8)
+  (when (native-convention-name? (coil.reader.sexp-sym name)) (conclude (coil.reader.sexp-sym name)))
+  (obtain resolved (rewrite.modules.find-name lookup name (rewrite.modules.VariantNames))
+    (cases resolved
+      ((Some [variant])
+        (with canonical (rewrite.modules.symbol-for lookup variant)
+          (when (native-convention-name? canonical) (conclude canonical))))
+      (_)))
+  (reject name "expected a native calling convention constructor from coil.cc"))
+
 (judgment check-signatures
   [(allocator (dyn coil.alloc.Allocator))
-   (forms (ptr (coil.arraylist.ArrayList coil.reader.Sexp)))]
-  (each-form form forms
+   (unit (ptr rewrite.modules.SourceUnit))]
+  (each-form form (.declarations unit)
+    (cases (declared-convention form)
+      ((Convention [name])
+        (obtain convention (native-convention (rewrite.modules.lookup-for unit form) name)
+          (require (= convention "coil.cc.C") name "only the C calling convention is supported for native functions")))
+      (_))
     (cases (ordinary-function form)
       ((Function [_ name parameters result])
         (require (not (or (explicit-call-name? name) (layout-name? name) (offset-name? name))) name "cannot define a function named for a built-in form")

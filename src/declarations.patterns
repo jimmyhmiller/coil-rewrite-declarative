@@ -1,7 +1,7 @@
 (extract ordinary-function FunctionDeclaration Function NoFunction
   (capture declaration (list (spellings "defn" "defn*") (capture name symbol) (capture parameters (vector ...))
         (list "->" (capture result _)) ...))
-  (capture declaration (list (spellings "defn" "defn*") (capture name symbol) (keyword "cc") (list "coil.cc.C")
+  (capture declaration (list (spellings "defn" "defn*") (capture name symbol) (keyword "cc") (list symbol)
         (capture parameters (vector ...)) (list "->" (capture result _)) ...)))
 (extract typed-parameter ParameterDeclaration Parameter NoParameter
   (list (capture name symbol) (capture type _)))
@@ -48,14 +48,14 @@
 (recognize export-form? (list "export" ...))
 (extract external-function ExternalDeclaration External NoExternal
   (list "extern" (capture name symbol) (capture parameters (vector ...)) (list "->" (capture result _)))
-  (list "extern" (capture name symbol) (keyword "cc") (list "coil.cc.C")
+  (list "extern" (capture name symbol) (keyword "cc") (list symbol)
         (capture parameters (vector ...)) (list "->" (capture result _))))
 (extract linked-external LinkedExternal LinkedExtern NoLinkedExtern
   (list "extern" (capture name symbol) (keyword "as") (capture link string)
         (capture parameters (vector ...)) (list "->" (capture result _)))
-  (list "extern" (capture name symbol) (keyword "as") (capture link string) (keyword "cc") (list "coil.cc.C")
+  (list "extern" (capture name symbol) (keyword "as") (capture link string) (keyword "cc") (list symbol)
         (capture parameters (vector ...)) (list "->" (capture result _)))
-  (list "extern" (capture name symbol) (keyword "cc") (list "coil.cc.C") (keyword "as") (capture link string)
+  (list "extern" (capture name symbol) (keyword "cc") (list symbol) (keyword "as") (capture link string)
         (capture parameters (vector ...)) (list "->" (capture result _))))
 (extract constant-declaration ConstantDeclaration Constant NoConstant
   (list (spellings "const" "def") (capture name symbol) (capture initializer _)))
@@ -69,7 +69,7 @@
   (list "array" (capture element _) (capture count integer))
   (list "array" (capture element _) (capture count symbol)))
 (extract function-pointer-layout FunctionPointerLayout FunctionPointer NoFunctionPointer
-  (list "fnptr" (list (spellings "coil.cc.C" "coil.cc.Fast" "coil.cc.Cold" "coil.cc.Tail" "coil.cc.SwiftTail"))
+  (list "fnptr" (list (capture convention symbol))
         (capture parameters (vector ...)) (capture result _)))
 (extract structure StructDeclaration Struct NoStruct
   (list "defstruct" (capture name symbol) (capture fields (vector ...))))
@@ -83,3 +83,6 @@
   (list (capture name symbol) (vector ...)))
 (extract variant-fields VariantFields Payload NoPayload
   (list symbol (capture fields (vector ...))))
+(extract declared-convention DeclaredConvention Convention NoConvention
+  (list (spellings "defn" "defn*" "extern") symbol (keyword "cc") (list (capture name symbol)) ...)
+  (list "extern" symbol (keyword "as") string (keyword "cc") (list (capture name symbol)) ...))

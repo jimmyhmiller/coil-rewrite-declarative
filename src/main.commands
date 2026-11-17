@@ -22,11 +22,11 @@
           entry))))
 
 (pipeline check-source
-  (phase sources source-catalog allocator path source-bytes)
+  (phase sources source-catalog allocator (coil.str.from-cstr (load (index argv 0))) path source-bytes)
   (on-error problem (report-problem sources problem))
   (read-forms parsed)
   (phase unit read-unit allocator sources parsed)
-  (phase valid check-signatures allocator (.declarations unit))
+  (phase valid check-signatures allocator unit)
   (phase checked check-functions allocator unit))
 
 (pipeline compile-object
