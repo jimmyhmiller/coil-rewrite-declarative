@@ -22,7 +22,10 @@
   (Route [(error (routes/Failure routing/Error))]))
 
 (defstruct Outcome
-  [(result (Result routing/Answer (policy/Failure Error))) (lexical StrBuf)])
+  [(result (Result routing/Answer (policy/Failure Error)))
+   (lexical StrBuf)
+   (spelling (slice u8))
+   (module (Option (slice u8)))])
 
 (defstruct Context
   [(allocator (dyn Allocator))
@@ -33,6 +36,7 @@
    (fallback (Option (slice u8)))
    (module (Option (slice u8)))
    (raw (slice u8))
+   (spelling (slice u8))
    (lexical StrBuf)
    (answer routing/Answer)])
 
@@ -77,6 +81,7 @@
           (Ok (policy/Event-Scoped))))))
 
 (defn lookup! [(c (ptr Context)) (spelling (slice u8))] (-> (Result bool Error))
+  (set! (.spelling c) spelling)
   (match (routing/resolve (.allocator c)
                           (.view c)
                           (.world c)
@@ -118,6 +123,7 @@
             :fallback fallback
             :module (None)
             :raw ""
+            :spelling ""
             :lexical (StrBuf::new a)
             :answer (routing/Answer :target (None) :route (None)))
         (mut handlers)
@@ -133,4 +139,8 @@
             (Err [error] (Err [routing/Answer (policy/Failure Error)] error))
             (Ok [_]
                 (Ok [routing/Answer (policy/Failure Error)] (.answer context))))]
-    (Outcome :result result :lexical (.lexical context))))
+    (Outcome
+      :result result
+      :lexical (.lexical context)
+      :spelling (.spelling context)
+      :module (.module context))))

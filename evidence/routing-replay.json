@@ -1,0 +1,33 @@
+{
+  "scope": "Resolver/head helper replay including selected route metadata. No source parser, diagnostic text, memo or route-publication parity claim.",
+  "graphs": 12,
+  "outcomes": 1729,
+  "reference_sha256": "be3573c631a93604cc872a4ba2f3ed599325a776ad1920b807640e898bb157a0",
+  "driver_sha256": "d39fe3244ef7ded4753bdd90a110139d8dedde9621aef394012564445c1c84f1",
+  "implementation_sha256": {
+    "seed/types.coil": "e398f5cb019e3eea3339700ba5b3685b119421eb30ac5a2045c8835d5d9a6ce9",
+    "seed/scope.coil": "c7be3143d3e955ecd8c05ea3c7ffb4b8b6d9981a223fc5de55507aa89f35e71f",
+    "seed/resolution.coil": "b080dca9f1a7b3848105faf4e2369a3272911fe8ab22a0e23f75e23d112521c6",
+    "seed/source.coil": "090c81a0015f5a4941deb45e3dc8ff582b33cd4da97296cde4e3454979dad640",
+    "seed/sequence.coil": "bdcac1aac27c0ed59c3020705e0583ff28f8b553c115f8e9d4211d7d59976120",
+    "seed/refer_runtime.coil": "fa9405d1a24895cc2835b424648c85a7bd29c513151d3718e9caddbd0d368b33",
+    "seed/selection_runtime.coil": "f2f7608f324e3ae5e313c5bbb1dfa3d0fc418445ea23f95b4f987b51c64a8507",
+    "seed/namespace.coil": "d55f43600f98c731c24fb71b31d3cf7b047a41ce110217678d3742b9ada91bbd",
+    "seed/search_runtime.coil": "82f18d2a79fc3086cd35695bcab238c83470334db03292b9abc35c7cbf145b71",
+    "seed/routing.coil": "40caf673390c0a315f3f32c2ec701a62d86013b73f0c91d30b4fd4a1f5f537fe",
+    "seed/routing_facts.coil": "24eabdb95c24c6e450392b013c02c72544efb3ef351accd8218fe839f83f79a2",
+    "seed/macro_head.coil": "7ff0febbce67c080529f48b8ce44ed76e19422d73e47d25ceeeeba8edcde8332",
+    "seed/code.coil": "b8bfa5bcb447bf12f86f22a6c575f29e49290c3a858eb07e9c07394df259ae5e",
+    "seed/equality_runtime.coil": "677953a98f75ce17eba81be80da3133d56da5387413e15679ba218c10e462039",
+    "seed/generated/name_forms.coil": "dc635ecbb7041f3c7de7fa7756bd581d160aec2b5b1eae0b864aafc410517463",
+    "seed/generated/export_search.coil": "0958122e80f6ba9f2ff587e2760da4da371fafca3c73e633b8a4ba55b5ed663b",
+    "seed/generated/resolve_protocol.coil": "674f6b3ebd9021f16c3dc5b0da344b2f61d860709cfc600d5f6bac6b8811d7ae",
+    "seed/generated/head_protocol.coil": "228d6003128bf3b5c17d08f06fd1ab01c96f13dd7bcd23a62acd41e126febbef",
+    "seed/generated/code_forms.coil": "8cd71624fa90d36fb3376c0ef4341d40399fbbc99229bb46e6d19a62ea878662"
+  },
+  "configurations_passed": [
+    "default",
+    "debug-checks",
+    "release"
+  ]
+}

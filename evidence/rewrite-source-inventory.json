@@ -9,8 +9,8 @@
     },
     "authored-seed-and-runtime": {
       "files": 46,
-      "bytes": 532062,
-      "physical_lines": 9636
+      "bytes": 533203,
+      "physical_lines": 9648
     },
     "generated-language-toolchain": {
       "files": 11,
@@ -38,9 +38,9 @@
       "physical_lines": 2869
     },
     "rewrite-build-and-validation-tools": {
-      "files": 25,
-      "bytes": 160777,
-      "physical_lines": 2625
+      "files": 28,
+      "bytes": 182514,
+      "physical_lines": 2934
     },
     "rewrite-tests-and-fixtures": {
       "files": 64,
@@ -136,9 +136,9 @@
     {
       "path": "seed/README.md",
       "category": "authored-seed-and-runtime",
-      "sha256": "0b6d460f14096fb5f56c37df9bed8a1635fa7b9b9549ee087d83e417b41b1c7c",
-      "bytes": 116375,
-      "physical_lines": 685
+      "sha256": "bbf2423563af3c7d6b4c99750c4b799c3f4656ee6a44bd8047b5685345fbea54",
+      "bytes": 117294,
+      "physical_lines": 687
     },
     {
       "path": "seed/alpha.coil",
@@ -297,9 +297,9 @@
     {
       "path": "seed/macro_head.coil",
       "category": "authored-seed-and-runtime",
-      "sha256": "a3f50382deef52dcb406dd2b85de4f9e0e9e8d25da222d5ade834ecb01193fdc",
-      "bytes": 5256,
-      "physical_lines": 136
+      "sha256": "7ff0febbce67c080529f48b8ce44ed76e19422d73e47d25ceeeeba8edcde8332",
+      "bytes": 5478,
+      "physical_lines": 146
     },
     {
       "path": "seed/main.coil",
@@ -1002,6 +1002,13 @@
       "physical_lines": 136
     },
     {
+      "path": "tools/capture-routing-reference.py",
+      "category": "rewrite-build-and-validation-tools",
+      "sha256": "bdef67897e97abb097b580128bf33043b1bb2fb4d808909f99fc1dbc5c940cbd",
+      "bytes": 10518,
+      "physical_lines": 132
+    },
+    {
       "path": "tools/capture-use-reference.py",
       "category": "rewrite-build-and-validation-tools",
       "sha256": "93a611919d601788cccf27aa394e2887cc69c5f50ed355783a3b9661f4426c50",
@@ -1065,6 +1072,13 @@
       "physical_lines": 107
     },
     {
+      "path": "tools/check-routing.py",
+      "category": "rewrite-build-and-validation-tools",
+      "sha256": "f4b94398957033629584f21a3a7c70bfb042b7d09d7e7a4256c070c343af7729",
+      "bytes": 7509,
+      "physical_lines": 121
+    },
+    {
       "path": "tools/check-search.py",
       "category": "rewrite-build-and-validation-tools",
       "sha256": "fef185570492dc53553d005de1d009bc6a6389b52b50830b92c3018f646a93be",
@@ -1074,9 +1088,9 @@
     {
       "path": "tools/check-seed.py",
       "category": "rewrite-build-and-validation-tools",
-      "sha256": "fb10f5e554ed3633b26978ff64256a8729b4314c2682d92dacef0b26b21b8156",
-      "bytes": 29344,
-      "physical_lines": 430
+      "sha256": "5a470c5502cad30980f9196c4a33a62dbe167824bbfe865ca092fc1704ef9f7c",
+      "bytes": 29420,
+      "physical_lines": 431
     },
     {
       "path": "tools/check-selection.py",
@@ -1140,6 +1154,13 @@
       "sha256": "0f220f79b78963f0c66a5405bb67dc7b6fa77b6b73370f2f350f95ce0a0991ac",
       "bytes": 3748,
       "physical_lines": 79
+    },
+    {
+      "path": "tools/route-fixtures.py",
+      "category": "rewrite-build-and-validation-tools",
+      "sha256": "ad614f8ce6b95a052aad8a5b6901b2bd07256823578553dfce2d658ef4956772",
+      "bytes": 3634,
+      "physical_lines": 55
     },
     {
       "path": "tools/vendor-backend.py",
