@@ -1,0 +1,7 @@
+(module rewrite.headprotocol)
+(protocol
+  (start prepare)
+  (finish complete)
+  (state prepare (on Scoped scoped) (on Raw raw))
+  (state scoped (on Found complete) (on Missing raw))
+  (state raw (on Done complete)))

@@ -1,0 +1,136 @@
+;;; Scoped macro-head lookup. The result owns generated lexical spelling storage.
+(module rewrite.macrohead)
+(import "rewrite.code" :as code)
+(import "rewrite.codeforms" :as forms)
+(import "rewrite.namespace" :as namespace)
+(import "rewrite.routingfacts" :as facts)
+(import "rewrite.routing" :as routing)
+(import "rewrite.resolveprotocol" :as routes)
+(import "rewrite.headprotocol" :as policy)
+(import "coil.alloc" :use *)
+(import "coil.arraylist" :use *)
+(import "coil.result" :use *)
+(import "coil.str" :use *)
+(import "coil.reader" :use [next-node-id])
+(import "coil.cc" :as cc)
+(import "coil.primitive" :as primitive)
+
+(defsum Error
+  (InvalidHead [(index i64)])
+  (MissingContext [(index i64)])
+  (ExpectedSymbol [(index i64)])
+  (Route [(error (routes/Failure routing/Error))]))
+
+(defstruct Outcome
+  [(result (Result routing/Answer (policy/Failure Error))) (lexical StrBuf)])
+
+(defstruct Context
+  [(allocator (dyn Allocator))
+   (view (ptr namespace/View))
+   (world (ptr facts/World))
+   (syntax (ptr code/Syntax))
+   (head forms/N0Id)
+   (fallback (Option (slice u8)))
+   (module (Option (slice u8)))
+   (raw (slice u8))
+   (lexical StrBuf)
+   (answer routing/Answer)])
+
+(defn release! [(outcome (mut Outcome))] (-> void)
+  (free! (mut (.lexical outcome))))
+
+(defn prepare :cc (cc/C) [(c (ptr Context))] (-> (Result policy/Event Error))
+  (block
+    :done
+      (let [index (.index (.head c))
+            row
+              (match (forms/lookup-0 (field (field (.syntax c) store) rows0)
+                                     (.head c))
+                (Some [row] row)
+                (None [] (break :done (Err (InvalidHead index)))))
+            name
+              (match row
+                (forms/N0V2 [name] name)
+                (_ (break :done (Err (ExpectedSymbol index)))))]
+        (unless (< index (len (.contexts (.syntax c))))
+          (break :done (Err (MissingContext index))))
+        (let [metadata (get (.contexts (.syntax c)) index)
+              scope (.f0 metadata)
+              module (.f1 metadata)]
+          (set! (.raw c) name)
+          (set! (.module c)
+                (if (> scope 0)
+                    (if (= (len module) 0) (None) (Some module))
+                    (.fallback c)))
+          (when (= scope 0) (break :done (Ok (policy/Event-Raw))))
+          (if (< scope 0)
+              (do
+                (push-str! (mut (.lexical c)) "$datum")
+                (push-i64! (mut (.lexical c)) (next-node-id)))
+              (do
+                (push-str! (mut (.lexical c)) "$scope")
+                (push-i64! (mut (.lexical c)) scope)
+                (push-str! (mut (.lexical c)) "@")
+                (push-str! (mut (.lexical c)) module)))
+          (push-str! (mut (.lexical c)) "$")
+          (push-str! (mut (.lexical c)) name)
+          (Ok (policy/Event-Scoped))))))
+
+(defn lookup! [(c (ptr Context)) (spelling (slice u8))] (-> (Result bool Error))
+  (match (routing/resolve (.allocator c)
+                          (.view c)
+                          (.world c)
+                          spelling
+                          (.module c)
+                          true)
+    (Err [error] (Err (Route error)))
+    (Ok [answer]
+        (set! (.answer c) answer)
+        (Ok (match (.target answer) (Some [_] true) (None [] false))))))
+
+(defn scoped :cc (cc/C) [(c (ptr Context))] (-> (Result policy/Event Error))
+  (match (lookup! c (str (.lexical c)))
+    (Err [e] (Err e))
+    (Ok [found?] (Ok (if found? (policy/Event-Found) (policy/Event-Missing))))))
+
+(defn raw :cc (cc/C) [(c (ptr Context))] (-> (Result policy/Event Error))
+  (match (lookup! c (.raw c))
+    (Err [e] (Err e))
+    (Ok [_] (Ok (policy/Event-Done)))))
+
+;;; Release every outcome, including failures. Other strings borrow the input
+;;; syntax, namespace/routing stores and fallback module. Negative scopes use the
+;;; bootstrap reader's shared same-session identity domain, also used by Code.
+;;; Internal route failures propagate instead of being silently treated as misses.
+(defn resolve [(a (dyn Allocator))
+               (view (ptr namespace/View))
+               (world (ptr facts/World))
+               (syntax (ptr code/Syntax))
+               (head forms/N0Id)
+               (fallback (Option (slice u8)))] (-> Outcome)
+  (let [(mut context)
+          (Context
+            :allocator a
+            :view view
+            :world world
+            :syntax syntax
+            :head head
+            :fallback fallback
+            :module (None)
+            :raw ""
+            :lexical (StrBuf::new a)
+            :answer (routing/Answer :target (None) :route (None)))
+        (mut handlers)
+          (policy/Handlers [Context Error]
+                           :step-prepare
+                           (primitive/fnptr-of prepare)
+                           :step-scoped
+                           (primitive/fnptr-of scoped)
+                           :step-raw
+                           (primitive/fnptr-of raw))
+        result
+          (match (policy/run (mut context) (mut handlers))
+            (Err [error] (Err [routing/Answer (policy/Failure Error)] error))
+            (Ok [_]
+                (Ok [routing/Answer (policy/Failure Error)] (.answer context))))]
+    (Outcome :result result :lexical (.lexical context))))

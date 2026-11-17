@@ -21,6 +21,7 @@ for flags in [[], ['--debug-checks'], ['--release']]:
     subprocess.run(['coil', 'run', 'tests/namespace.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/use-lookup.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/routing.coil', *flags], cwd=ROOT, check=True)
+    subprocess.run(['coil', 'run', 'tests/macro-head.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/rounds.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/promotion.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/stage-datum.coil', *flags], cwd=ROOT, check=True)
