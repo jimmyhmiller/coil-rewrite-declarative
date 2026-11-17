@@ -118,3 +118,20 @@
   (Function (Function convention parameters result))
   (Application (Application (Identifier name scope module) arguments)))
 (equality Type)
+
+; Lexical reference components. Occurrence maps cannot be memoized by input ID.
+(node LexicalName (name Text))
+(sum LexicalConstant
+  (Integer (value Int)) (Keyword (value Text)) (Boolean (value Bool))
+  (Reference (name LexicalName)))
+(sum LexicalExtent (Fixed (value Int)) (Parameter (name LexicalName)))
+(sum LexicalConvention (Named (name LexicalName)) (Value (name LexicalName)))
+(transform Identifier LexicalName :occurrences
+  (Identifier (LexicalName (lexical spelling scope module))))
+(transform TypeConstant LexicalConstant :occurrences
+  (Integer (Integer value)) (Keyword (Keyword value)) (Boolean (Boolean value))
+  (Reference (Reference name)))
+(transform TypeExtent LexicalExtent :occurrences
+  (Fixed (Fixed value)) (Parameter (Parameter name)))
+(transform TypeConvention LexicalConvention :occurrences
+  (Named (Named name)) (Value (Value name)))

@@ -9,7 +9,24 @@
 (import "coil.result" :use *)
 (import "coil.str" :use *)
 
-(defstruct Pass [(source i64) (target i64) (many? bool) (form Sexp)])
+(defstruct Pass
+  [(source i64)
+   (target i64)
+   (many? bool)
+   (occurrences? bool)
+   (start i64)
+   (form Sexp)])
+
+(defn contains-lexical? [(form (ptr Sexp))] (-> bool)
+  (block :found
+    (when (or (sexp-list? form) (sexp-vec? form))
+      (when (and (sexp-list? form)
+                 (> (sexp-count form) 0)
+                 (sexp-sym-is (sexp-nth form 0) "lexical"))
+        (break :found true))
+      (for [i 0 (sexp-count form)]
+        (when (contains-lexical? (sexp-nth form i)) (break :found true))))
+    false))
 
 (defn node-number [(s (ptr Schema)) (name (slice u8))] (-> i64)
   (block :done
@@ -35,6 +52,7 @@
                          (source i64)
                          (target i64)
                          (many? bool)
+                         (occurrences? bool)
                          (p i64)] (-> void)
   (push-str! (mut b) "(defn sequence-element-")
   (number! (mut b) p)
@@ -63,7 +81,10 @@
   (push-str! (mut b) " store)) (mut (.seqmemo")
   (number! (mut b) p)
   (push-str! (mut b)
-             " state)) (.index ids) (.sharing? state) (transform-primitive/cast (ptr TransformState) state) (transform-primitive/fnptr-of sequence-element-")
+             " state)) (.index ids) ")
+  (push-str! (mut b) (if occurrences? "false" "(.sharing? state)"))
+  (push-str! (mut b)
+             " (transform-primitive/cast (ptr TransformState) state) (transform-primitive/fnptr-of sequence-element-")
   (number! (mut b) p)
   (push-str! (mut b)
              ") (transform-primitive/fnptr-of transform-sequence-error)) (Err [e] (Err e)) (Ok [index] (Ok (N")
@@ -78,9 +99,44 @@
              (term (ptr Sexp))
              (expected (slice u8))
              (many? bool)
+             (occurrences? bool)
              (rule (ptr Sexp))]
   (-> (Result i64 Diag))
   (block :done
+    (when (and (sexp-list? term)
+               (> (sexp-count term) 0)
+               (sexp-sym-is (sexp-nth term 0) "lexical"))
+      (unless (and (= (sexp-count term) 4) (= expected "Text") (not many?))
+        (break
+          :done
+            (Err (problem term
+                          "lexical requires Text, Int, Text arguments and a Text result"))))
+      (unless occurrences?
+        (break
+          :done
+            (Err (problem term "lexical requires an occurrence transformation"))))
+      (push-str! (mut b) "(let [")
+      (for [i 1 4]
+        (push-str! (mut b)
+                   (cond (= i 1) "lexical-name "
+                         (= i 2) "lexical-scope "
+                         :else "lexical-module "))
+        (match (term! (mut b)
+                      s
+                      passes
+                      source
+                      v
+                      (sexp-nth term i)
+                      (if (= i 2) "Int" "Text")
+                      false
+                      occurrences?
+                      rule)
+          (Err [d] (break :done (Err d)))
+          (Ok [_]))
+        (push-str! (mut b) " "))
+      (push-str! (mut b)
+                 "(mut lexical-buffer) (StrBuf::new (.allocator (.source-data store)))] (defer (free! (mut lexical-buffer))) (transform-lexical/write! (mut lexical-buffer) lexical-name lexical-scope lexical-module) (store-text! (mut store) (str lexical-buffer)))")
+      (break :done (Ok 0)))
     (when many?
       (when (sexp-sym? term)
         (for [f 0 (len (.fields v))]
@@ -93,6 +149,11 @@
                                 (.name (elem (field s nodes) (.source pass))))
                              (= expected
                                 (.name (elem (field s nodes) (.target pass)))))
+                    (when (and (.occurrences? pass) (not occurrences?))
+                      (break
+                        :done
+                          (Err (problem term
+                                        "occurrence map requires an occurrence caller"))))
                     (push-str! (mut b) "(match (")
                     (sequence-function-name! (mut b)
                                              (.source pass)
@@ -142,6 +203,12 @@
                                          (= expected
                                             (.name (elem (field s nodes)
                                                          (.target pass)))))
+                                (when (and (.occurrences? pass)
+                                           (not occurrences?))
+                                  (break
+                                    :done
+                                      (Err (problem child
+                                                    "occurrence map requires an occurrence caller"))))
                                 (set! matched true)
                                 (push-str! (mut b) "(let [part (match (")
                                 (if (.many? field)
@@ -175,6 +242,7 @@
                                 child
                                 expected
                                 false
+                                occurrences?
                                 rule)
                     (Err [d] (break :done (Err d)))
                     (Ok [_]))
@@ -207,6 +275,11 @@
                               (.name (elem (field s nodes) (.source pass))))
                            (= expected
                               (.name (elem (field s nodes) (.target pass)))))
+                  (when (and (.occurrences? pass) (not occurrences?))
+                    (break
+                      :done
+                        (Err (problem term
+                                      "occurrence map requires an occurrence caller"))))
                   (set! matched true)
                   (push-str! (mut b)
                              "(match (sequence/first! (field input sequences")
@@ -226,6 +299,7 @@
                                 (sexp-nth term 2)
                                 expected
                                 false
+                                occurrences?
                                 rule)
                     (Err [d] (break :done (Err d)))
                     (Ok [_]))
@@ -258,6 +332,11 @@
                                   (.name (elem (field s nodes) (.source pass))))
                                (= expected
                                   (.name (elem (field s nodes) (.target pass)))))
+                      (when (and (.occurrences? pass) (not occurrences?))
+                        (break
+                          :done
+                            (Err (problem term
+                                          "occurrence map requires an occurrence caller"))))
                       (push-str! (mut b) "(match (")
                       (function-name! (mut b)
                                       (.source pass)
@@ -318,6 +397,7 @@
                         (sexp-nth term (+ i 1))
                         (.type-name (elem (field variant fields) i))
                         (.many? (elem (field variant fields) i))
+                        occurrences?
                         rule)
             (Err [d] (break :done (Err d)))
             (Ok [_]))
@@ -354,6 +434,7 @@
   (block
     :done
       (let [(mut passes) (ArrayList::new [Pass] a)
+            (mut uses-lexical?) false
             (mut b) (StrBuf::new a)]
         (for [i 0 (len (load forms))]
           (let [form (elem forms i)]
@@ -374,11 +455,20 @@
                                   "expected (transform Source Target (Constructor expression) ...)"))))
               (let [source (node-number s (sexp-sym (sexp-nth form 1)))
                     many? (sexp-list? (sexp-nth form 2))
+                    occurrences? (sexp-kw? (sexp-nth form 3))
+                    start (if occurrences? 4 3)
                     target
                       (node-number s
                                    (sexp-sym (if many?
                                                  (sexp-nth (sexp-nth form 2) 1)
                                                  (sexp-nth form 2))))]
+                (when occurrences?
+                  (unless (and (= (sexp-kw (sexp-nth form 3)) "occurrences")
+                               (> (sexp-count form) start))
+                    (break
+                      :done
+                        (Err (problem form
+                                      "expected :occurrences followed by transformation rules")))))
                 (unless (and (>= source 0) (>= target 0))
                   (break
                     :done (Err (problem form "unknown transformation schema"))))
@@ -390,13 +480,19 @@
                       (break
                         :done
                           (Err (problem form "duplicate schema transformation"))))))
+                (when (contains-lexical? form) (set! uses-lexical? true))
                 (push! (mut passes)
                        (Pass
                          :source source
                          :target target
                          :many? many?
+                         :occurrences? occurrences?
+                         :start start
                          :form (load form)))))))
         (when (= (len passes) 0) (break :done (Ok "")))
+        (when uses-lexical?
+          (push-str! (mut b)
+                     "(import \"coil.str\" :use [StrBuf])\n(import \"rewrite.lexical\" :as transform-lexical)\n"))
 
         (push-str! (mut b)
                    "(import \"coil.primitive\" :as transform-primitive)\n(defsum TransformError (TransformAliasedStores) (TransformSequence [(error sequence/SequenceError)]) (TransformSource [(error source/SourceError)]) (TransformReference [(schema i64) (node i64)]) (TransformCycle [(schema i64) (node i64)]) (TransformOriginMissing [(schema i64) (node i64)]) (TransformSourceChanged [(schema i64)]))\n(defstruct TransformState [(sharing? bool) (source (ptr Store)) (target (ptr Store)) (copied (HashMap i64 bool)) ")
@@ -456,7 +552,12 @@
                 form (field pass form)
                 node (elem (field s nodes) source)
                 (mut seen) (ArrayList::new [i64] a)]
-            (sequence-wrapper! (mut b) source target many? p)
+            (sequence-wrapper! (mut b)
+                               source
+                               target
+                               many?
+                               (.occurrences? pass)
+                               p)
             (for [i 0 (len (.variants node))] (push! (mut seen) 0))
             (push-str! (mut b) "(defn ")
             (function-name! (mut b) source target many?)
@@ -466,7 +567,11 @@
             (number! (mut b) target)
             (push-str! (mut b) (if many? "Seq" "Id"))
             (push-str! (mut b)
-                       " TransformError)) (block :done (let [input (.source state) store (.target state) memo (transform-primitive/cast (ptr (ArrayList i64)) (mut (.memo")
+                       " TransformError)) (block :done (let [sharing? ")
+            (push-str! (mut b)
+                       (if (.occurrences? pass) "false" "(.sharing? state)"))
+            (push-str! (mut b)
+                       " input (.source state) store (.target state) memo (transform-primitive/cast (ptr (ArrayList i64)) (mut (.memo")
             (number! (mut b) p)
             (push-str! (mut b)
                        " state)))] (when (= (transform-primitive/cast i64 input) (transform-primitive/cast i64 store)) (break :done (Err (TransformAliasedStores)))) (unless (= (len (load memo)) (len (.rows")
@@ -487,7 +592,7 @@
                        " (.index id))))) (let [cached (get (load memo) (.index id)) origin (get (.origins")
             (number! (mut b) source)
             (push-str! (mut b)
-                       " input) (.index id))] (match (source/transfer! (mut (.source-data store)) (field input source-data) origin (mut (.copied state))) (Err [error] (break :done (Err (TransformSource error)))) (Ok [_])) (when (and (.sharing? state) (>= cached 0)) (break :done (Ok (N")
+                       " input) (.index id))] (match (source/transfer! (mut (.source-data store)) (field input source-data) origin (mut (.copied state))) (Err [error] (break :done (Err (TransformSource error)))) (Ok [_])) (when (and sharing? (>= cached 0)) (break :done (Ok (N")
             (number! (mut b) target)
             (push-str! (mut b) (if many? "Seq" "Id"))
             (push-str! (mut b)
@@ -504,7 +609,7 @@
                   (push-str! (mut b) "(let [row (get (.rows")
                   (number! (mut b) source)
                   (push-str! (mut b) " input) (.index id)) ")))
-            (for [r 3 (sexp-count form)]
+            (for [r (.start pass) (sexp-count form)]
               (let [rule (sexp-nth form r)
                     (mut vi) (- 0 1)]
                 (unless (and (sexp-list? rule) (= (sexp-count rule) 2))
@@ -546,6 +651,7 @@
                                 (sexp-nth rule 1)
                                 (.name (elem (field s nodes) target))
                                 many?
+                                (.occurrences? pass)
                                 rule)
                     (Err [d] (break :done (Err d)))
                     (Ok [_]))
@@ -557,5 +663,5 @@
                     (Err (problem form
                                   "each source constructor needs exactly one transformation rule")))))
             (push-str! (mut b)
-                       ")] (set! (mut memo) (.index id) (if (.sharing? state) (.index out) (- 0 1))) (Ok out))))))\n")))
+                       ")] (set! (mut memo) (.index id) (if sharing? (.index out) (- 0 1))) (Ok out))))))\n")))
         (Ok (str (load b))))))
