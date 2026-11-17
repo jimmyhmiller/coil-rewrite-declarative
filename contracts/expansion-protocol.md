@@ -98,7 +98,7 @@ The rewrite now has invocation-owned native handles, structural promotion, impor
 
 This is rewrite mechanism evidence, not reproduction of the reference's original `staged_chain` source. Request discovery and the resumption decision remain fixture code; returned syntax is selected from authored templates rather than constructed by general Code operations. Production language-declared expansion transitions, marker routing, reference limit policies, imports, semantic capabilities and full phase/runtime artifact isolation remain required.
 
-A generated protocol driver now replaces the staged fixture's handwritten ordering loop. `languages/staging.protocol` declares route/install/invoke/resume transitions and a finite request budget; `languages/protocol.schema` supplies the compiler's grammar and key indexes. This is control-mechanism evidence. The fixture's request budget counts transitions into install, while the reference guards rounds after equality and distinguishes stage progress. They are different policies. Do not substitute this bound for the reference limits; capture exact boundary behavior and express that accounting explicitly in subsequent expansion rules.
+The first generated protocol driver replaced the staged fixture's handwritten ordering loop; the owned-generation adapter below supersedes that fixture integration. `languages/staging.protocol` declares route/install/invoke/resume transitions and a finite request budget; `languages/protocol.schema` supplies the compiler's grammar and key indexes. This is control-mechanism evidence. The fixture's request budget counts transitions into install, while the reference guards rounds after equality and distinguishes stage progress. They are different policies. Do not substitute this bound for the reference limits; capture exact boundary behavior and express that accounting explicitly in subsequent expansion rules.
 
 
 ## Executed round boundaries and declared guard model
@@ -123,7 +123,7 @@ Two probes with an unchanged scalar counter produce calls `[0, 0]`: an identity 
 
 `languages/before_expand.protocol` now declares the accounting kernel. `Equal` completes immediately; `ChangedPlain` spends the shared `rounds` budget under a ceiling of 16; `ChangedStage` spends the same budget under its overall limit of 64. Only a successful spending edge enters the `accept` handler. The round handler computes candidate output and classifies equality/progress; the accept handler publishes that candidate. Handler errors stop the protocol.
 
-`tools/check-expansion-policy.py` replays the eight changing-round before-expand traces through this generated driver in debug/debug-checks/release. `evidence/before-policy-replay.json` links the captured reference evidence, language/model output, fixture, scripts and compiler by hashes. This checks the accounting kernel. It does not run those source files through the rewritten frontend, reproduce initial form normalization, or implement request discovery, Code construction, semantic models and strict checking. The simpler request-count staging fixture remains a separate mechanism test.
+`tools/check-expansion-policy.py` replays the eight changing-round before-expand traces through this generated driver in debug/debug-checks/release. `evidence/before-policy-replay.json` links the captured reference evidence, language/model output, fixture, scripts and compiler by hashes. This checks the accounting kernel. It does not run those source files through the rewritten frontend, reproduce initial form normalization, or implement request discovery, Code construction, semantic models and strict checking. The simpler request-count protocol remains covered by standalone mechanism tests.
 
 Reproduce with:
 
@@ -131,3 +131,11 @@ Reproduce with:
 python3 tools/capture-expansion-boundaries.py --reference ../coil --compiler coil
 python3 tools/check-expansion-policy.py
 ```
+
+## Owned generation adaptation
+
+`rewrite.rounds` now supplies ownership and event classification for the declared before-expand guard. `FormSequence` derives whole-root comparison from the syntax schema; it preserves order and shares comparison work across roots. A typed round effect writes fresh candidate runtime forms and newly introduced stage forms. Equality retains the existing generation, as reference `run-before-expand` leaves `cur` unchanged when `forms-equal` succeeds. Changed output is published only by the guard's accepted transition.
+
+Stage compilation and request execution are effects before equality/guard classification in the reference. The adapter therefore does not promise to roll those effects back when a round is equal or exhausted. It preserves accepted syntax and keeps rejected candidate storage available until reuse or close. Effects must validate and independently retain any stage data needed after the candidate is released.
+
+The native chain fixture now uses this owned runner rather than the request-budget loop: two native increments, two accepted generations, one equality round, and runtime entry returning 42. Its declaration/guest adapters remain handwritten fixture logic. `tests/rounds.coil` separately exercises whole-root changes and the recorded mixed 16/64 patterns with owned syntax. The original reference source is still not compiled by the rewrite; module tags, initial normalization, production marker routing and semantic APIs remain outstanding.

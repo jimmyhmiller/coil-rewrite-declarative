@@ -3,6 +3,7 @@
 (import "fixture.runtime" :as r)
 (import "rewrite.native" :as native)
 (import "rewrite.stageprotocol" :as protocol)
+(import "rewrite.rounds" :as rounds)
 (import "rewrite.code" :as code)
 (import "rewrite.codeforms" :as forms)
 (import "rewrite.syntaxreader" :as projection)
@@ -19,114 +20,271 @@
 
 (defn declarations [(a (dyn Allocator)) (store (mut p/Store)) (text (slice u8))]
   (-> (ArrayList p/N1Id))
-  (let [fs (match (read-all a text 2) (Ok [fs] fs) (Err [_] (panic "phase source")))
+  (let [fs
+          (match (read-all a text 2)
+            (Ok [fs] fs)
+            (Err [_] (panic "phase source")))
         (mut ids) (ArrayList::new [p/N1Id] a)]
     (for [i 0 (len (load fs))]
-      (push! (mut ids) (match (p/parse-1 (mut store) (elem fs i)) (Ok [id] id) (Err [_] (panic "phase parse")))))
+      (push! (mut ids)
+             (match (p/parse-1 (mut store) (elem fs i))
+               (Ok [id] id)
+               (Err [_] (panic "phase parse")))))
     ids))
-(defn execute [(a (dyn Allocator)) (im image/Image) (entry i64)
-               (input (ptr code/Syntax)) (root forms/N0Id) (output (mut code/Syntax))]
+
+(defn execute [(a (dyn Allocator))
+               (im image/Image)
+               (entry i64)
+               (input (ptr code/Syntax))
+               (root forms/N0Id)
+               (output (mut code/Syntax))]
   (-> forms/N0Id)
   (let [(mut invocation) (inv/create a)
-        handle (match (inv/import! (mut invocation) input root) (Ok [h] h) (Err [_] (panic "invocation import")))
+        handle
+          (match (inv/import! (mut invocation) input root)
+            (Ok [h] h)
+            (Err [_] (panic "invocation import")))
         (mut hosts) (ArrayList::new [(native/ContextFunction inv/Invocation)] a)]
-    (push! (mut hosts) (native/ContextFunction [inv/Invocation] :name "last"
-      :context (primitive/cast (ptr inv/Invocation) (mut invocation)) :function (fnptr-of inv/last-callback)))
-    (let [loaded (match (native/load-image-with-contexts a im (mut hosts)) (Ok [im] im) (Err [_] (panic "phase linkage")))
-          entrypoint (primitive/cast (fnptr (cc/C) [i64] i64) (jit/address-of (.program loaded) entry))
-          returned (match (inv/invoke-code! (mut invocation) entrypoint handle) (Ok [h] h) (Err [_] (panic "phase execution")))
-          promoted (match (inv/promote! (mut output) (mut invocation) returned) (Ok [id] id) (Err [_] (panic "phase promotion")))]
+    (push! (mut hosts)
+           (native/ContextFunction [inv/Invocation]
+                                   :name
+                                   "last"
+                                   :context
+                                   (primitive/cast (ptr inv/Invocation)
+                                                   (mut invocation))
+                                   :function
+                                   (fnptr-of inv/last-callback)))
+    (let [loaded
+            (match (native/load-image-with-contexts a im (mut hosts))
+              (Ok [im] im)
+              (Err [_] (panic "phase linkage")))
+          entrypoint
+            (primitive/cast (fnptr (cc/C) [i64] i64)
+                            (jit/address-of (.program loaded) entry))
+          returned
+            (match (inv/invoke-code! (mut invocation) entrypoint handle)
+              (Ok [h] h)
+              (Err [_] (panic "phase execution")))
+          promoted
+            (match (inv/promote! (mut output) (mut invocation) returned)
+              (Ok [id] id)
+              (Err [_] (panic "phase promotion")))]
       (native/unload-context-image! loaded)
-      (inv/close! (mut invocation)) (free! (mut hosts))
+      (inv/close! (mut invocation))
+      (free! (mut hosts))
       promoted)))
+
 (defsum StageFailure (UnexpectedGuest) (PhaseRejected))
+
 (defstruct Expansion
-  [(allocator (dyn Allocator)) (store (ptr p/Store)) (history (ptr p/ProgramHistory))
-   (current code/Syntax) (root forms/N0Id) (pending code/Syntax) (pending-root forms/N0Id)
-   (image (Option image/Image)) (stage i64) (rounds i64) (ok bool)])
-(defn route :cc (cc/C) [(context (ptr Expansion))] (-> (Result protocol/Event StageFailure))
-  (let [(mut view) (match (projection/project (.allocator context) (field context current) (.root context))
-                    (Ok [form] form) (Err [_] (panic "projection")))]
+  [(allocator (dyn Allocator))
+   (store (ptr p/Store))
+   (history (ptr p/ProgramHistory))
+   (current (ptr code/Syntax))
+   (root forms/N0Id)
+   (pending (ptr code/Syntax))
+   (pending-root forms/N0Id)
+   (output (ptr rounds/Generation))
+   (image (Option image/Image))
+   (stage i64)
+   (rounds i64)
+   (ok bool)])
+
+(defn route :cc (cc/C) [(context (ptr Expansion))]
+  (-> (Result protocol/Event StageFailure))
+  (let [(mut view)
+          (match (projection/project (.allocator context)
+                                     (.current context)
+                                     (.root context))
+            (Ok [form] form)
+            (Err [_] (panic "projection")))]
     (if (and (sexp-list? (mut view)) (> (sexp-count (mut view)) 0))
-      (let [tag (sexp-nth (mut view) 0)]
-        (cond (sexp-sym-is tag "defn") (Ok (protocol/Event-Done))
-              (sexp-sym-is tag "chain-a") (do (set! (.stage context) 0) (Ok (protocol/Event-Request)))
-              (sexp-sym-is tag "chain-b") (do (set! (.stage context) 1) (Ok (protocol/Event-Request)))
-              :else (Err (UnexpectedGuest))))
-      (Err (UnexpectedGuest)))))
-(defn install :cc (cc/C) [(context (ptr Expansion))] (-> (Result protocol/Event StageFailure))
+        (let [tag (sexp-nth (mut view) 0)]
+          (cond (sexp-sym-is tag "defn") (Ok (protocol/Event-Done))
+                (sexp-sym-is tag "chain-a")
+                  (do (set! (.stage context) 0) (Ok (protocol/Event-Request)))
+                (sexp-sym-is tag "chain-b")
+                  (do (set! (.stage context) 1) (Ok (protocol/Event-Request)))
+                :else (Err (UnexpectedGuest))))
+        (Err (UnexpectedGuest)))))
+
+(defn install :cc (cc/C) [(context (ptr Expansion))]
+  (-> (Result protocol/Event StageFailure))
   (let [a (.allocator context)
-        (mut added) (declarations a (.store context)
+        source
           (if (= (.stage context) 0)
-            "(Function \"earlier-helper\" \"n\" (Call (Variable \"last\") (Variable \"n\"))) (Function \"phase-a\" \"n\" (Call (Variable \"earlier-helper\") (Variable \"n\")))"
-            "(Function \"phase-b\" \"n\" (Call (Variable \"earlier-helper\") (Variable \"n\")))"))]
+              "(Function \"earlier-helper\" \"n\" (Call (Variable \"last\") (Variable \"n\"))) (Function \"phase-a\" \"n\" (Call (Variable \"earlier-helper\") (Variable \"n\")))"
+              "(Function \"phase-b\" \"n\" (Call (Variable \"earlier-helper\") (Variable \"n\")))")
+        (mut added) (declarations a (.store context) source)]
+    (match (rounds/read! (.output context) true 2 "phase.coil" source)
+      (Ok [_])
+      (Err [_] (panic "introduced stage syntax")))
     (when (= (.stage context) 1)
       (let [(mut empty) (p/program-history-new a (.store context))]
         (match (p/extend-program a (mut empty) (mut added))
-          (Err [e] (match e (p/InvalidBody [_ _]) (_ (set! (.ok context) false))))
+          (Err [e]
+               (match e (p/InvalidBody [_ _]) (_ (set! (.ok context) false))))
           (Ok [_] (set! (.ok context) false)))
         (unless (= (len (.ids empty)) 0) (set! (.ok context) false))
         (p/program-history-free! (mut empty))))
     (match (p/extend-program a (.history context) (mut added))
       (Err [_] (Err (PhaseRejected)))
       (Ok [im]
-        (set! (.image context) (Some im))
-        (when (= (.stage context) 0)
-          (match (p/extend-program a (.history context) (mut added))
-            (Err [e] (match e (p/DuplicateFunction [_]) (_ (set! (.ok context) false))))
-            (Ok [_] (set! (.ok context) false)))
-          (unless (= (len (.ids (.history context))) 2) (set! (.ok context) false)))
-        (Ok (protocol/Event-Ready))))))
-(defn invoke :cc (cc/C) [(context (ptr Expansion))] (-> (Result protocol/Event StageFailure))
-  (let [im (match (.image context) (Some [im] im) (None [] (panic "installed image")))]
+          (set! (.image context) (Some im))
+          (when (= (.stage context) 0)
+            (match (p/extend-program a (.history context) (mut added))
+              (Err [e]
+                   (match e
+                     (p/DuplicateFunction [_])
+                     (_ (set! (.ok context) false))))
+              (Ok [_] (set! (.ok context) false)))
+            (unless (= (len (.ids (.history context))) 2)
+              (set! (.ok context) false)))
+          (Ok (protocol/Event-Ready))))))
+
+(defn invoke :cc (cc/C) [(context (ptr Expansion))]
+  (-> (Result protocol/Event StageFailure))
+  (let [im
+          (match (.image context)
+            (Some [im] im)
+            (None [] (panic "installed image")))]
     (set! (.pending-root context)
-      (execute (.allocator context) im (if (= (.stage context) 0) 1 2)
-        (field context current) (.root context) (field context pending))))
+          (execute (.allocator context)
+                   im
+                   (if (= (.stage context) 0) 1 2)
+                   (.current context)
+                   (.root context)
+                   (.pending context))))
   (Ok (protocol/Event-Returned)))
-(defn resume :cc (cc/C) [(context (ptr Expansion))] (-> (Result protocol/Event StageFailure))
-  (code/release! (field context current))
-  (set! (.current context) (.pending context))
-  (set! (.pending context) (code/create (.allocator context)))
-  (set! (.root context) (.pending-root context))
-  (set! (.rounds context) (+ (.rounds context) 1))
-  (Ok (protocol/Event-Again)))
+
+(defn round-effect :cc (cc/C) [(context (ptr Expansion))
+                               (input (ptr rounds/Generation))
+                               (output (ptr rounds/Generation))]
+  (-> (Result bool StageFailure))
+  (set! (.current context)
+        (primitive/cast (ptr code/Syntax) (field input syntax)))
+  (set! (.pending context)
+        (primitive/cast (ptr code/Syntax) (field output syntax)))
+  (set! (.output context) output)
+  (let [store (field (field input syntax) store)
+        items (.f0 (get (.rows2 store) (.index (.runtime input))))
+        (mut roots) (ArrayList::new [forms/N0Id] (.allocator context))]
+    (defer (free! (mut roots)))
+    (set! (.root context)
+          (match (forms/sequence-item-0 store items 0)
+            (Some [id] id)
+            (None [] (panic "generation root"))))
+    (block :done
+      (match (route context)
+        (Err [e] (break :done (Err e)))
+        (Ok [event]
+            (match event
+              (protocol/Event-Done []
+                                   (set! (.pending-root context)
+                                         (match (code/promote! (.pending context)
+                                                               (.current context)
+                                                               (.root context))
+                                           (Ok [id] id)
+                                           (Err [_] (panic "stable promotion")))))
+              (protocol/Event-Request []
+                                      (match (install context)
+                                        (Err [e] (break :done (Err e)))
+                                        (Ok [_]))
+                                      (match (invoke context)
+                                        (Err [e] (break :done (Err e)))
+                                        (Ok [_]))
+                                      (set! (.rounds context)
+                                            (+ (.rounds context) 1)))
+              (_ (panic "route outcome")))))
+      (push! (mut roots) (.pending-root context))
+      (let [seq (forms/sequence-0 (mut (.store (.syntax output))) (mut roots))]
+        (set! (mut (.rows2 (.store (.syntax output))))
+              (.index (.runtime output))
+              (forms/N2Row :f0 seq)))
+      (Ok true))))
+
 (defn main [] (-> i64)
-  (let [(mut scratch) (zeroed ScratchArena) started (init (mut scratch) (malloc-allocator))
-        a (allocator (mut scratch)) (mut phase-store) (p/store-new a)
+  (let [(mut scratch) (zeroed ScratchArena)
+        started (init (mut scratch) (malloc-allocator))
+        a (allocator (mut scratch))
+        (mut session) (rounds/session a)
+        (mut phase-store) (p/store-new a)
         (mut history) (p/program-history-new a (mut phase-store))
-        (mut context) (Expansion :allocator a :store (primitive/cast (ptr p/Store) (mut phase-store))
-          :history (primitive/cast (ptr p/ProgramHistory) (mut history))
-          :current (code/create a) :root (forms/N0Id :index 0)
-          :pending (code/create a) :pending-root (forms/N0Id :index 0)
-          :image (None) :stage 0 :rounds 0 :ok true)
-        roots (match (code/read! (mut (.current context)) 1 "chain.guest"
-                  "(chain-a (chain-b (defn entry [(n i64)] (-> i64) (+ n 1))))")
-                (Ok [roots] roots) (Err [_] (panic "guest input")))
-        (mut handlers) (protocol/Handlers [Expansion StageFailure]
-          :step-route (fnptr-of route) :step-install (fnptr-of install)
-          :step-invoke (fnptr-of invoke) :step-resume (fnptr-of resume))]
-    (set! (.root context) (match (forms/sequence-item-0 (field (mut (.current context)) store) roots 0)
-                           (Some [id] id) (None [] (panic "guest root"))))
-    (match (protocol/run (mut context) (mut handlers))
-      (Ok [_]) (Err [_] (panic "declared staging protocol")))
-    (unless (and (= (.rounds context) 2) (= (len (.ids history)) 3)) (set! (.ok context) false))
-    (let [(mut form) (match (projection/project a (field (mut context) current) (.root context))
-                      (Ok [f] f) (Err [_] (panic "runtime projection")))
-          (mut store) (r/store-new a) (mut ids) (ArrayList::new [r/N1Id] a)]
+        (mut context)
+          (Expansion
+            :allocator a
+            :store (primitive/cast (ptr p/Store) (mut phase-store))
+            :history (primitive/cast (ptr p/ProgramHistory) (mut history))
+            :current (zeroed (ptr code/Syntax))
+            :root (forms/N0Id :index 0)
+            :pending (zeroed (ptr code/Syntax))
+            :pending-root (forms/N0Id :index 0)
+            :output (zeroed (ptr rounds/Generation))
+            :image (None)
+            :stage 0
+            :rounds 0
+            :ok true)]
+    (match (rounds/read! (mut (.current session))
+                         false
+                         1
+                         "chain.guest"
+                         "(chain-a (chain-b (defn entry [(n i64)] (-> i64) (+ n 1))))")
+      (Ok [_])
+      (Err [_] (panic "guest input")))
+    (match (rounds/run! (mut session) (mut context) (fnptr-of round-effect))
+      (Ok [_])
+      (Err [_] (panic "owned staging rounds")))
+    ; Reborrow the accepted generation after the runner has finished.
+    (set! (.current context)
+          (primitive/cast (ptr code/Syntax)
+                          (field (mut (.current session)) syntax)))
+    (let [store
+            (primitive/cast (ptr forms/Store)
+                            (field (mut (.syntax (.current session))) store))
+          items
+            (.f0 (get (.rows2 store) (.index (.runtime (.current session)))))]
+      (set! (.root context)
+            (match (forms/sequence-item-0 store items 0)
+              (Some [id] id)
+              (None [] (panic "accepted root")))))
+    (unless (and (= (.calls session) 3) (= (.accepted session) 2))
+      (set! (.ok context) false))
+    (unless (and (= (.rounds context) 2) (= (len (.ids history)) 3))
+      (set! (.ok context) false))
+    (let [(mut form)
+            (match (projection/project a (.current context) (.root context))
+              (Ok [f] f)
+              (Err [_] (panic "runtime projection")))
+          (mut store) (r/store-new a)
+          (mut ids) (ArrayList::new [r/N1Id] a)]
       (match (get (.documents (.source-data (.store (.current context)))) 1)
-        (Some [doc] (match (r/store-source! (mut store) 1 (.name doc) (.text doc))
-                      (Ok [_]) (Err [_] (panic "runtime source document"))))
+        (Some [doc]
+              (match (r/store-source! (mut store) 1 (.name doc) (.text doc))
+                (Ok [_])
+                (Err [_] (panic "runtime source document"))))
         (None [] (panic "promoted source missing")))
-      (push! (mut ids) (match (r/surface-1 (mut store) (mut form)) (Ok [id] id) (Err [_] (panic "runtime grammar"))))
-      (let [runtime (match (r/compile-program a (mut store) (mut ids)) (Ok [im] im) (Err [_] (panic "runtime compile")))
+      (push! (mut ids)
+             (match (r/surface-1 (mut store) (mut form))
+               (Ok [id] id)
+               (Err [_] (panic "runtime grammar"))))
+      (let [runtime
+              (match (r/compile-program a (mut store) (mut ids))
+                (Ok [im] im)
+                (Err [_] (panic "runtime compile")))
             loaded (native/load-image a runtime)
-            run (primitive/cast (fnptr (cc/C) [i64] i64) (jit/address-of loaded 0))]
-        (unless (and (= (len (.names runtime)) 1) (= (get (.names runtime) 0) "entry")
-                     (= (get (.defined runtime) 0) 0) (= (run 41) 42)) (set! (.ok context) false))
+            run
+              (primitive/cast (fnptr (cc/C) [i64] i64)
+                              (jit/address-of loaded 0))]
+        (unless (and (= (len (.names runtime)) 1)
+                     (= (get (.names runtime) 0) "entry")
+                     (= (get (.defined runtime) 0) 0)
+                     (= (run 41) 42))
+          (set! (.ok context) false))
         (jit/unload! loaded)))
     (let [ok (.ok context)]
       (p/program-history-free! (mut history))
-      (code/release! (mut (.current context))) (code/release! (mut (.pending context)))
+      (rounds/close! (mut session))
       (close! (mut scratch))
-      (println "declared staging protocol: cumulative helper, resumption, teardown and runtime image: {}" ok)
+      (println "owned staging rounds: cumulative helper, resumption, equality, teardown and runtime image: {}"
+               ok)
       (if ok 0 1))))

@@ -30,3 +30,7 @@
   (Vector (Vector items)))
 
 (equality Syntax)
+
+; Ordered whole-form roots share one comparison memo across all roots.
+(node FormSequence (forms (many Syntax)))
+(equality FormSequence)

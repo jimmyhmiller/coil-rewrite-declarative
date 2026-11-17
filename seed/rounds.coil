@@ -1,0 +1,180 @@
+;;; Owned whole-form generations bridged to the declared before-expand guard.
+(module rewrite.rounds)
+(import "rewrite.code" :as code)
+(import "rewrite.codeforms" :as forms)
+(import "rewrite.equality" :as equality)
+(import "rewrite.beforeprotocol" :as protocol)
+(import "coil.alloc" :use [Allocator])
+(import "coil.arraylist" :use *)
+(import "coil.result" :use *)
+(import "coil.cc" :as cc)
+(import "coil.primitive" :as primitive)
+
+(defstruct Generation
+  [(syntax code/Syntax) (runtime forms/N2Id) (introduced forms/N2Id)])
+
+(defn create [(a (dyn Allocator))] (-> Generation)
+  (let [(mut syntax) (code/create a)
+        (mut empty) (ArrayList::new [forms/N0Id] a)
+        items (forms/sequence-0 (mut (.store syntax)) (mut empty))
+        runtime
+          (forms/append-2 (mut (.rows2 (.store syntax)))
+                          (forms/N2Row :f0 items))
+        introduced
+          (forms/append-2 (mut (.rows2 (.store syntax)))
+                          (forms/N2Row :f0 items))]
+    (free! (mut empty))
+    (Generation
+      :syntax syntax
+      :runtime runtime
+      :introduced introduced)))
+
+(defn release! [(generation (mut Generation))] (-> void)
+  (code/release! (mut (.syntax generation))))
+
+;;; A successful read replaces one root sequence. Failed reads leave its prior
+;;; published roots intact, though syntax storage may contain unreachable rows.
+(defn read! [(generation (mut Generation))
+             (staged? bool)
+             (source i64)
+             (name (slice u8))
+             (text (slice u8))]
+  (-> (Result bool code/SyntaxError))
+  (match (code/read! (mut (.syntax generation)) source name text)
+    (Err [e] (Err e))
+    (Ok [roots]
+        (let [id (if staged? (.introduced generation) (.runtime generation))]
+          (set! (mut (.rows2 (.store (.syntax generation))))
+                (.index id)
+                (forms/N2Row :f0 roots))
+          (Ok true)))))
+
+(defstruct Session
+  [(allocator (dyn Allocator))
+   (current Generation)
+   (candidate Generation)
+   (calls i64)
+   (accepted i64)
+   (running? bool)
+   (closed? bool)])
+
+(defn session [(a (dyn Allocator))] (-> Session)
+  (Session
+    :allocator a
+    :current (create a)
+    :candidate (create a)
+    :calls 0
+    :accepted 0
+    :running? false
+    :closed? false))
+
+;;; Session fields own their storage. They must not be copied or released while
+;;; a runner is active. Errors borrowing candidate text remain valid until reuse.
+(defn close! [(s (mut Session))] (-> bool)
+  (if (.running? s)
+      false
+      (do
+        (unless (.closed? s)
+          (release! (mut (.current s)))
+          (release! (mut (.candidate s)))
+          (set! (.closed? s) true))
+        true)))
+
+(defsum Error [E]
+  (Effect [(error E)])
+  (Comparison [(error equality/Error)]))
+
+(defsum Failure [E]
+  (AlreadyRunning)
+  (Closed)
+  (ProtocolFailure [(failure (protocol/Failure (Error E)))]))
+
+(defstruct Context [C E]
+  [(session (ptr Session))
+   (user (ptr C))
+   (effect (fnptr (cc/C)
+                  [(ptr C) (ptr Generation) (ptr Generation)]
+                  (Result bool E)))])
+
+(defn round :cc (cc/C) [C E] [(context (ptr (Context C E)))]
+  (-> (Result protocol/Event (Error E)))
+  (let [s (.session context)
+        effect (.effect context)]
+    (release! (mut (.candidate s)))
+    (set! (.candidate s) (create (.allocator s)))
+    (set! (.calls s) (+ (.calls s) 1))
+    (block :done
+      ; Effects perform transform/split/install/request work before this guard.
+      ; Their external side effects are not rolled back on equality or exhaustion.
+      (match (effect (.user context) (field s current) (field s candidate))
+        (Err [e] (break :done (Err (Effect [E] e))))
+        (Ok [_]))
+      (match (forms/equal-2 (.allocator s)
+                            (field (field (field s current) syntax) store)
+                            (.runtime (.current s))
+                            (field (field (field s candidate) syntax) store)
+                            (.runtime (.candidate s)))
+        (Err [e] (break :done (Err (Comparison [E] e))))
+        (Ok [same?] (when same? (break :done (Ok (protocol/Event-Equal))))))
+      (let [store (field (field (field s candidate) syntax) store)
+            id (.introduced (.candidate s))
+            row
+              (match (forms/lookup-2 (field store rows2) id)
+                (Some [row] row)
+                (None []
+                      (break
+                        :done
+                          (Err (Comparison [E]
+                                           (equality/InvalidReference 2
+                                                                      true
+                                                                      (.index id)))))))
+            size
+              (match (forms/sequence-size-0 store (.f0 row))
+                (Some [size] size)
+                (None []
+                      (break
+                        :done
+                          (Err (Comparison [E]
+                                           (equality/InvalidSequence 0
+                                                                     true
+                                                                     (.index (.f0 row))))))))]
+        (Ok (if (> size 0)
+                (protocol/Event-ChangedStage)
+                (protocol/Event-ChangedPlain)))))))
+
+(defn accept :cc (cc/C) [C E] [(context (ptr (Context C E)))]
+  (-> (Result protocol/Event (Error E)))
+  (let [s (.session context)
+        old (.current s)]
+    (set! (.current s) (.candidate s))
+    (set! (.candidate s) old)
+    (set! (.accepted s) (+ (.accepted s) 1))
+    (Ok (protocol/Event-Accepted))))
+
+;;; Guard policy is generated from before_expand.protocol. Callback inputs are
+;;; borrowed only during the call; output must own all syntax it publishes.
+(defn run! [C E] [(s (ptr Session))
+                  (user (ptr C))
+                  (effect (fnptr (cc/C)
+                                 [(ptr C) (ptr Generation) (ptr Generation)]
+                                 (Result bool E)))]
+  (-> (Result bool (Failure E)))
+  (cond (.closed? s) (Err (Closed [E]))
+        (.running? s) (Err (AlreadyRunning [E]))
+        :else
+          (do
+            (set! (.running? s) true)
+            (defer (set! (.running? s) false))
+            (set! (.calls s) 0)
+            (set! (.accepted s) 0)
+            (let [(mut context)
+                    (Context [C E] :session s :user user :effect effect)
+                  (mut handlers)
+                    (protocol/Handlers [(Context C E) (Error E)]
+                                       :step-round
+                                       (primitive/fnptr-of round [C E])
+                                       :step-accept
+                                       (primitive/fnptr-of accept [C E]))]
+              (match (protocol/run (mut context) (mut handlers))
+                (Ok [value] (Ok value))
+                (Err [e] (Err (ProtocolFailure [E] e))))))))
