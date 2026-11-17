@@ -1,0 +1,323 @@
+;;; Total schema-to-schema maps derive traversal, memoization and provenance.
+(module rewrite.transform)
+(import "rewrite.schema" :use *)
+(import "rewrite.emit" :use [number!])
+(import "rewrite.readers" :use [quoted!])
+(import "coil.alloc" :use *)
+(import "coil.arraylist" :use *)
+(import "coil.reader" :use *)
+(import "coil.result" :use *)
+(import "coil.str" :use *)
+
+(defstruct Pass [(source i64) (target i64) (form Sexp)])
+
+(defn node-number [(s (ptr Schema)) (name (slice u8))] (-> i64)
+  (block :done
+    (for [i 0 (len (.nodes s))]
+      (when (= name (.name (elem (field s nodes) i))) (break :done i)))
+    (- 0 1)))
+
+(defn function-name! [(b (mut StrBuf)) (source i64) (target i64)] (-> void)
+  (push-str! (mut b) "transform-")
+  (number! (mut b) source)
+  (push-str! (mut b) "-")
+  (number! (mut b) target))
+
+(defn term! [(b (mut StrBuf))
+             (s (ptr Schema))
+             (passes (ptr (ArrayList Pass)))
+             (source i64)
+             (v (ptr Variant))
+             (term (ptr Sexp))
+             (expected (slice u8))
+             (rule (ptr Sexp))]
+  (-> (Result i64 Diag))
+  (block :done
+    (when (sexp-sym? term)
+      (for [i 0 (len (.fields v))]
+        (let [field (elem (field v fields) i)]
+          (when (sexp-sym-is term (.name field))
+            (if (= (.type-name field) expected)
+                (do
+                  (push-str! (mut b) "f")
+                  (number! (mut b) i)
+                  (break :done (Ok 0)))
+                (for [p 0 (len (load passes))]
+                  (let [pass (elem passes p)]
+                    (when (and (= (.type-name field)
+                                  (.name (elem (field s nodes) (.source pass))))
+                               (= expected
+                                  (.name (elem (field s nodes) (.target pass)))))
+                      (push-str! (mut b) "(match (")
+                      (function-name! (mut b) (.source pass) (.target pass))
+                      (push-str! (mut b) " (mut state) f")
+                      (number! (mut b) i)
+                      (push-str! (mut b)
+                                 ") (Ok [id] id) (Err [error] (break :done (Err error))))")
+                      (break :done (Ok 0))))))
+            (break
+              :done
+                (Err (problem term
+                              "transform field type needs a matching schema map")))))))
+    (when (scalar? expected)
+      (cond (and (= expected "Int") (sexp-int? term))
+              (number! (mut b) (sexp-int term))
+            (and (= expected "Text") (sexp-str? term))
+              (quoted! (mut b) (sexp-str term))
+            (and (= expected "Bool")
+                 (or (sexp-sym-is term "true") (sexp-sym-is term "false")))
+              (push-str! (mut b) (sexp-sym term))
+            :else
+              (break
+                :done
+                  (Err (problem term
+                                "transform scalar must be a matching field or literal"))))
+      (break :done (Ok 0)))
+    (unless (and (sexp-list? term) (> (sexp-count term) 0))
+      (break
+        :done (Err (problem term "expected target constructor or source field"))))
+    (let [target (node-number s expected)
+          node (elem (field s nodes) target)
+          (mut vi) (- 0 1)]
+      (for [p 0 (len (load passes))]
+        (when (= target (.source (elem passes p)))
+          (break
+            :done
+              (Err (problem term
+                            "transform cannot construct nodes in a source schema")))))
+      (for [i 0 (len (.variants node))]
+        (when (sexp-sym-is (sexp-nth term 0)
+                           (.name (elem (field node variants) i)))
+          (set! vi i)))
+      (when (< vi 0)
+        (break :done (Err (problem term "unknown target constructor"))))
+      (let [variant (elem (field node variants) vi)]
+        (unless (= (sexp-count term) (+ 1 (len (.fields variant))))
+          (break :done (Err (problem term "wrong target constructor arity"))))
+        (push-str! (mut b) "(let [")
+        (for [i 0 (len (.fields variant))]
+          (push-str! (mut b) "x")
+          (number! (mut b) i)
+          (push-str! (mut b) " ")
+          (match (term! (mut b)
+                        s
+                        passes
+                        source
+                        v
+                        (sexp-nth term (+ i 1))
+                        (.type-name (elem (field variant fields) i))
+                        rule)
+            (Err [d] (break :done (Err d)))
+            (Ok [_]))
+          (push-str! (mut b) " "))
+        (push-str! (mut b) "out (append-")
+        (number! (mut b) target)
+        (push-str! (mut b) " (mut (.rows")
+        (number! (mut b) target)
+        (push-str! (mut b) " store)) (N")
+        (number! (mut b) target)
+        (if (.sum? node)
+            (do (push-str! (mut b) "V") (number! (mut b) vi))
+            (push-str! (mut b) "Row"))
+        (for [i 0 (len (.fields variant))]
+          (unless (.sum? node) (push-str! (mut b) " :f") (number! (mut b) i))
+          (push-str! (mut b) " x")
+          (number! (mut b) i))
+        (push-str! (mut b) "))] (push! (mut (.origins")
+        (number! (mut b) target)
+        (push-str! (mut b)
+                   " store)) origin) (push! (mut (.traces state)) (TransformTrace :target-schema ")
+        (number! (mut b) target)
+        (push-str! (mut b) " :target-node (.index out) :source-schema ")
+        (number! (mut b) source)
+        (push-str! (mut b) " :source-node (.index id) :rule-lo ")
+        (number! (mut b) (.lo rule))
+        (push-str! (mut b) " :rule-hi ")
+        (number! (mut b) (.hi rule))
+        (push-str! (mut b) ")) out)")
+        (Ok 0)))))
+
+(defn emit [(a (dyn Allocator)) (s (ptr Schema)) (forms (ptr (ArrayList Sexp)))]
+  (-> (Result (slice u8) Diag))
+  (block
+    :done
+      (let [(mut passes) (ArrayList::new [Pass] a)
+            (mut b) (StrBuf::new a)]
+        (for [i 0 (len (load forms))]
+          (let [form (elem forms i)]
+            (when (and (sexp-list? form)
+                       (> (sexp-count form) 0)
+                       (sexp-sym-is (sexp-nth form 0) "transform"))
+              (unless (and (>= (sexp-count form) 4)
+                           (sexp-sym? (sexp-nth form 1))
+                           (sexp-sym? (sexp-nth form 2)))
+                (break
+                  :done
+                    (Err (problem form
+                                  "expected (transform Source Target (Constructor expression) ...)"))))
+              (let [source (node-number s (sexp-sym (sexp-nth form 1)))
+                    target (node-number s (sexp-sym (sexp-nth form 2)))]
+                (unless (and (>= source 0) (>= target 0))
+                  (break
+                    :done (Err (problem form "unknown transformation schema"))))
+                (for [p 0 (len passes)]
+                  (let [prior (elem (mut passes) p)]
+                    (when (and (= (.source prior) source)
+                               (= (.target prior) target))
+                      (break
+                        :done
+                          (Err (problem form "duplicate schema transformation"))))))
+                (push! (mut passes)
+                       (Pass
+                         :source source
+                         :target target
+                         :form (load form)))))))
+        (when (= (len passes) 0) (break :done (Ok "")))
+        (for [i 0 (len passes)]
+          (for [j 0 (len passes)]
+            (when (= (.source (elem (mut passes) i))
+                     (.target (elem (mut passes) j)))
+              (break
+                :done
+                  (Err (problem (field (elem (mut passes) j) form)
+                                "transformation source and target schemas must be disjoint"))))))
+        (push-str! (mut b)
+                   "(import \"coil.primitive\" :as transform-primitive)\n(defsum TransformError (TransformReference [(schema i64) (node i64)]) (TransformCycle [(schema i64) (node i64)]) (TransformOriginMissing [(schema i64) (node i64)]) (TransformSourceChanged [(schema i64)]))\n(defstruct TransformTrace [(target-schema i64) (target-node i64) (source-schema i64) (source-node i64) (rule-lo i64) (rule-hi i64)])\n(defstruct TransformState [(store (ptr Store)) (traces (ArrayList TransformTrace)) ")
+        (for [p 0 (len passes)]
+          (push-str! (mut b) "(memo")
+          (number! (mut b) p)
+          (push-str! (mut b) " (ArrayList i64)) "))
+        (push-str! (mut b)
+                   "])\n(defn transform-state-new [(a (dyn Allocator)) (store (ptr Store))] (-> TransformState) (let [")
+        (for [p 0 (len passes)]
+          (push-str! (mut b) "(mut memo")
+          (number! (mut b) p)
+          (push-str! (mut b) ") (ArrayList::new [i64] a) "))
+        (push-str! (mut b) "] ")
+        (for [p 0 (len passes)]
+          (push-str! (mut b) "(for [i 0 (len (.rows")
+          (number! (mut b) (.source (elem (mut passes) p)))
+          (push-str! (mut b) " store))] (push! (mut memo")
+          (number! (mut b) p)
+          (push-str! (mut b) ") (- 0 1))) "))
+        (push-str! (mut b)
+                   "(TransformState :store store :traces (ArrayList::new [TransformTrace] a) ")
+        (for [p 0 (len passes)]
+          (push-str! (mut b) ":memo")
+          (number! (mut b) p)
+          (push-str! (mut b) " memo")
+          (number! (mut b) p)
+          (push-str! (mut b) " "))
+        (push-str! (mut b)
+                   ")))\n(defn transform-state-free! [(state (mut TransformState))] (-> void) (free! (mut (.traces state))) ")
+        (for [p 0 (len passes)]
+          (push-str! (mut b) "(free! (mut (.memo")
+          (number! (mut b) p)
+          (push-str! (mut b) " state))) "))
+        (push-str! (mut b) ")\n")
+        (for [p 0 (len passes)]
+          (let [pass (elem (mut passes) p)
+                source (.source pass)
+                target (.target pass)
+                form (field pass form)
+                node (elem (field s nodes) source)
+                (mut seen) (ArrayList::new [i64] a)]
+            (for [i 0 (len (.variants node))] (push! (mut seen) 0))
+            (push-str! (mut b) "(defn ")
+            (function-name! (mut b) source target)
+            (push-str! (mut b) " [(state (mut TransformState)) (id N")
+            (number! (mut b) source)
+            (push-str! (mut b) "Id)] (-> (Result N")
+            (number! (mut b) target)
+            (push-str! (mut b)
+                       "Id TransformError)) (block :done (let [store (.store state) memo (transform-primitive/cast (ptr (ArrayList i64)) (mut (.memo")
+            (number! (mut b) p)
+            (push-str! (mut b)
+                       " state)))] (unless (= (len (load memo)) (len (.rows")
+            (number! (mut b) source)
+            (push-str! (mut b)
+                       " store))) (break :done (Err (TransformSourceChanged ")
+            (number! (mut b) source)
+            (push-str! (mut b)
+                       ")))) (unless (and (>= (.index id) 0) (< (.index id) (len (load memo)))) (break :done (Err (TransformReference ")
+            (number! (mut b) source)
+            (push-str! (mut b)
+                       " (.index id))))) (unless (< (.index id) (len (.origins")
+            (number! (mut b) source)
+            (push-str! (mut b)
+                       " store))) (break :done (Err (TransformOriginMissing ")
+            (number! (mut b) source)
+            (push-str! (mut b)
+                       " (.index id))))) (let [cached (get (load memo) (.index id)) origin (get (.origins")
+            (number! (mut b) source)
+            (push-str! (mut b)
+                       " store) (.index id))] (when (>= cached 0) (break :done (Ok (N")
+            (number! (mut b) target)
+            (push-str! (mut b)
+                       "Id :index cached)))) (when (= cached (- 0 2)) (break :done (Err (TransformCycle ")
+            (number! (mut b) source)
+            (push-str! (mut b)
+                       " (.index id))))) (set! (mut memo) (.index id) (- 0 2)) (defer (when (= (get (load memo) (.index id)) (- 0 2)) (set! (mut memo) (.index id) (- 0 1)))) (let [out ")
+            (if (.sum? node)
+                (do
+                  (push-str! (mut b) "(match (get (.rows")
+                  (number! (mut b) source)
+                  (push-str! (mut b) " store) (.index id)) "))
+                (do
+                  (push-str! (mut b) "(let [row (get (.rows")
+                  (number! (mut b) source)
+                  (push-str! (mut b) " store) (.index id)) ")))
+            (for [r 3 (sexp-count form)]
+              (let [rule (sexp-nth form r)
+                    (mut vi) (- 0 1)]
+                (unless (and (sexp-list? rule) (= (sexp-count rule) 2))
+                  (break
+                    :done
+                      (Err (problem rule
+                                    "expected (SourceConstructor TargetExpression)"))))
+                (for [i 0 (len (.variants node))]
+                  (when (sexp-sym-is (sexp-nth rule 0)
+                                     (.name (elem (field node variants) i)))
+                    (set! vi i)))
+                (when (< vi 0)
+                  (break
+                    :done
+                      (Err (problem rule
+                                    "unknown transformation source constructor"))))
+                (set! (mut seen) vi (+ (get seen vi) 1))
+                (let [v (elem (field node variants) vi)]
+                  (when (.sum? node)
+                    (push-str! (mut b) "(N")
+                    (number! (mut b) source)
+                    (push-str! (mut b) "V")
+                    (number! (mut b) vi)
+                    (push-str! (mut b) " ["))
+                  (for [i 0 (len (.fields v))]
+                    (push-str! (mut b) "f")
+                    (number! (mut b) i)
+                    (unless (.sum? node)
+                      (push-str! (mut b) " (.f")
+                      (number! (mut b) i)
+                      (push-str! (mut b) " row)"))
+                    (push-str! (mut b) " "))
+                  (push-str! (mut b) "] ")
+                  (match (term! (mut b)
+                                s
+                                (mut passes)
+                                source
+                                v
+                                (sexp-nth rule 1)
+                                (.name (elem (field s nodes) target))
+                                rule)
+                    (Err [d] (break :done (Err d)))
+                    (Ok [_]))
+                  (when (.sum? node) (push-str! (mut b) ") ")))))
+            (for [i 0 (len seen)]
+              (unless (= (get seen i) 1)
+                (break
+                  :done
+                    (Err (problem form
+                                  "each source constructor needs exactly one transformation rule")))))
+            (push-str! (mut b)
+                       ")] (set! (mut memo) (.index id) (.index out)) (Ok out))))))\n")))
+        (Ok (str (load b))))))

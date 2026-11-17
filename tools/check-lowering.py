@@ -69,6 +69,17 @@ with tempfile.TemporaryDirectory(prefix='rewrite-lowering-') as directory:
     for flags in [[], ['--debug-checks'], ['--release']]:
         subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)
         subprocess.run(['coil', 'run', 'reference.coil', *flags], cwd=work, check=True)
+    transform_schema = (ROOT/'tests/schemas/lowering.schema').read_bytes() + b'\n(node Function (name Text :key) (parameter Text) (body Expr))\n(program Expr Function name parameter body Int Int)\n' + (ROOT/'tests/schemas/transform.schema').read_bytes()
+    (work/'generated.coil').write_bytes(subprocess.check_output([str(ROOT/'build/schema-seed')], input=transform_schema))
+    (work/'main.coil').write_text((ROOT/'tests/transform.coil.in').read_text())
+    for flags in [[], ['--debug-checks'], ['--release']]:
+        subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)
+    invalid_client = (ROOT/'tests/transform.coil.in').read_text().replace(
+        '(compile-program a (mut store) (mut target-ids))',
+        '(compile-program a (mut store) (mut source-ids))')
+    (work/'main.coil').write_text(invalid_client)
+    rejected = subprocess.run(['coil', 'check', 'main.coil'], cwd=work, capture_output=True)
+    assert rejected.returncode != 0 and all(name in rejected.stdout + rejected.stderr for name in [b'N1Id', b'N3Id']), rejected
 print('Source -> generated checking/lowering -> CIR -> native execution passed')
 print('Function designators rejected as values; explicit function pointers agree with installed Coil')
 

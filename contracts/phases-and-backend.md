@@ -29,3 +29,9 @@ Before the first native slice: inspect Func construction and block/phi contracts
 `seed/phase.coil` now validates and schedules finite single-assignment artifact plans. `seed/program.coil` declares `Declarations -> GlobalEnvironment -> CheckedProgram -> NativeImage`; `seed/main.coil` declares the table/API generation dependencies of the language toolchain itself. The latter has independent producers joining before program generation. Both consume the same planner.
 
 These are executable prototype boundaries, not a replacement specification for the original frontend protocol traced above. Nominal representation agreement is checked; handler implementations and ownership remain trusted. In particular, staged expansion cannot be treated as a cycle in this static graph and simply rejected: its intentional fixpoints need a distinct protocol with convergence and invalidation semantics. Reader lifetime and introduced-definition tests remain required before extending this mechanism to metaprograms.
+
+## Typed representation maps
+
+`seed/transform.coil` now derives context-free schema-to-schema traversals. Generated APIs have nominal source/target ID types, memoize by source ID, and attach source/rule provenance to constructed nodes. The fixture has separate surface/core expression schemas and corresponding declaration schemas, with the declaration map invoking the expression map. Core checking/lowering cannot consume source declaration IDs.
+
+The current family borrows one Store and requires disjoint immutable source schemas and append-only target schemas. Row counts are checked, but public-array mutation is not prevented; target origins still borrow reader storage. Thus these maps establish typed representation transitions, not fully owned phase artifacts. They do not replace expansion worklists, introduced-declaration discovery, binding-aware substitution, or effect contracts.

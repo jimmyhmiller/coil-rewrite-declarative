@@ -1,0 +1,92 @@
+(module fixture.main)
+(import "rewrite.generated" :use *)
+(import "rewrite.native" :as native)
+(import "coil.scratch" :use [ScratchArena])
+(import "coil.alloc" :use *)
+(import "coil.reader" :use *)
+(import "coil.result" :use *)
+(import "coil.arraylist" :use *)
+(import "coil.primitive" :as primitive)
+(import "coil.cc" :as cc)
+(import "declarative.rt.jit" :as jit)
+
+(defn native-program [] (-> bool)
+  (let [(mut arena) (zeroed ScratchArena) initialized (init (mut arena) (malloc-allocator))
+        a (allocator (mut arena)) (mut store) (store-new a) (mut source-ids) (ArrayList::new [N3Id] a)
+        (mut target-ids) (ArrayList::new [N1Id] a)
+        ok (block :done
+          (match (read-all a "(defn entry [(n i64)] (-> i64) (let [f (fnptr-of inc)] (unless-else false (f n) 0))) (defn inc [(x i64)] (-> i64) (bump x))" 81)
+            (Err [_] (break :done false))
+            (Ok [forms] (for [i 0 (len (load forms))]
+              (match (surface-3 (mut store) (elem forms i))
+                (Err [_] (break :done false)) (Ok [id] (push! (mut source-ids) id))))))
+          (let [(mut state) (transform-state-new a (mut store))]
+            (defer (transform-state-free! (mut state)))
+            (for [i 0 (len source-ids)]
+              (match (transform-3-1 (mut state) (get source-ids i))
+                (Err [_] (break :done false)) (Ok [id] (push! (mut target-ids) id))))
+            (unless (> (len (.traces state)) (len target-ids)) (break :done false))
+            (match (compile-program a (mut store) (mut target-ids))
+              (Err [_] false)
+              (Ok [im] (let [loaded (native/load-image a im)
+                             run (primitive/cast (fnptr (cc/C) [i64] i64) (jit/address-of loaded 0))
+                             result (= (run 41) 42)]
+                         (jit/unload! loaded) result)))))]
+    (store-free! (mut store)) (free! (mut source-ids)) (free! (mut target-ids)) (close! (mut arena)) ok))
+
+(defn sharing-and-errors [] (-> bool)
+  (let [arena (arena-new 1048576) a (arena-view arena) (mut store) (store-new a)
+        forms (match (read-all a "(bump 1)" 83) (Ok [forms] forms) (Err [_] (panic "fixture syntax")))
+        original (get (load forms) 0)
+        bump (match (surface-2 (mut store) (elem forms 0)) (Ok [id] id) (Err [_] (panic "fixture pattern")))
+        root (append-2 (mut (.rows2 store)) (N2V2 bump bump))
+        (mut ok) true]
+    (push! (mut (.origins2 store)) original)
+    (let [(mut state) (transform-state-new a (mut store))]
+      (match (transform-2-0 (mut state) root)
+        (Err [_] (set! ok false))
+        (Ok [id]
+          (unless (and (= (len (.rows0 store)) 4) (= (len (.rows2 store)) 3)
+                       (= (len (.traces state)) 4) (= (len (.origins0 store)) 4)) (set! ok false))
+          (match (lookup-0 (mut (.rows0 store)) id)
+            (Some [row] (match row (N0V2 [left right] (unless (= (.index left) (.index right)) (set! ok false))) (_ (set! ok false))))
+            (None [] (set! ok false)))
+          (for [i 0 (len (.traces state))]
+            (let [trace (elem (mut (.traces state)) i)
+                  origin (elem (mut (.origins0 store)) (.target-node trace))
+                  source (elem (mut (.origins2 store)) (.source-node trace))]
+              (unless (and (= (.target-schema trace) 0) (= (.source-schema trace) 2)
+                           (= (.source origin) 83) (= (.lo origin) (.lo source)) (= (.hi origin) (.hi source))
+                           (> (.rule-hi trace) (.rule-lo trace))) (set! ok false))))
+          (match (transform-2-0 (mut state) root)
+            (Ok [again] (unless (and (= (.index again) (.index id)) (= (len (.rows0 store)) 4) (= (len (.traces state)) 4)) (set! ok false)))
+            (Err [_] (set! ok false)))))
+      (match (transform-2-0 (mut state) (N2Id :index 999))
+        (Err [e] (match e (TransformReference [schema node] (unless (and (= schema 2) (= node 999)) (set! ok false))) (_ (set! ok false))))
+        (Ok [_] (set! ok false)))
+      (let [cycle-id (N2Id :index (len (.rows2 store)))
+            cycle (append-2 (mut (.rows2 store)) (N2V2 cycle-id cycle-id))]
+        (push! (mut (.origins2 store)) original)
+        (match (transform-2-0 (mut state) root)
+          (Err [e] (match e (TransformSourceChanged [schema] (unless (= schema 2) (set! ok false))) (_ (set! ok false))))
+          (Ok [_] (set! ok false)))
+        (let [(mut fresh) (transform-state-new a (mut store))]
+          (for [attempt 0 2]
+            (match (transform-2-0 (mut fresh) cycle)
+              (Err [e] (match e (TransformCycle [schema node] (unless (and (= schema 2) (= node (.index cycle))) (set! ok false))) (_ (set! ok false))))
+              (Ok [_] (set! ok false))))
+          (match (transform-2-0 (mut fresh) root) (Err [_] (set! ok false)) (Ok [_]))
+          (transform-state-free! (mut fresh))))
+      (transform-state-free! (mut state)))
+    (let [without-origin (append-2 (mut (.rows2 store)) (N2V0 7))
+          (mut state) (transform-state-new a (mut store))]
+      (match (transform-2-0 (mut state) without-origin)
+        (Err [e] (match e (TransformOriginMissing [schema node] (unless (and (= schema 2) (= node (.index without-origin))) (set! ok false))) (_ (set! ok false))))
+        (Ok [_] (set! ok false)))
+      (transform-state-free! (mut state)))
+    (store-free! (mut store)) (arena-release! arena) ok))
+
+(defn main [] (-> i64)
+  (let [sharing (sharing-and-errors) native (native-program)]
+    (println "transform sharing/errors: {}; native: {}" sharing native)
+    (if (and sharing native) 0 1)))

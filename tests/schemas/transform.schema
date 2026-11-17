@@ -1,0 +1,28 @@
+(sum Surface
+  (Integer (value Int)) (Boolean (value Bool))
+  (Add (left Surface) (right Surface))
+  (Choose (condition Surface) (yes Surface) (no Surface))
+  (Variable (name Text)) (Let (name Text) (value Surface) (body Surface))
+  (Call (callee Surface) (argument Surface)) (AddressOf (function Surface))
+  (Unless (condition Surface) (yes Surface) (no Surface))
+  (Bump (value Surface)))
+(node SurfaceFunction (name Text) (parameter Text) (body Surface))
+(transform Surface Expr
+  (Integer (Integer value)) (Boolean (Boolean value))
+  (Add (Add left right)) (Choose (Choose condition yes no))
+  (Variable (Variable name)) (Let (Let name value body))
+  (Call (Call callee argument)) (AddressOf (AddressOf function))
+  (Unless (Choose condition no yes)) (Bump (Add value (Integer 1))))
+(transform SurfaceFunction Function
+  (SurfaceFunction (Function name parameter body)))
+(syntax Surface
+  (Integer (int value)) (Boolean (bool value)) (Variable (symbol name))
+  (Add (list "+" (ref left) (ref right)))
+  (Choose (list "if" (ref condition) (ref yes) (ref no)))
+  (Let (list "let" (vector (symbol name) (ref value)) (ref body)))
+  (AddressOf (list "fnptr-of" (ref function)))
+  (Unless (list "unless-else" (ref condition) (ref yes) (ref no)))
+  (Bump (list "bump" (ref value)))
+  (Call (list (ref callee) (ref argument))))
+(syntax SurfaceFunction
+  (SurfaceFunction (list "defn" (symbol name) (vector (list (symbol parameter) "i64")) (list "->" "i64") (ref body))))

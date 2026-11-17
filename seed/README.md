@@ -227,3 +227,27 @@ Categories are open symbolic labels in the language specification. The seed chec
 Program globals bind their signatures as `function`; parameters and let-bound values use `value`. Call rules explicitly accept designators and function-pointer values, while ordinary operands and initializers reject designators. The `AddressOf` rule converts a function designator to a value with the same canonical signature. Its lowering uses the general `identity` operation because both representations use the same CIR symbol in this scalar prototype. The surface reader recognizes unqualified `fnptr-of`; the reference fixture imports that primitive. General namespace/macro resolution is not implemented by this surface rule.
 
 Tests cover bare designators in initializers, arguments and conditions, rejection of taking the address of an ordinary value, direct calls, explicit pointer aliases and branch-selected pointer calls. The independent Place/Read rules exercise category production and consumption outside the function domain, with invalid-category provenance and malformed DSL cases. Categories currently have literal labels, not inferred category variables; places do not yet implement Coil's ownership or reference semantics.
+
+A typed transformation maps source constructors to target expressions:
+
+```
+(transform Surface Expr
+  (Integer (Integer value))
+  (Unless (Choose condition no yes))
+  (Bump (Add value (Integer 1)))
+  ...)
+(transform SurfaceFunction Function
+  (SurfaceFunction (Function name parameter body)))
+```
+
+The ellipsis above stands for the required remaining constructor rules; it is not syntax. Every source constructor must have exactly one rule. Target expressions consist of source-field names, typed scalar literals, and nested target constructors. Constructor names, arities, and field types are checked before generation. A reference whose source and target schemas differ requires a declared map between those schemas; traversal is derived from that map. Same-type fields are preserved, including references to shared representations that are not traversed. No raw Coil escape hatch is accepted in a transformation term.
+
+All maps in the current generated module form one family with disjoint source and target schema sets. Constructing a source-schema node is rejected, including through a nested target field. This restriction makes source immutability explicit for the first implementation; it does not yet support several successive representation-changing passes in one generated module. Maps between different node schemas can call each other, as expression and function-declaration maps do in the fixture.
+
+`transform-state-new(allocator, store)` borrows one Store, snapshots source row counts, and creates a memo table for each map. `transform-S-T(state, sourceId)` returns a nominal target ID or a structured error. Keep this state across all roots in a compilation unit to preserve sharing; repeated roots create no additional target nodes or traces. Source growth, out-of-range traversed IDs, missing source origins, and cycles are rejected. Visiting markers unwind on failure, so an unsuccessful root does not poison later calls. Successfully built children and their memo entries may remain after a failure; output construction is not transactional.
+
+The state is tied to its Store. Source rows and origins must remain unchanged while it lives, and target rows must remain append-only. Row-count checks detect growth, not arbitrary in-place edits through exposed arrays. This is a borrowed immutable-input contract, not an ownership proof. `transform-state-free!` releases memo tables and traces; target nodes remain owned by the Store. Reader storage must outlive target origins and borrowed Text fields. Fully owned phase artifacts remain required.
+
+Every constructed target node receives the current source node's original Sexp, and a `TransformTrace` records source/target schema and node IDs plus the transformation rule span. Nested target constructors inherit that rule's source origin. Forwarding an existing reference preserves its existing origin. Structural memoization does not memoize runtime expression evaluation or provide binding-aware substitution, fresh identities, hygiene, effects, or a fixed-point rewrite strategy.
+
+`tests/schemas/transform.schema` defines a surface representation with `unless-else` and `bump`, and maps it into the core representation, which contains neither constructor. The generated function map recursively uses the expression map. `tests/transform.coil.in` checks shared subgraphs, cached roots, provenance, cycles and retries, invalid references, source growth, and missing origins. Its native case parses surface declarations, transforms them, checks the core program, and executes it. The native harness also verifies that source declaration IDs cannot be passed directly to the core compiler. This is a context-free dialect normalization test, not the external reader/metaprogram compatibility gate.

@@ -163,3 +163,22 @@ for invalid, diagnostic in [
     result = subprocess.run([str(ROOT/'build/schema-seed')], input=invalid, capture_output=True)
     assert result.returncode != 0 and not result.stdout and diagnostic in result.stderr, result
 print('Typed syntax: record construction, reordered captures and malformed/ambiguous definitions passed')
+
+
+source = ((ROOT/'tests/schemas/lowering.schema').read_bytes()
+          + b'\n(node Function (name Text :key) (parameter Text) (body Expr))\n'
+          + (ROOT/'tests/schemas/transform.schema').read_bytes())
+for invalid, diagnostic in [
+    (source + b'(transform Surface Expr (Integer (Integer value)))', b'duplicate schema transformation'),
+    (source.replace(b'(transform Surface Expr', b'(transform Surface Surface'), b'must be disjoint'),
+    (source.replace(b'(Bump (Add value (Integer 1)))', b'(Bump (Unknown value))'), b'unknown target constructor'),
+    (source.replace(b'(Bump (Add value (Integer 1)))', b'(Bump (Add value))'), b'wrong target constructor arity'),
+    (source.replace(b'(Integer (Integer value))', b'(Integer (Integer true))'), b'transform scalar must be'),
+    (source.replace(b'(Bump (Add value (Integer 1)))', b''), b'exactly one transformation rule'),
+    (source.replace(b'(Bump (Add value (Integer 1)))', b'(Bogus (Integer 0))'), b'unknown transformation source constructor'),
+    (source[:source.index(b'(transform Surface Expr')] + source[source.index(b'(transform SurfaceFunction Function'):], b'field type needs a matching schema map'),
+    (b'(sum S (Leaf (value Int))) (node T (child S)) (transform S T (Leaf (T (Leaf value))))', b'cannot construct nodes in a source schema'),
+]:
+    result = subprocess.run([str(ROOT/'build/schema-seed')], input=invalid, capture_output=True)
+    assert result.returncode != 0 and not result.stdout and diagnostic in result.stderr, result
+print('Typed transformations: schema and rule contract rejections passed')

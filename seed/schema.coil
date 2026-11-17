@@ -126,7 +126,8 @@
         (for [i 0 (len (load forms))]
           (unless (and (sexp-list? (elem forms i))
                        (> (sexp-count (elem forms i)) 0)
-                       (or (sexp-sym-is (sexp-nth (elem forms i) 0) "syntax")
+                       (or (sexp-sym-is (sexp-nth (elem forms i) 0) "transform")
+                           (sexp-sym-is (sexp-nth (elem forms i) 0) "syntax")
                            (sexp-sym-is (sexp-nth (elem forms i) 0) "judgment")
                            (or (sexp-sym-is (sexp-nth (elem forms i) 0) "lower")
                                (sexp-sym-is (sexp-nth (elem forms i) 0)

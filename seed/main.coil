@@ -4,6 +4,7 @@
 (import "rewrite.index" :as index)
 (import "rewrite.readers" :as readers)
 (import "rewrite.syntax" :as syntax)
+(import "rewrite.transform" :as transform)
 (import "rewrite.judgment" :as judgment)
 (import "rewrite.lower" :as lower)
 (import "rewrite.program" :as program)
@@ -22,7 +23,7 @@
        (sexp-sym-is (sexp-nth form 0) "judgment")))
 
 (def compiler-phases
-  "(phases\n (input schema Schema)\n (phase program (needs (surface SurfaceAPI) (readers ReaderAPI) (indexes IndexAPI) (judgments JudgmentAPI) (lowering CIRAPI)) (makes (program ProgramAPI)))\n (phase syntax (needs (readers ReaderAPI)) (makes (surface SurfaceAPI)))\n (phase readers (needs (tables Tables)) (makes (readers ReaderAPI)))\n (phase indexes (needs (tables Tables)) (makes (indexes IndexAPI)))\n (phase judgment (needs (tables Tables)) (makes (judgments JudgmentAPI)))\n (phase lower (needs (tables Tables)) (makes (lowering CIRAPI)))\n (phase tables (needs (schema Schema)) (makes (tables Tables))))")
+  "(phases\n (input schema Schema)\n (phase program (needs (maps TransformAPI) (surface SurfaceAPI) (readers ReaderAPI) (indexes IndexAPI) (judgments JudgmentAPI) (lowering CIRAPI)) (makes (program ProgramAPI)))\n (phase transform (needs (readers ReaderAPI)) (makes (maps TransformAPI)))\n (phase syntax (needs (readers ReaderAPI)) (makes (surface SurfaceAPI)))\n (phase readers (needs (tables Tables)) (makes (readers ReaderAPI)))\n (phase indexes (needs (tables Tables)) (makes (indexes IndexAPI)))\n (phase judgment (needs (tables Tables)) (makes (judgments JudgmentAPI)))\n (phase lower (needs (tables Tables)) (makes (lowering CIRAPI)))\n (phase tables (needs (schema Schema)) (makes (tables Tables))))")
 
 (defn compile-stage [(a (dyn Allocator))
                      (sp (ptr schema/Schema))
@@ -35,6 +36,7 @@
                 (= stage "indexes")
                 (= stage "judgment")
                 (= stage "syntax")
+                (= stage "transform")
                 (= stage "lower")
                 (= stage "program"))
       (break
@@ -47,6 +49,10 @@
                  :msg "unknown seed phase implementation"))))
     (let [(mut output) (StrBuf::new a)]
       (cond (= stage "tables") (push-str! (mut output) (emit/emit a sp))
+            (= stage "transform")
+              (match (transform/emit a sp forms)
+                (Err [d] (break :done (Err d)))
+                (Ok [text] (push-str! (mut output) text)))
             (= stage "readers") (push-str! (mut output) (readers/emit a sp))
             (= stage "indexes") (push-str! (mut output) (index/emit a sp))
             :else
