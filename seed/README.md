@@ -29,3 +29,18 @@ Sum declarations now describe variants of a single node identity:
 ```
 
 A sum emits one nominal ID type and one Coil sum row, with constructors `N0V0`, `N0V1`, etc. Variant names are unique within the sum; field names are unique within a variant. Sums require at least one variant. References resolve against node/sum names, not constructor names. Thus both Add operands reference any Expr variant, and representation size stays finite. Tests build a recursive expression graph, grow its table, evaluate it through exhaustive generated-variant matches, and check malformed declarations. The evaluator in the test is handwritten acceptance code; judgment compilation has not been implemented.
+
+The first judgment surface is now compiled:
+
+```
+(judgment Expr
+  (Integer Int)
+  (Boolean Bool)
+  (Add Int (left Int) (right Int)))
+```
+
+A judgment names a declared sum, gives exactly one case per variant, and checks zero or more child premises before returning a scalar type. Premises must name fields referencing that same sum. The seed checks coverage, duplicate judgments, field existence and premise/result types before publishing output. It generates direct variant dispatch and recursive native calls; no rule interpreter runs in the generated checker.
+
+The current generated `judge-N` API returns 1/2/3 for Int/Bool/Text and 0 for failure. Invalid IDs and cycles fail. Recursion has a table-length depth budget, sufficient for any acyclic path through that table, rather than an arbitrary constant cutoff. Very deep valid graphs can still exhaust the native stack; iterative scheduling and memoization are future work. Failure does not yet distinguish a type mismatch, invalid graph or exhausted depth in a diagnostic trace. This finite kernel is not Coil's type system: contexts, type variables, unification, elaboration, bidirectional checking and richer result schemas remain to implement.
+
+Schema parsing currently recognizes and defers judgment forms to the judgment compiler. The command publishes no generated source if judgment validation fails. The bootstrap still parses input twice; sharing a single parsed module is an explicit cleanup before broader language growth.

@@ -1,0 +1,8 @@
+(sum Expr
+  (Integer (value Int))
+  (Boolean (value Bool))
+  (Add (left Expr) (right Expr)))
+(judgment Expr
+  (Integer Int)
+  (Boolean Bool)
+  (Add Int (left Int) (right Int)))

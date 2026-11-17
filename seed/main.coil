@@ -1,6 +1,10 @@
 (module rewrite.main)
 (import "rewrite.schema" :as schema)
 (import "rewrite.emit" :as emit)
+(import "rewrite.judgment" :as judgment)
+(import "coil.reader" :use *)
+(import "coil.arraylist" :use *)
+(import "coil.str" :use *)
 (import "coil.alloc" :use *)
 (import "coil.result" :use *)
 (import "coil.io" :use [stderr])
@@ -20,6 +24,45 @@
                         (.hi d)
                         (.msg d))
                    1))
-            (Ok [s] (write-stdout-all (emit/emit a (box! a schema/Schema s)))))]
+            (Ok [s]
+                (let [sp (box! a schema/Schema s)
+                      (mut output) (StrBuf::new a)]
+                  (push-str! (mut output) (emit/emit a sp))
+                  (block :compiled
+                    (match (read-all a source 0)
+                      (Err [_] (break :compiled 1))
+                      (Ok [forms]
+                          (for [i 0 (len (load forms))]
+                            (let [form (elem forms i)]
+                              (when (and (sexp-list? form)
+                                         (> (sexp-count form) 0)
+                                         (sexp-sym-is (sexp-nth form 0)
+                                                      "judgment"))
+                                (for [prior 0 i]
+                                  (let [previous (elem forms prior)]
+                                    (when (and (sexp-list? previous)
+                                               (>= (sexp-count previous) 2)
+                                               (>= (sexp-count form) 2)
+                                               (sexp-sym-is (sexp-nth previous
+                                                                      0)
+                                                            "judgment")
+                                               (sexp-sym? (sexp-nth form 1))
+                                               (sexp-sym-is (sexp-nth previous
+                                                                      1)
+                                                            (sexp-sym (sexp-nth form
+                                                                                1))))
+                                      (fmt (stderr) "duplicate judgment")
+                                      (break :compiled 1))))
+                                (match (judgment/compile-one a sp form)
+                                  (Ok [text] (push-str! (mut output) text))
+                                  (Err [d]
+                                       (do
+                                         (fmt (stderr)
+                                              "judgment error at {}..{}: {}"
+                                              (.lo d)
+                                              (.hi d)
+                                              (.msg d))
+                                         (break :compiled 1)))))))))
+                    (write-stdout-all (str (load output)))))))]
     (arena-release! arena)
     result))

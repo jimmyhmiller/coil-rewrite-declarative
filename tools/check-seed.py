@@ -53,3 +53,22 @@ for source, diagnostic in [
     result = subprocess.run([str(ROOT / 'build/schema-seed')], input=source, capture_output=True)
     assert result.returncode != 0 and not result.stdout and diagnostic in result.stderr, result
 print('Recursive variants: execution, growth, and invalid-declaration checks passed')
+
+with tempfile.TemporaryDirectory(prefix='rewrite-judgment-') as directory:
+    work = Path(directory)
+    (work / 'Coil.toml').write_text('[package]\nname = "fixture"\nentry = "main.coil"\nsource-roots = ["."]\n')
+    typing = (ROOT / 'tests/schemas/typing.schema').read_bytes()
+    output = subprocess.check_output([str(ROOT / 'build/schema-seed')], input=typing)
+    (work / 'generated.coil').write_bytes(output)
+    (work / 'main.coil').write_text((ROOT / 'tests/judgment.coil.in').read_text())
+    for flags in [[], ['--debug-checks'], ['--release']]:
+        subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)
+    for invalid, diagnostic in [
+        (typing.replace(b'(Boolean Bool)', b''), b'exactly one rule'),
+        (typing.replace(b'(left Int)', b'(missing Int)'), b'unknown premise field'),
+        (typing.replace(b'(Integer Int)', b'(Integer Int (value Int))'), b'premise field'),
+        (typing.replace(b'(Integer Int)', b'(Integer Mystery)'), b'judgment result'),
+    ]:
+        result = subprocess.run([str(ROOT / 'build/schema-seed')], input=invalid, capture_output=True)
+        assert result.returncode != 0 and not result.stdout and diagnostic in result.stderr, result
+print('Generated judgments: valid/invalid typing, malformed rules, bounds and cycles passed')

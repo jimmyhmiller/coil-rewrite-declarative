@@ -120,15 +120,19 @@
         (Ok [forms]
             (let [(mut nodes) (ArrayList::new [Node] a)]
               (for [i 0 (len (load forms))]
-                (match (parse-node a (elem forms i))
-                  (Err [d] (break :result (Err d)))
-                  (Ok [n]
-                      (do
-                        (when (known? (mut nodes) (.name n))
-                          (break
-                            :result
-                              (Err (problem (elem forms i) "duplicate node"))))
-                        (push! (mut nodes) n)))))
+                (unless (and (sexp-list? (elem forms i))
+                             (> (sexp-count (elem forms i)) 0)
+                             (sexp-sym-is (sexp-nth (elem forms i) 0)
+                                          "judgment"))
+                  (match (parse-node a (elem forms i))
+                    (Err [d] (break :result (Err d)))
+                    (Ok [n]
+                        (do
+                          (when (known? (mut nodes) (.name n))
+                            (break
+                              :result
+                                (Err (problem (elem forms i) "duplicate node"))))
+                          (push! (mut nodes) n))))))
               (for [i 0 (len nodes)]
                 (let [n (elem (mut nodes) i)]
                   (for [v 0 (len (.variants n))]
