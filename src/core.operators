@@ -19,3 +19,6 @@
   (if (ir/type-signed? type) (ir/lt! (mut g) right left) (ir/ult! (mut g) right left)))
 (GreaterEqual ">=" binary integer bool
   (if (ir/type-signed? type) (ir/le! (mut g) right left) (ir/ule! (mut g) right left)))
+(ShiftLeft "<<" binary integer same (ir/shl! (mut g) type left right))
+(ShiftRight ">>" binary integer same
+  (if (ir/type-signed? type) (ir/sar! (mut g) type left right) (ir/shr! (mut g) type left right)))
