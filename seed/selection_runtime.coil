@@ -1,7 +1,0 @@
-;;; One step of an ordered candidate selection; values borrow their source.
-(module rewrite.selection)
-
-(defsum Decision [T]
-  (Continue [(value T)])
-  (Stop [(value T)])
-  (Conflict [(first T) (next T)]))

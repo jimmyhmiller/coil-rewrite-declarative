@@ -1,4 +1,0 @@
-(sum Expr
-  (Literal (value Int))
-  (Add (left Expr) (right Expr))
-  (Choose (condition Bool) (yes Expr) (no Expr)))

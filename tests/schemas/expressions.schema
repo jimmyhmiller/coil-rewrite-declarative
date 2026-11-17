@@ -1,2 +1,0 @@
-(node Literal (value Int))
-(node Add (left Literal) (right Literal))
