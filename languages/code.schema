@@ -63,3 +63,6 @@
 
 (equivalence source-reuse Context scope module)
 (equivalence revision-reuse Context scope module origin flags)
+
+; Keep the selected syntax occurrence and its hygiene, not just its spelling.
+(pair-selection derive-arms (start 2) (key keyword) (value symbol) (choose last))

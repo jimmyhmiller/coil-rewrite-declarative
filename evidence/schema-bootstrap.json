@@ -10,6 +10,11 @@
       "output": "seed/generated/schema_forms.coil",
       "generated_sha256": "c412311c65dd22fb8d36568e3aa142c0f3ac3d95464f55f11ec1e9c4beae8f1d"
     },
+    "languages/pair_selection.schema": {
+      "specification_sha256": "cea7197d8dd3d5752d8eea847ffcf741ef5e67118a840c24fb9219fcff75ec41",
+      "output": "seed/generated/pair_forms.coil",
+      "generated_sha256": "a6a8be47b3aa2f667337677a06cbcd968b637d8bc84f699fbbf660a545a086b8"
+    },
     "languages/macro_head.protocol": {
       "specification_sha256": "8b3515dd7c71fbb23248ba4d0cdb24f4f0c499296c05161e6ee36201474b5e1c",
       "output": "seed/generated/head_protocol.coil",
@@ -36,9 +41,9 @@
       "generated_sha256": "eac976d9bfd51328ab51804f38952ba3f0119367541ebc188b3329bec3ecfe20"
     },
     "languages/code.schema": {
-      "specification_sha256": "d1cecb6b0a6a73d4b545d047d2a6e7893feadb1e2335c7607396e8959dda4998",
+      "specification_sha256": "dee9eb81ca0f6d0acadee08c64244ef8941b32a64f8214461c463e85a8c37635",
       "output": "seed/generated/code_forms.coil",
-      "generated_sha256": "8cd71624fa90d36fb3376c0ef4341d40399fbbc99229bb46e6d19a62ea878662"
+      "generated_sha256": "e652554cfdaa277cd05574a485de956595dba272e4c3fbc973c78a19b5bd0b0c"
     },
     "languages/protocol.schema": {
       "specification_sha256": "caa7c02e0c62ecbdac779b53b561be3636d912e875718323facd6035f5cae608",
@@ -71,10 +76,11 @@
     "seed/equality.coil": "6e9545f47e1f6f2e8a8a0dabaafccfd6df2fbe7ea2d404371063717d7d7c7555",
     "seed/equality_runtime.coil": "677953a98f75ce17eba81be80da3133d56da5387413e15679ba218c10e462039",
     "seed/generated/before_protocol.coil": "d4c501ee6b518eeea2ffd0f2a4a97a616e9b1975e419a4456ffdf3be9acc84d5",
-    "seed/generated/code_forms.coil": "8cd71624fa90d36fb3376c0ef4341d40399fbbc99229bb46e6d19a62ea878662",
+    "seed/generated/code_forms.coil": "e652554cfdaa277cd05574a485de956595dba272e4c3fbc973c78a19b5bd0b0c",
     "seed/generated/export_search.coil": "0958122e80f6ba9f2ff587e2760da4da371fafca3c73e633b8a4ba55b5ed663b",
     "seed/generated/head_protocol.coil": "228d6003128bf3b5c17d08f06fd1ab01c96f13dd7bcd23a62acd41e126febbef",
     "seed/generated/name_forms.coil": "eac976d9bfd51328ab51804f38952ba3f0119367541ebc188b3329bec3ecfe20",
+    "seed/generated/pair_forms.coil": "a6a8be47b3aa2f667337677a06cbcd968b637d8bc84f699fbbf660a545a086b8",
     "seed/generated/protocol_forms.coil": "df9e7ac21cacee998f55bcf2f7c784565d260efbf966a738bbfcf56b9473ba44",
     "seed/generated/request_protocol.coil": "b6ca981116487cd83bdde28702a1e9d69533952a6514cbad94fa9dcdbf7cbbd0",
     "seed/generated/resolve_protocol.coil": "674f6b3ebd9021f16c3dc5b0da344b2f61d860709cfc600d5f6bac6b8811d7ae",
@@ -86,9 +92,10 @@
     "seed/judgment.coil": "5c89d13c8af1532e8cfbb5d5808cdbf0d58de0989d354bac8762c2cbde2aa504",
     "seed/lower.coil": "2421bc11672e988aef991f081125c869b563d1b762239229fa8bf39bd10e59cb",
     "seed/macro_head.coil": "7ff0febbce67c080529f48b8ce44ed76e19422d73e47d25ceeeeba8edcde8332",
-    "seed/main.coil": "1d87b674f8c5b69b43bf3f392222a4caa0832a3ff2dc011bc1a3059386a0fcb5",
+    "seed/main.coil": "15046ede3111d5fd37a21d8b23baf0a2ea638c82c3d6b74cce5781a03acd887b",
     "seed/namespace.coil": "d55f43600f98c731c24fb71b31d3cf7b047a41ce110217678d3742b9ada91bbd",
     "seed/observed_resolution.coil": "d2aa9c8c7fad6f7d6c9001a382f053293d284016a7ca05d482b7d2e273873691",
+    "seed/pair_selection.coil": "846047da05dd94541106436a3aaac259038fc02e9a1ebe025b00ea848198c8b9",
     "seed/phase.coil": "ee9681c4c18d5d0974415dfdee37c23b203d735d87a012962e58e1c5cec3ea1e",
     "seed/produced.coil": "a2ef562cc081f4ba5ff732f3e5edf4f43f91b5dd727f7c41d6e6bf6e7876137d",
     "seed/program.coil": "b8ad6fb872c4de33aac6cb06f818cebeb70046bd795252b9af88e11b6bb0a3f9",
@@ -104,7 +111,7 @@
     "seed/rounds.coil": "3bf2099362ab986c0355d86a789c892108c5e9f64eb578a74d1527f6774bc299",
     "seed/routing.coil": "40caf673390c0a315f3f32c2ec701a62d86013b73f0c91d30b4fd4a1f5f537fe",
     "seed/routing_facts.coil": "24eabdb95c24c6e450392b013c02c72544efb3ef351accd8218fe839f83f79a2",
-    "seed/schema.coil": "0db07959be94f09975feacf8bfb3a987de79dbdd1a295c71eb8a5e4c3ae473d9",
+    "seed/schema.coil": "9bc5f65a736037192b2936c9cb1f940501044a10c8e7bf8a40a5c9e29473e5ee",
     "seed/scope.coil": "c7be3143d3e955ecd8c05ea3c7ffb4b8b6d9981a223fc5de55507aa89f35e71f",
     "seed/search.coil": "1dc133adde12ae7cdee718146c58c84684adef6da47ab6c8ef627fef1b4ce026",
     "seed/search_runtime.coil": "82f18d2a79fc3086cd35695bcab238c83470334db03292b9abc35c7cbf145b71",

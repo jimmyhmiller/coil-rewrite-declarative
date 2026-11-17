@@ -1,0 +1,7 @@
+(module rewrite.pairforms)
+(node PairSelection (name Text) (start Int) (key Text) (value Text) (choose Text))
+(syntax PairSelection
+  :expect "expected (pair-selection Name (start N) (key keyword|symbol) (value symbol|keyword|int|text|any) (choose first|last))"
+  (PairSelection (list "pair-selection" (symbol name)
+    (list "start" (int start)) (list "key" (symbol key))
+    (list "value" (symbol value)) (list "choose" (symbol choose)))))

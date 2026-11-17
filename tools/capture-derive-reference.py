@@ -130,7 +130,10 @@ def main():
             if action[0]=='register':
                 body.append(f'''(let [forms (match (read-all a {q(action[1])} 1) (Ok [v] v) (Err [_] (panic "fixture parse"))) form (elem forms 0)]
                   (if (is-register-derive-form form)
-                    (print-state (register-derive-form! form {module} macros impb expb a))
+                    (do
+                      (println "arm|struct|{{}}" (match (regd-arm (sx-items (load form)) "struct") (None [] "<none>") (Some [node] (sx-sval node))))
+                      (println "arm|sum|{{}}" (match (regd-arm (sx-items (load form)) "sum") (None [] "<none>") (Some [node] (sx-sval node))))
+                      (print-state (register-derive-form! form {module} macros impb expb a)))
                     (do (println "unrecognized") (print-state (None)))))''')
             elif action[0]=='expose':
                 body.append(f'(push! (facts) (Fact :name {q(action[1])} :target {q(action[2])})) (print-state (None))')

@@ -1,0 +1,23 @@
+{
+  "host_version": "coil 0.1.0 (commit dcbbfee64333, 2026-11-17)",
+  "host_sha256": "a0e3f4c481945e8c29607cf022283ece170299f795c79b9487af75a931a55869",
+  "seed_sha256": "540915ec25477f3ed235200b984b5f08865ed70b540dee967dcebd61fd1d7774",
+  "driver_sha256": "8c448428d16d53a0e7404bc0cc99accc20648c2a7a777257f985cc17b67dee03",
+  "independent_generated_sha256": "0c7b520ec2ef86ba2064ab4eaec529d8c80b90b79ff2ac2f6034cd35f7881b88",
+  "scope": "Generated pair selection and selected syntax occurrence preservation; derive registry and full admission are not replayed.",
+  "observations": 62,
+  "configurations": [
+    "default",
+    "debug-checks",
+    "release"
+  ],
+  "reference_sha256": "09ec69e9517c6dfb3b5b69d579b69a4f5e1dec2bb9d039dca26237f274e5f96a",
+  "inputs": {
+    "tools/check-pairs.py": "02d481159783b7303c818fd47f8463b4f3e1c9e04cd31f14dd86280d4604a703",
+    "seed/pair_selection.coil": "846047da05dd94541106436a3aaac259038fc02e9a1ebe025b00ea848198c8b9",
+    "languages/pair_selection.schema": "cea7197d8dd3d5752d8eea847ffcf741ef5e67118a840c24fb9219fcff75ec41",
+    "seed/generated/pair_forms.coil": "a6a8be47b3aa2f667337677a06cbcd968b637d8bc84f699fbbf660a545a086b8",
+    "languages/code.schema": "dee9eb81ca0f6d0acadee08c64244ef8941b32a64f8214461c463e85a8c37635",
+    "seed/generated/code_forms.coil": "e652554cfdaa277cd05574a485de956595dba272e4c3fbc973c78a19b5bd0b0c"
+  }
+}

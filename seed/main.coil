@@ -10,6 +10,7 @@
 (import "rewrite.selectiongen" :as selectiongen)
 (import "rewrite.readers" :as readers)
 (import "rewrite.walk" :as walk)
+(import "rewrite.pairselection" :as pairselection)
 (import "rewrite.referpolicy" :as referpolicy)
 (import "rewrite.syntax" :as syntax)
 (import "rewrite.transform" :as transform)
@@ -33,7 +34,7 @@
        (sexp-sym-is (sexp-nth form 0) "judgment")))
 
 (def compiler-phases
-  "(phases\n (input schema Schema)\n (input bindings Bindings)\n (phase program (needs (maps TransformAPI) (surface SurfaceAPI) (readers ReaderAPI) (indexes IndexAPI) (judgments JudgmentAPI) (lowering CIRAPI)) (makes (program ProgramAPI)))\n (phase transform (needs (readers ReaderAPI)) (makes (maps TransformAPI)))\n (phase selection (needs (tables Tables)) (makes (selection SelectionAPI)))\n (phase refer (needs (readers ReaderAPI)) (makes (refers ReferAPI)))\n (phase walk (needs (readers ReaderAPI)) (makes (walk WalkAPI)))\n (phase syntax (needs (readers ReaderAPI)) (makes (surface SurfaceAPI)))\n (phase context-policy (needs (tables Tables)) (makes (contexts ContextAPI)))\n (phase equality (needs (readers ReaderAPI)) (makes (equality EqualityAPI)))\n (phase readers (needs (tables Tables)) (makes (readers ReaderAPI)))\n (phase alpha (needs (resolution ResolutionAPI)) (makes (alpha AlphaAPI)))\n (phase resolution (needs (readers ReaderAPI) (bindings Bindings)) (makes (resolution ResolutionAPI)))\n (phase indexes (needs (tables Tables)) (makes (indexes IndexAPI)))\n (phase judgment (needs (tables Tables) (bindings Bindings)) (makes (judgments JudgmentAPI)))\n (phase lower (needs (tables Tables) (bindings Bindings)) (makes (lowering CIRAPI)))\n (phase tables (needs (schema Schema)) (makes (tables Tables))))")
+  "(phases\n (input schema Schema)\n (input bindings Bindings)\n (phase program (needs (maps TransformAPI) (surface SurfaceAPI) (readers ReaderAPI) (indexes IndexAPI) (judgments JudgmentAPI) (lowering CIRAPI)) (makes (program ProgramAPI)))\n (phase transform (needs (readers ReaderAPI)) (makes (maps TransformAPI)))\n (phase selection (needs (tables Tables)) (makes (selection SelectionAPI)))\n (phase refer (needs (readers ReaderAPI)) (makes (refers ReferAPI)))\n (phase pairs (needs (readers ReaderAPI)) (makes (pairs PairAPI)))\n (phase walk (needs (readers ReaderAPI)) (makes (walk WalkAPI)))\n (phase syntax (needs (readers ReaderAPI)) (makes (surface SurfaceAPI)))\n (phase context-policy (needs (tables Tables)) (makes (contexts ContextAPI)))\n (phase equality (needs (readers ReaderAPI)) (makes (equality EqualityAPI)))\n (phase readers (needs (tables Tables)) (makes (readers ReaderAPI)))\n (phase alpha (needs (resolution ResolutionAPI)) (makes (alpha AlphaAPI)))\n (phase resolution (needs (readers ReaderAPI) (bindings Bindings)) (makes (resolution ResolutionAPI)))\n (phase indexes (needs (tables Tables)) (makes (indexes IndexAPI)))\n (phase judgment (needs (tables Tables) (bindings Bindings)) (makes (judgments JudgmentAPI)))\n (phase lower (needs (tables Tables) (bindings Bindings)) (makes (lowering CIRAPI)))\n (phase tables (needs (schema Schema)) (makes (tables Tables))))")
 
 (defn compile-stage [(a (dyn Allocator))
                      (sp (ptr schema/Schema))
@@ -45,6 +46,7 @@
   (block :done
     (unless (or (= stage "selection")
                 (= stage "refer")
+                (= stage "pairs")
                 (= stage "walk")
                 (= stage "context-policy")
                 (= stage "equality")
@@ -73,6 +75,10 @@
                 (Ok [text] (push-str! (mut output) text)))
             (= stage "refer")
               (match (referpolicy/emit a sp forms)
+                (Err [d] (break :done (Err d)))
+                (Ok [text] (push-str! (mut output) text)))
+            (= stage "pairs")
+              (match (pairselection/emit a forms)
                 (Err [d] (break :done (Err d)))
                 (Ok [text] (push-str! (mut output) text)))
             (= stage "walk")

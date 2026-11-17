@@ -430,3 +430,5 @@ subprocess.run(['python3', 'tools/check-export.py'], cwd=ROOT, check=True)
 subprocess.run(['python3', 'tools/check-selection.py'], cwd=ROOT, check=True)
 subprocess.run(['python3', 'tools/check-use.py'], cwd=ROOT, check=True)
 subprocess.run(['python3', 'tools/check-routing.py'], cwd=ROOT, check=True)
+
+subprocess.run(['python3', 'tools/check-pairs.py'], cwd=ROOT, check=True)

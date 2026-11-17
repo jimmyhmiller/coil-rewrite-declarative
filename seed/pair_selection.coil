@@ -1,0 +1,88 @@
+;;; Schema-parsed policies for selecting syntax occurrences from key/value pairs.
+(module rewrite.pairselection)
+(import "rewrite.pairforms" :as grammar)
+(import "rewrite.schema" :use [problem])
+(import "rewrite.protocol" :use [name?])
+(import "rewrite.emit" :use [number!])
+(import "coil.alloc" :use [Allocator])
+(import "coil.arraylist" :use *)
+(import "coil.str" :use [StrBuf])
+(import "coil.reader" :use *)
+(import "coil.result" :use *)
+
+(defn predicate [(kind (slice u8))] (-> (slice u8))
+  (cond (= kind "symbol") "sexp-sym?"
+        (= kind "keyword") "sexp-kw?"
+        (= kind "int") "sexp-int?"
+        (= kind "text") "sexp-str?"
+        :else ""))
+
+(defn emit [(a (dyn Allocator)) (forms (ptr (ArrayList Sexp)))]
+  (-> (Result (slice u8) Diag))
+  (block
+    :done
+      (let [(mut store) (grammar/store-new a)
+            (mut names) (ArrayList::new [(slice u8)] a)
+            (mut output) (StrBuf::new a)]
+        (defer (grammar/store-free! (mut store)))
+        (defer (free! (mut names)))
+        (defer (free! (mut output)))
+        (for [i 0 (len (load forms))]
+          (let [form (elem forms i)]
+            (when (and (sexp-list? form)
+                       (> (sexp-count form) 0)
+                       (sexp-sym-is (sexp-nth form 0) "pair-selection"))
+              (let [id
+                      (match (grammar/surface-0 (mut store) form)
+                        (Ok [id] id)
+                        (Err [e] (break :done (Err e))))
+                    row (get (.rows0 store) (.index id))
+                    name (.f0 row)
+                    start (.f1 row)
+                    key (.f2 row)
+                    value (.f3 row)
+                    choose (.f4 row)]
+                (unless (name? name)
+                  (break
+                    :done (Err (problem form "invalid pair selection name"))))
+                (for prior names
+                  (when (= prior name)
+                    (break
+                      :done (Err (problem form "duplicate pair selection")))))
+                (when (< start 0)
+                  (break
+                    :done (Err (problem form "pair start must be nonnegative"))))
+                (unless (or (= key "keyword") (= key "symbol"))
+                  (break
+                    :done
+                      (Err (problem form "pair key must be keyword or symbol"))))
+                (unless (or (= value "any") (!= (predicate value) ""))
+                  (break :done (Err (problem form "unknown pair value kind"))))
+                (unless (or (= choose "first") (= choose "last"))
+                  (break
+                    :done
+                      (Err (problem form "pair choice must be first or last"))))
+                (push! (mut names) name)
+                (push-str! (mut output) "(defn select-pair-")
+                (push-str! (mut output) name)
+                (push-str! (mut output)
+                           " [(form (ptr Sexp)) (key (slice u8))] (-> (Option Sexp)) (block :done (unless (sexp-list? form) (break :done (None))) (let [count (sexp-count form) (mut index) ")
+                (number! (mut output) start)
+                (push-str! (mut output)
+                           " (mut selected) (None [Sexp])] (loop (when (>= index (- count 1)) (break)) (let [k (sexp-nth form index) v (sexp-nth form (+ index 1))] (when (and (")
+                (push-str! (mut output) (predicate key))
+                (push-str! (mut output) " k) (= (sx-sval (load k)) key) ")
+                (if (= value "any")
+                    (push-str! (mut output) "true")
+                    (do
+                      (push-str! (mut output) "(")
+                      (push-str! (mut output) (predicate value))
+                      (push-str! (mut output) " v)")))
+                (push-str! (mut output) ") ")
+                (push-str! (mut output)
+                           (if (= choose "first")
+                               "(break :done (Some (load v)))"
+                               "(set! selected (Some (load v)))"))
+                (push-str! (mut output)
+                           ")) (set! index (+ index 2))) selected)))\n")))))
+        (Ok (finish! (mut output))))))

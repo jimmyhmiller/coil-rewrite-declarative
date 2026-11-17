@@ -26,8 +26,8 @@
     "derive-reg-settle!": "f413f0705c89ab9bcd1f60fa9b7eb55d23a1e5506f9fb0211dc700b87b8c8df4",
     "derive-reg-finish!": "fb1630cdaa885dc751d667557a5cb1e7d302314286af23844d066ee4674e15fd"
   },
-  "capture_script_sha256": "1668bcfbe9166088dc2014c7e4a54f4f95143424499665897751a71c53dfacd0",
-  "driver_sha256": "8ad7533f28803b3d2b166ee96eab2ab7c9a70207c8f8a9ae5b3daa054e4d6375",
+  "capture_script_sha256": "ce6949e74b826bea671640272b4bec1316f6118d6f42de5497580c3d6c5a1305",
+  "driver_sha256": "18c3c6857dc2993156f1fdd103d167778692bd7e3ef4ea2a9ffa5174b21e6d64",
   "configurations": [
     "default",
     "debug-checks",
@@ -129,6 +129,8 @@
       ],
       "trace": [
         "step|0|register",
+        "arm|struct|good",
+        "arm|sum|<none>",
         "result|register-derive: expected (register-derive Trait :struct FN :sum FN)",
         "step|1|finish",
         "result|ok"
@@ -148,6 +150,8 @@
       ],
       "trace": [
         "step|0|register",
+        "arm|struct|<none>",
+        "arm|sum|<none>",
         "result|register-derive: needs at least one of :struct FN / :sum FN",
         "step|1|finish",
         "result|ok"
@@ -167,6 +171,8 @@
       ],
       "trace": [
         "step|0|register",
+        "arm|struct|good",
+        "arm|sum|<none>",
         "macro|good|app",
         "trait|T|app",
         "result|ok",
@@ -191,6 +197,8 @@
       ],
       "trace": [
         "step|0|register",
+        "arm|struct|<none>",
+        "arm|sum|other",
         "macro|other|app",
         "trait|T|app",
         "result|ok",
@@ -215,6 +223,8 @@
       ],
       "trace": [
         "step|0|register",
+        "arm|struct|good",
+        "arm|sum|other",
         "macro|good|app",
         "macro|other|app",
         "trait|T|app",
@@ -240,6 +250,8 @@
       ],
       "trace": [
         "step|0|register",
+        "arm|struct|missing",
+        "arm|sum|other",
         "macro|missing|app",
         "macro|other|app",
         "result|register-derive: each arm must name a [(T Code)] -> Code function in scope",
@@ -261,6 +273,8 @@
       ],
       "trace": [
         "step|0|register",
+        "arm|struct|good",
+        "arm|sum|missing",
         "macro|good|app",
         "macro|missing|app",
         "result|register-derive: each arm must name a [(T Code)] -> Code function in scope",
@@ -282,6 +296,8 @@
       ],
       "trace": [
         "step|0|register",
+        "arm|struct|missing",
+        "arm|sum|missing",
         "macro|missing|app",
         "macro|missing|app",
         "result|register-derive: each arm must name a [(T Code)] -> Code function in scope",
@@ -303,6 +319,8 @@
       ],
       "trace": [
         "step|0|register",
+        "arm|struct|good",
+        "arm|sum|<none>",
         "macro|good|app",
         "trait|T|app",
         "result|ok",
@@ -327,6 +345,8 @@
       ],
       "trace": [
         "step|0|register",
+        "arm|struct|missing",
+        "arm|sum|<none>",
         "macro|missing|app",
         "result|register-derive: each arm must name a [(T Code)] -> Code function in scope",
         "step|1|finish",
@@ -347,6 +367,8 @@
       ],
       "trace": [
         "step|0|register",
+        "arm|struct|good",
+        "arm|sum|<none>",
         "macro|good|app",
         "trait|T|app",
         "result|ok",
@@ -371,6 +393,8 @@
       ],
       "trace": [
         "step|0|register",
+        "arm|struct|good",
+        "arm|sum|<none>",
         "macro|good|app",
         "trait|T|app",
         "result|ok",
@@ -395,6 +419,8 @@
       ],
       "trace": [
         "step|0|register",
+        "arm|struct|good",
+        "arm|sum|<none>",
         "macro|good|app",
         "trait|T|app",
         "result|ok",
@@ -419,6 +445,8 @@
       ],
       "trace": [
         "step|0|register",
+        "arm|struct|<none>",
+        "arm|sum|other",
         "macro|other|app",
         "trait|T|app",
         "result|ok",
@@ -443,6 +471,8 @@
       ],
       "trace": [
         "step|0|register",
+        "arm|struct|<none>",
+        "arm|sum|<none>",
         "result|register-derive: needs at least one of :struct FN / :sum FN",
         "step|1|finish",
         "result|ok"
@@ -462,6 +492,8 @@
       ],
       "trace": [
         "step|0|register",
+        "arm|struct|<none>",
+        "arm|sum|<none>",
         "result|register-derive: needs at least one of :struct FN / :sum FN",
         "step|1|finish",
         "result|ok"
@@ -481,6 +513,8 @@
       ],
       "trace": [
         "step|0|register",
+        "arm|struct|<none>",
+        "arm|sum|<none>",
         "result|register-derive: needs at least one of :struct FN / :sum FN",
         "step|1|finish",
         "result|ok"
@@ -500,6 +534,8 @@
       ],
       "trace": [
         "step|0|register",
+        "arm|struct|good",
+        "arm|sum|good",
         "macro|good|app",
         "macro|good|app",
         "trait|T|app",
@@ -525,6 +561,8 @@
       ],
       "trace": [
         "step|0|register",
+        "arm|struct|good",
+        "arm|sum|<none>",
         "macro|good|app",
         "trait|λ|app",
         "result|ok",
@@ -560,11 +598,15 @@
         "step|0|expose",
         "result|ok",
         "step|1|register",
+        "arm|struct|good",
+        "arm|sum|<none>",
         "macro|good|app",
         "trait|T|app",
         "result|ok",
         "row|lib.T|impl.good||app|T",
         "step|2|register",
+        "arm|struct|<none>",
+        "arm|sum|other",
         "macro|other|app",
         "trait|T|app",
         "result|register-derive: trait 'lib.T' already has a deriver, registered in 'app'",
@@ -599,6 +641,8 @@
       ],
       "trace": [
         "step|0|register",
+        "arm|struct|good",
+        "arm|sum|<none>",
         "macro|good|app",
         "trait|T|app",
         "result|ok",
@@ -650,11 +694,15 @@
       ],
       "trace": [
         "step|0|register",
+        "arm|struct|good",
+        "arm|sum|<none>",
         "macro|good|app",
         "trait|T|app",
         "result|ok",
         "row||impl.good||app|T",
         "step|1|register",
+        "arm|struct|<none>",
+        "arm|sum|other",
         "macro|other|app",
         "trait|Alias|app",
         "result|ok",
@@ -717,11 +765,15 @@
       ],
       "trace": [
         "step|0|register",
+        "arm|struct|good",
+        "arm|sum|<none>",
         "macro|good|app",
         "trait|T|app",
         "result|ok",
         "row||impl.good||app|T",
         "step|1|register",
+        "arm|struct|<none>",
+        "arm|sum|other",
         "macro|other|app",
         "trait|U|app",
         "result|ok",
@@ -773,6 +825,8 @@
         "step|0|expose",
         "result|ok",
         "step|1|register",
+        "arm|struct|good",
+        "arm|sum|<none>",
         "macro|good|app",
         "trait|T|app",
         "result|fixture trait ambiguity",
@@ -808,6 +862,8 @@
         "step|0|expose",
         "result|ok",
         "step|1|register",
+        "arm|struct|good",
+        "arm|sum|<none>",
         "macro|good|app",
         "trait|T|app",
         "result|ok",
@@ -815,6 +871,8 @@
         "step|2|reset",
         "result|ok",
         "step|3|register",
+        "arm|struct|<none>",
+        "arm|sum|other",
         "macro|other|app",
         "trait|T|app",
         "result|ok",
@@ -843,6 +901,8 @@
       ],
       "trace": [
         "step|0|register",
+        "arm|struct|good",
+        "arm|sum|<none>",
         "macro|good|<none>",
         "trait|T|<none>",
         "result|ok",
@@ -875,6 +935,8 @@
       ],
       "trace": [
         "step|0|register",
+        "arm|struct|good",
+        "arm|sum|<none>",
         "macro|good|",
         "trait|T|",
         "result|ok",
