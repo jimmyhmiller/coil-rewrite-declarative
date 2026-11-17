@@ -1,7 +1,7 @@
 (extract ordinary-function FunctionDeclaration Function NoFunction
-  (capture declaration (list "defn" (capture name symbol) (capture parameters (vector ...))
+  (capture declaration (list (spellings "defn" "defn*") (capture name symbol) (capture parameters (vector ...))
         (list "->" (capture result _)) ...))
-  (capture declaration (list "defn" (capture name symbol) (keyword "cc") (list "coil.cc.C")
+  (capture declaration (list (spellings "defn" "defn*") (capture name symbol) (keyword "cc") (list "coil.cc.C")
         (capture parameters (vector ...)) (list "->" (capture result _)) ...)))
 (extract typed-parameter ParameterDeclaration Parameter NoParameter
   (list (capture name symbol) (capture type _)))
@@ -19,7 +19,7 @@
 (extract sequence-expression SequenceExpression Sequence NoSequence
   (list "do" ...))
 (extract local-bindings LetExpression Bindings NoBindings
-  (list "let" (capture bindings (vector ...)) _ ...))
+  (list (spellings "let" "let*") (capture bindings (vector ...)) _ ...))
 (extract mutable-binding MutableBinding CellBinding NoCellBinding
   (list "mut" (capture name symbol)))
 (extract local-store LocalStore WriteLocal NoWriteLocal

@@ -8,6 +8,15 @@
 (defn plain-test [(test Code)] (-> Code)
   `(~test () ()))
 
+(defn spelling-test [(pattern Code) (node Code) (index i64)] (-> Code)
+  (let [spelling (get pattern index)]
+    (unless (primitive/code-string? spelling)
+      (primitive/error "spellings must be string literals"))
+    (let [test `(coil.reader.sexp-sym-is ~node ~spelling)]
+      (if (= (+ index 1) (primitive/code-count pattern))
+          test
+          `(or ~test ~(spelling-test pattern node (+ index 1)))))))
+
 (defn pattern-test [(pattern Code) (node Code)] (-> Code)
   (cond (primitive/code-eq pattern `_) (plain-test `true)
         (primitive/code-eq pattern `symbol)
@@ -24,7 +33,10 @@
              (> (primitive/code-count pattern) 0))
           (let [tag (get pattern 0)
                 n (primitive/code-count pattern)]
-            (cond (primitive/code-eq tag `keyword)
+            (cond (primitive/code-eq tag `spellings)
+                    (if (> n 1) (plain-test (spelling-test pattern node 1))
+                        (primitive/error "expected at least one spelling"))
+                  (primitive/code-eq tag `keyword)
                     (if (and (= n 2) (primitive/code-string? (get pattern 1)))
                         (plain-test `(and (coil.reader.sexp-kw? ~node)
                                           (= (coil.reader.sexp-kw ~node)
