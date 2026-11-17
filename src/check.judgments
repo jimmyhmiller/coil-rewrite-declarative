@@ -399,7 +399,7 @@
     (each-form form (.declarations unit)
       (cases (ordinary-function form)
         ((Function [_ _ parameters result])
-          (require (or (> (coil.reader.sexp-count form) 4) (coil.reader.sexp-sym-is result "void"))
+          (require (or (> (coil.reader.sexp-count form) (rewrite.modules.function-body-start form parameters)) (coil.reader.sexp-sym-is result "void"))
                    form "empty function body requires a void result")
           (with (mut locals) (coil.amap.amap-new [(slice u8) i64] (coil.str.keyops-borrowed) allocator)
             (each-child param parameters 0 index
@@ -408,7 +408,7 @@
                   (record (.types checked) (.node-id name) (scalar-type type))
                   (record locals (coil.reader.sexp-sym name) (.node-id name)))
                 (_ (reject param "invalid parameter"))))
-            (prove (check-body (rewrite.modules.lookup-for unit form) (mut checked) locals form 4
+            (prove (check-body (rewrite.modules.lookup-for unit form) (mut checked) locals form (rewrite.modules.function-body-start form parameters)
                      (if (coil.reader.sexp-sym-is result "void") (Discard)
                          (Expect (scalar-type result)))))))
         (_ (require (rewrite.modules.external? form) form "unsupported declaration"))))

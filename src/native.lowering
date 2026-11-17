@@ -299,7 +299,7 @@
     (walk position param parameters 0
       (need _ (lower-parameter (mut f) position param))
       (yield 0))
-    (need value (lower-sequence (mut f) (mut im) signatures form 4))
+    (need value (lower-sequence (mut f) (mut im) signatures form (modules/function-body-start form parameters)))
     (perform (when (and (>= (.control f) 0) (!= rep ir/T-CTRL))
                (nodes/finish (mut (.g f)) (.control f) value)))
     (perform (when (and (>= (.control f) 0) (= rep ir/T-CTRL)) (nodes/finish-void (mut (.g f)) (.control f))))

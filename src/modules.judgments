@@ -19,6 +19,13 @@
     (LinkedExtern [_ link _ _] (coil.reader.sexp-str link))
     (_ (coil.reader.sexp-sym name))))
 
+(value function-body-start [(form (ptr coil.reader.Sexp)) (parameters (ptr coil.reader.Sexp))] i64
+  (block :found
+    (for [i 2 (coil.reader.sexp-count form)]
+      (when (= (.node-id (coil.reader.sexp-nth form i)) (.node-id parameters))
+        (return-from :found (+ i 2))))
+    (unreachable "function parameters missing from their declaration")))
+
 (value callable [(form (ptr coil.reader.Sexp))] FunctionDeclaration
   (match (foreign-signature form)
     (External [name parameters result] (Function form name parameters result))

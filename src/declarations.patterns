@@ -1,6 +1,8 @@
 (extract ordinary-function FunctionDeclaration Function NoFunction
   (capture declaration (list "defn" (capture name symbol) (capture parameters (vector ...))
-        (list "->" (capture result _)) ...)))
+        (list "->" (capture result _)) ...))
+  (capture declaration (list "defn" (capture name symbol) (keyword "cc") (list "coil.cc.C")
+        (capture parameters (vector ...)) (list "->" (capture result _)) ...)))
 (extract typed-parameter ParameterDeclaration Parameter NoParameter
   (list (capture name symbol) (capture type _)))
 (extract nullary-call CallExpression Call NoCall
@@ -42,7 +44,13 @@
   (list "import" (capture target string) ...))
 (recognize export-form? (list "export" ...))
 (extract external-function ExternalDeclaration External NoExternal
-  (list "extern" (capture name symbol) (capture parameters (vector ...)) (list "->" (capture result _))))
+  (list "extern" (capture name symbol) (capture parameters (vector ...)) (list "->" (capture result _)))
+  (list "extern" (capture name symbol) (keyword "cc") (list "coil.cc.C")
+        (capture parameters (vector ...)) (list "->" (capture result _))))
 (extract linked-external LinkedExternal LinkedExtern NoLinkedExtern
   (list "extern" (capture name symbol) (keyword "as") (capture link string)
+        (capture parameters (vector ...)) (list "->" (capture result _)))
+  (list "extern" (capture name symbol) (keyword "as") (capture link string) (keyword "cc") (list "coil.cc.C")
+        (capture parameters (vector ...)) (list "->" (capture result _)))
+  (list "extern" (capture name symbol) (keyword "cc") (list "coil.cc.C") (keyword "as") (capture link string)
         (capture parameters (vector ...)) (list "->" (capture result _))))

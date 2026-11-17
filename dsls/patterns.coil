@@ -69,6 +69,18 @@
         `((and ~(get child 0) ~(get tail 0)) (~@(get child 1) ~@(get tail 1))
             (~@(get child 2) ~@(get tail 2))))))
 
+;; Alternatives produce one constructor. Verify field order and types before
+;; combining them so each projection is evaluated only on its matching path.
+(defn extract-alternatives [(rule Code) (node Code) (i i64) (fields Code)] (-> Code)
+  (if (= i (primitive/code-count rule))
+      `(~(get rule 4))
+      (let [test (pattern-test (get rule i) node)]
+        (unless (primitive/code-eq fields (get test 1))
+          (primitive/error "extract alternatives require identical capture fields"))
+        `(if ~(get test 0)
+             (~(get rule 3) ~@(get test 2))
+             ~(extract-alternatives rule node (+ i 1) fields)))))
+
 (defn rule-definition [(rule Code) (node Code)] (-> Code)
   (cond (and (= (primitive/code-count rule) 3)
              (primitive/code-eq (get rule 0) `recognize))
@@ -77,7 +89,7 @@
               (primitive/error "captures require an extract rule"))
             `(defn ~(get rule 1) [(~node (ptr coil.reader.Sexp))] (-> bool)
                ~(get test 0)))
-        (and (= (primitive/code-count rule) 6)
+        (and (>= (primitive/code-count rule) 6)
              (primitive/code-eq (get rule 0) `extract))
           (let [name (get rule 1)
                 result (get rule 2)
@@ -87,7 +99,8 @@
             `(do
                (defsum ~result (~yes [~@(get test 1)]) (~no))
                (defn ~name [(~node (ptr coil.reader.Sexp))] (-> ~result)
-                 (if ~(get test 0) (~yes ~@(get test 2)) (~no)))))
+                 (if ~(get test 0) (~yes ~@(get test 2))
+                     ~(extract-alternatives rule node 6 (get test 1))))))
         :else (do (primitive/error "expected recognize or extract rule") `(do))))
 
 (defn read-patterns [(context Code)] (-> Code)

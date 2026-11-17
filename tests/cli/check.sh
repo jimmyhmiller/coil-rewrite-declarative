@@ -453,6 +453,11 @@ for compiler in coil ./rewrite; do
 done
 
 run_both 43 '(module app) (extern magnitude :as "labs" [i64] (-> i64)) (defn main [] (-> i64) (magnitude -43))'
+run_both 43 '(module app) (extern magnitude :cc (coil.cc.C) :as "labs" [i64] (-> i64)) (extern magnitude :as "labs" :cc (coil.cc.C) [i64] (-> i64)) (defn main [] (-> i64) (magnitude -43))'
+run_both 27 '(extern abs :cc (coil.cc.C) [i32] (-> i32)) (defn main [] (-> i64) (cast i64 (abs -27)))'
+run_both 31 '(defn main [] (-> i64) (increment 30)) (defn increment :cc (coil.cc.C) [(n i64)] (-> i64) (+ n 1))'
+compare 1 '(defn f :cc (coil.cc.C) [] (-> i64))'
+compare 1 '(extern magnitude :cc (cc/unknown) [i64] (-> i64))'
 compare 1 '(extern magnitude :as "" [i64] (-> i64))'
 
 for declarations in '(extern labs [i64] (-> i64)) (extern labs [i32] (-> i32))' \
