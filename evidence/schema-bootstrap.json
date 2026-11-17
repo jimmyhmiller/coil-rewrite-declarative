@@ -11,9 +11,9 @@
       "generated_sha256": "c412311c65dd22fb8d36568e3aa142c0f3ac3d95464f55f11ec1e9c4beae8f1d"
     },
     "languages/code.schema": {
-      "specification_sha256": "b5fa8734c49042bcfcc23749733d6f184064e9096d92819b91c7434f26f54509",
+      "specification_sha256": "add0baa97200210f5e518e7f4377a4a9f330131167fd69992b950dadcdd2cf92",
       "output": "seed/generated/code_forms.coil",
-      "generated_sha256": "941839223a32f3512b466cc7571e5e85e32ea85c3c4338789dae513227f47617"
+      "generated_sha256": "12fae1d7fc82daa3c74fd9a8679b5eded6a708242da59591ef2925ad23acec1c"
     },
     "languages/protocol.schema": {
       "specification_sha256": "caa7c02e0c62ecbdac779b53b561be3636d912e875718323facd6035f5cae608",
@@ -40,13 +40,13 @@
   "seed_inputs": {
     "seed/alpha.coil": "d347508e4a43a6386354cc45ff671b3bf79e1490ba8cc226a271add33d4e692f",
     "seed/binding.coil": "fbf0c4c2c7cc44569e950741419458a49d616c6380e9314b76afcefdbf5f8d98",
-    "seed/code.coil": "8511d8e9bd0244aa844a8ecc1df4b9e7f29cc5994ee674431fbbfd09bddab6e6",
+    "seed/code.coil": "fa053cad6eddb3e1853c62c5f0fcbf653f7d992b92b4a798fc65180fc67956ae",
     "seed/context_policy.coil": "a61a1c9d52c4329e5a7402b905e60c498098daedd384aff21d0daaa7a181d6c7",
     "seed/emit.coil": "5a3d9a6e35ffe9975c77eb398b9a6e145db15a91b451bc5df5b6ea123a9df9c2",
     "seed/equality.coil": "3455fa50ec1af94acbc4b0b47462581407b4238f1374dacbf9e545af3caf47d6",
     "seed/equality_runtime.coil": "677953a98f75ce17eba81be80da3133d56da5387413e15679ba218c10e462039",
     "seed/generated/before_protocol.coil": "d4c501ee6b518eeea2ffd0f2a4a97a616e9b1975e419a4456ffdf3be9acc84d5",
-    "seed/generated/code_forms.coil": "941839223a32f3512b466cc7571e5e85e32ea85c3c4338789dae513227f47617",
+    "seed/generated/code_forms.coil": "12fae1d7fc82daa3c74fd9a8679b5eded6a708242da59591ef2925ad23acec1c",
     "seed/generated/protocol_forms.coil": "df9e7ac21cacee998f55bcf2f7c784565d260efbf966a738bbfcf56b9473ba44",
     "seed/generated/request_protocol.coil": "b6ca981116487cd83bdde28702a1e9d69533952a6514cbad94fa9dcdbf7cbbd0",
     "seed/generated/schema_forms.coil": "c412311c65dd22fb8d36568e3aa142c0f3ac3d95464f55f11ec1e9c4beae8f1d",
@@ -57,6 +57,7 @@
     "seed/lower.coil": "2421bc11672e988aef991f081125c869b563d1b762239229fa8bf39bd10e59cb",
     "seed/main.coil": "c452ce8b9fba379c60a99effb17e0146013921e095b32ce9d04bfeb5ac460d24",
     "seed/phase.coil": "ee9681c4c18d5d0974415dfdee37c23b203d735d87a012962e58e1c5cec3ea1e",
+    "seed/produced.coil": "a2ef562cc081f4ba5ff732f3e5edf4f43f91b5dd727f7c41d6e6bf6e7876137d",
     "seed/program.coil": "b8ad6fb872c4de33aac6cb06f818cebeb70046bd795252b9af88e11b6bb0a3f9",
     "seed/protocol.coil": "490edca14bef4d64a968a51e6c4ca924bacdf9431ed41c42aef9852acd9921af",
     "seed/readers.coil": "e9964cb35c00368d102280a1e3a1ccdcbf78ca119c87b4af9c4e691c4272bb29",
@@ -70,11 +71,12 @@
     "seed/sequence.coil": "bdcac1aac27c0ed59c3020705e0583ff28f8b553c115f8e9d4211d7d59976120",
     "seed/source.coil": "090c81a0015f5a4941deb45e3dc8ff582b33cd4da97296cde4e3454979dad640",
     "seed/stage.coil": "1fcb4327d2f3d40d4977d9dd9e8c164fe058662cd835ac88bc934f3c316895bf",
+    "seed/staged_requests.coil": "6f40c074feea195e038d81c1d874df92932f8d075df8fe0a9d5084126e376d73",
     "seed/syntax.coil": "0910ee021d5b5a4cd43c724fb1586198fe21d6c209b91efb563973c0a488c4bd",
     "seed/syntax_reader.coil": "b2af3f0a50af2b1cbd95e84757d747253f3bcc8bf204b1181cf4b3143159635d",
     "seed/transform.coil": "8675e3994ca56a2802a2243f7ba83bd17d1e224352e221f1a1f8c68bd78989bd",
     "seed/types.coil": "e398f5cb019e3eea3339700ba5b3685b119421eb30ac5a2045c8835d5d9a6ce9",
-    "seed/walk.coil": "0e57ca9c1ba49866c0f14bf38d56f5472e224299de4089aee55298615f922035"
+    "seed/walk.coil": "9d55f9e52ba5b7c77492ea5247991b924b4cbe06b29941e19c794f9c60ed7f7a"
   },
   "limitations": "Not full compiler self-hosting or a machine-code bootstrap comparison. Installed host stdlib/tool dependencies are not pinned by this check."
 }

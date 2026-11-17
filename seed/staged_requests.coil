@@ -1,0 +1,74 @@
+;;; Expand original tagged roots with independent fuel, then normalize results.
+(module rewrite.stagedrequests)
+(import "rewrite.requestexecution" :as execution)
+(import "rewrite.requests" :as requests)
+(import "rewrite.produced" :as produced)
+(import "rewrite.code" :as code)
+(import "rewrite.codeforms" :as forms)
+(import "rewrite.stage" :as stage)
+(import "coil.alloc" :use *)
+(import "coil.arraylist" :use *)
+(import "coil.hashmap" :use [HashMap])
+(import "coil.result" :use *)
+(import "coil.cc" :as cc)
+(import "coil.primitive" :as primitive)
+
+(defsum Error [E]
+  (AliasedOutput)
+  (Request [(root i64) (error (execution/Failure E))])
+  (Normalize [(root i64) (error produced/Error)]))
+
+;;; Result arrays belong to the caller; forms/module strings belong to output.
+;;; Session must outlive inspection of a request failure. Callback errors keep
+;;; their own lifetime contract. No partial result list is published on error;
+;;; output can retain unreachable rows and callback effects are not rolled back.
+;;; This layer does not register generated declarations or derive forms.
+(defn run! [C E] [(a (dyn Allocator))
+                  (session (ptr execution/Session))
+                  (output (ptr code/Syntax))
+                  (input (ptr code/Syntax))
+                  (roots (ptr (ArrayList stage/Tagged)))
+                  (markers (ptr (HashMap (slice u8) bool)))
+                  (entries (ptr (HashMap (slice u8) bool)))
+                  (user (ptr C))
+                  (execute (fnptr (cc/C)
+                                  [(ptr C)
+                                   (ptr requests/Call)
+                                   (ptr code/Syntax)]
+                                  (Result forms/N0Id E)))]
+  (-> (Result (ArrayList stage/Tagged) (Error E)))
+  (block :done
+    (when (or (= (primitive/cast i64 output) (primitive/cast i64 input))
+              (= (primitive/cast i64 output)
+                 (primitive/cast i64
+                                 (primitive/cast (ptr code/Syntax)
+                                                 (field session syntax)))))
+      (break :done (Err (AliasedOutput [E]))))
+    (let [(mut result) (ArrayList::new [stage/Tagged] a)
+          (mut complete?) false]
+      (defer (unless complete? (free! (mut result))))
+      (for [i 0 (len (load roots))]
+        (let [original (get (load roots) i)
+              returned
+                (match (execution/run! session
+                                       input
+                                       (.form original)
+                                       (.module original)
+                                       markers
+                                       entries
+                                       user
+                                       execute)
+                  (Err [e] (break :done (Err (Request [E] i e))))
+                  (Ok [id] id))
+              (mut normalized)
+                (match (produced/normalize! a
+                                            output
+                                            (field session syntax)
+                                            returned
+                                            (.module original))
+                  (Err [e] (break :done (Err (Normalize [E] i e))))
+                  (Ok [forms] forms))]
+          (defer (free! (mut normalized)))
+          (for form normalized (push! (mut result) form))))
+      (set! complete? true)
+      (Ok result))))

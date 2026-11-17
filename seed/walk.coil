@@ -27,7 +27,9 @@
                 (break
                   :done (Err (problem form "expected (walk Name rules...)"))))
               (let [name (sexp-sym (sexp-nth form 1))
-                    (mut heads) (ArrayList::new [(slice u8)] a)]
+                    (mut heads) (ArrayList::new [(slice u8)] a)
+                    (mut default?) false
+                    (mut keep?) false]
                 (for previous names
                   (when (= previous name)
                     (break
@@ -39,79 +41,121 @@
                            " [(form (ptr Sexp))] (-> SyntaxWalk) (block :walk (unless (or (sexp-list? form) (sexp-vec? form)) (break :walk (KeepSyntax))) ")
                 (for [i 2 (sexp-count form)]
                   (let [rule (sexp-nth form i)]
-                    (unless (and (sexp-list? rule)
-                                 (>= (sexp-count rule) 2)
-                                 (sexp-str? (sexp-nth rule 1))
-                                 (or (sexp-sym-is (sexp-nth rule 0)
-                                                  "opaque-list")
-                                     (sexp-sym-is (sexp-nth rule 0) "prefix")))
-                      (break
-                        :done
-                          (Err (problem rule
-                                        "expected opaque-list or prefix rule"))))
-                    (let [head (sexp-str (sexp-nth rule 1))
-                          opaque? (sexp-sym-is (sexp-nth rule 0) "opaque-list")]
-                      (for previous heads
-                        (when (= previous head)
-                          (break
-                            :done (Err (problem rule "duplicate walk head")))))
-                      (push! (mut heads) head)
-                      (unless (if opaque?
-                                  (= (sexp-count rule) 2)
-                                  (and (or (= (sexp-count rule) 3)
-                                           (= (sexp-count rule) 4))
-                                       (sexp-int? (sexp-nth rule 2))
-                                       (>= (sexp-int (sexp-nth rule 2)) 0)))
-                        (break
-                          :done
-                            (Err (problem rule
-                                          "invalid walk rule arity or prefix length"))))
-                      (push-str! (mut b) "(when (and ")
-                      (when opaque? (push-str! (mut b) "(sexp-list? form) "))
-                      (push-str! (mut b)
-                                 "(> (sexp-count form) 0) (sexp-sym-is (sexp-nth form 0) ")
-                      (quoted! (mut b) head)
-                      (push-str! (mut b) ")) ")
-                      (if opaque?
-                          (push-str! (mut b) "(break :walk (KeepSyntax))) ")
-                          (do
-                            (when (= (sexp-count rule) 4)
-                              (let [kw (sexp-nth rule 3)]
-                                (unless (and (sexp-list? kw)
-                                             (= (sexp-count kw) 4)
-                                             (sexp-sym-is (sexp-nth kw 0)
-                                                          "keyword")
-                                             (sexp-int? (sexp-nth kw 1))
-                                             (>= (sexp-int (sexp-nth kw 1)) 0)
-                                             (< (sexp-int (sexp-nth kw 1))
-                                                9223372036854775806)
-                                             (sexp-str? (sexp-nth kw 2))
-                                             (sexp-int? (sexp-nth kw 3))
-                                             (>= (sexp-int (sexp-nth kw 3))
-                                                 (+ (sexp-int (sexp-nth kw 1))
-                                                    2)))
-                                  (break
-                                    :done
-                                      (Err (problem kw
-                                                    "expected (keyword position text prefix), including its value"))))
-                                (let [index (sexp-int (sexp-nth kw 1))]
+                    (if (and (sexp-list? rule)
+                             (> (sexp-count rule) 0)
+                             (sexp-sym-is (sexp-nth rule 0) "default"))
+                        (do
+                          (when default?
+                            (break
+                              :done
+                                (Err (problem rule "duplicate walk default"))))
+                          (unless (and (= (sexp-count rule) 2)
+                                       (or (sexp-sym-is (sexp-nth rule 1)
+                                                        "keep")
+                                           (sexp-sym-is (sexp-nth rule 1)
+                                                        "children")))
+                            (break
+                              :done
+                                (Err (problem rule
+                                              "expected (default keep) or (default children)"))))
+                          (set! default? true)
+                          (set! keep? (sexp-sym-is (sexp-nth rule 1) "keep")))
+                        (do
+                          (unless (and (sexp-list? rule)
+                                       (>= (sexp-count rule) 2)
+                                       (sexp-str? (sexp-nth rule 1))
+                                       (or (sexp-sym-is (sexp-nth rule 0)
+                                                        "opaque-list")
+                                           (sexp-sym-is (sexp-nth rule 0)
+                                                        "prefix")
+                                           (sexp-sym-is (sexp-nth rule 0)
+                                                        "prefix-list")))
+                            (break
+                              :done
+                                (Err (problem rule
+                                              "expected opaque-list or prefix rule"))))
+                          (let [head (sexp-str (sexp-nth rule 1))
+                                opaque?
+                                  (sexp-sym-is (sexp-nth rule 0) "opaque-list")]
+                            (for previous heads
+                              (when (= previous head)
+                                (break
+                                  :done
+                                    (Err (problem rule "duplicate walk head")))))
+                            (push! (mut heads) head)
+                            (unless (if opaque?
+                                        (= (sexp-count rule) 2)
+                                        (and (or (= (sexp-count rule) 3)
+                                                 (= (sexp-count rule) 4))
+                                             (sexp-int? (sexp-nth rule 2))
+                                             (>= (sexp-int (sexp-nth rule 2)) 0)))
+                              (break
+                                :done
+                                  (Err (problem rule
+                                                "invalid walk rule arity or prefix length"))))
+                            (push-str! (mut b) "(when (and ")
+                            (when (or opaque?
+                                      (sexp-sym-is (sexp-nth rule 0)
+                                                   "prefix-list"))
+                              (push-str! (mut b) "(sexp-list? form) "))
+                            (push-str! (mut b)
+                                       "(> (sexp-count form) 0) (sexp-sym-is (sexp-nth form 0) ")
+                            (quoted! (mut b) head)
+                            (push-str! (mut b) ")) ")
+                            (if opaque?
+                                (push-str! (mut b)
+                                           "(break :walk (KeepSyntax))) ")
+                                (do
+                                  (when (= (sexp-count rule) 4)
+                                    (let [kw (sexp-nth rule 3)]
+                                      (unless (and (sexp-list? kw)
+                                                   (= (sexp-count kw) 4)
+                                                   (sexp-sym-is (sexp-nth kw 0)
+                                                                "keyword")
+                                                   (sexp-int? (sexp-nth kw 1))
+                                                   (>= (sexp-int (sexp-nth kw 1))
+                                                       0)
+                                                   (< (sexp-int (sexp-nth kw 1))
+                                                      9223372036854775806)
+                                                   (sexp-str? (sexp-nth kw 2))
+                                                   (sexp-int? (sexp-nth kw 3))
+                                                   (>= (sexp-int (sexp-nth kw 3))
+                                                       (+ (sexp-int (sexp-nth kw
+                                                                              1))
+                                                          2)))
+                                        (break
+                                          :done
+                                            (Err (problem kw
+                                                          "expected (keyword position text prefix), including its value"))))
+                                      (let [index (sexp-int (sexp-nth kw 1))]
+                                        (push-str! (mut b)
+                                                   "(when (and (> (sexp-count form) ")
+                                        (number! (mut b) (+ index 1))
+                                        (push-str! (mut b)
+                                                   ") (sexp-kw? (sexp-nth form ")
+                                        (number! (mut b) index)
+                                        (push-str! (mut b)
+                                                   ")) (= (sexp-kw (sexp-nth form ")
+                                        (number! (mut b) index)
+                                        (push-str! (mut b) ")) ")
+                                        (quoted! (mut b)
+                                                 (sexp-str (sexp-nth kw 2)))
+                                        (push-str! (mut b)
+                                                   ")) (break :walk (VisitChildren ")
+                                        (number! (mut b)
+                                                 (sexp-int (sexp-nth kw 3)))
+                                        (push-str! (mut b) "))) "))))
                                   (push-str! (mut b)
-                                             "(when (and (> (sexp-count form) ")
-                                  (number! (mut b) (+ index 1))
-                                  (push-str! (mut b)
-                                             ") (sexp-kw? (sexp-nth form ")
-                                  (number! (mut b) index)
-                                  (push-str! (mut b)
-                                             ")) (= (sexp-kw (sexp-nth form ")
-                                  (number! (mut b) index)
-                                  (push-str! (mut b) ")) ")
-                                  (quoted! (mut b) (sexp-str (sexp-nth kw 2)))
-                                  (push-str! (mut b)
-                                             ")) (break :walk (VisitChildren ")
-                                  (number! (mut b) (sexp-int (sexp-nth kw 3)))
-                                  (push-str! (mut b) "))) "))))
-                            (push-str! (mut b) "(break :walk (VisitChildren ")
-                            (number! (mut b) (sexp-int (sexp-nth rule 2)))
-                            (push-str! (mut b) "))) "))))))
-                (push-str! (mut b) "(VisitChildren 0)))\n")))))
+                                             "(break :walk (VisitChildren ")
+                                  (number! (mut b) (sexp-int (sexp-nth rule 2)))
+                                  (push-str! (mut b) "))) "))))))))
+                (push-str! (mut b)
+                           (if keep? "(KeepSyntax)))\n" "(VisitChildren 0)))\n"))
+                (push-str! (mut b) "(defn leaves-")
+                (push-str! (mut b) name)
+                (push-str! (mut b)
+                           " [(a (dyn Allocator)) (root (ptr Sexp))] (-> (ArrayList (ptr Sexp))) (let [(mut work) (ArrayList::new [(ptr Sexp)] a) (mut output) (ArrayList::new [(ptr Sexp)] a)] (defer (free! (mut work))) (push! (mut work) root) (while (> (len work) 0) (let [form (match (pop! (mut work)) (Some [form] form) (None [] (panic \"walk stack\")))] (match (walk-")
+                (push-str! (mut b) name)
+                (push-str! (mut b)
+                           " form) (KeepSyntax [] (push! (mut output) form)) (VisitChildren [start] (let [count (sexp-count form) prefix (if (< start count) start count)] (for [i 0 (- count prefix)] (push! (mut work) (sexp-nth form (- (- count 1) i))))))))) output))\n")))))
         (Ok (str (load b))))))

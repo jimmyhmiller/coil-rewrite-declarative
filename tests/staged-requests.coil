@@ -1,0 +1,134 @@
+(module rewrite.teststagedrequests)
+(import "rewrite.stagedrequests" :as batch)
+(import "rewrite.requestexecution" :as execution)
+(import "rewrite.requests" :as requests)
+(import "rewrite.code" :as code)
+(import "rewrite.codeforms" :as forms)
+(import "rewrite.stage" :as stage)
+(import "coil.alloc" :use *)
+(import "coil.arraylist" :use *)
+(import "coil.hashmap" :use [HashMap])
+(import "coil.str" :use [keyops-borrowed])
+(import "coil.reader" :use *)
+(import "coil.result" :use *)
+(import "coil.primitive" :use [fnptr-of])
+(import "coil.cc" :as cc)
+
+(defstruct Script [(calls i64) (fail-at i64)])
+
+(defn execute :cc (cc/C) [(script (ptr Script))
+                          (call (ptr requests/Call))
+                          (syntax (ptr code/Syntax))]
+  (-> (Result forms/N0Id i64))
+  (set! (.calls script) (+ (.calls script) 1))
+  (if (= (.calls script) (.fail-at script))
+      (Err 73)
+      (let [args (.arguments call)]
+        (unless (= (- (sexp-count (.source args)) (.start args)) 1)
+          (panic "arity"))
+        (match (code/import-form! syntax
+                                  (sexp-nth (.source args) (.start args)))
+          (Ok [id] (Ok id))
+          (Err [_] (panic "callback import"))))))
+
+(defn main [] (-> i64)
+  (let [a (malloc-allocator)
+        (mut input) (code/create a)
+        (mut output) (code/create a)
+        (mut expected) (code/create a)
+        (mut session) (execution/create a)
+        (mut roots) (ArrayList::new [stage/Tagged] a)
+        (mut markers) (HashMap::new [(slice u8) bool] a (keyops-borrowed))
+        (mut entries) (HashMap::new [(slice u8) bool] a (keyops-borrowed))
+        (mut script) (Script :calls 0 :fail-at -1)
+        source
+          (match (code/read! (mut input)
+                             1
+                             "batch.coil"
+                             "(request emit (do 1 (do (request emit 2)))) (request emit (do (do) 3)) (do) (quote (do hidden))")
+            (Ok [roots] roots)
+            (Err [_] (panic "source")))
+        want
+          (match (code/read! (mut expected)
+                             2
+                             "expected.coil"
+                             "1 2 3 (quote (do hidden))")
+            (Ok [roots] roots)
+            (Err [_] (panic "expected")))
+        left (forms/store-text! (mut (.store input)) "left")
+        right (forms/store-text! (mut (.store input)) "right")]
+    (defer (code/release! (mut output)))
+    (defer (code/release! (mut expected)))
+    (defer (free! (mut roots)))
+    (defer (free! (mut markers)))
+    (defer (free! (mut entries)))
+    (set! (mut markers) "request" true)
+    (set! (mut entries) "left.emit" true)
+    (set! (mut entries) "right.emit" true)
+    (for [i 0 4]
+      (let [id
+              (match (forms/sequence-item-0 (field (mut input) store) source i)
+                (Some [id] id)
+                (None [] (panic "root")))]
+        (push! (mut roots)
+               (stage/Tagged
+                 :form id
+                 :module (if (= i 0) (Some left) (Some right))))))
+    ; The second original form fails after the first was fully normalized.
+    (set! (.fail-at script) 3)
+    (match (batch/run! a
+                       (mut session)
+                       (mut output)
+                       (mut input)
+                       (mut roots)
+                       (mut markers)
+                       (mut entries)
+                       (mut script)
+                       (fnptr-of execute))
+      (Err [e]
+           (match e
+             (batch/Request [index _]
+                            (unless (= index 1)
+                              (panic "original root error index")))
+             (_ (panic "batch error"))))
+      (Ok [_] (panic "callback failure accepted")))
+    (set! (.calls script) 0)
+    (set! (.fail-at script) -1)
+    (let [(mut returned)
+            (match (batch/run! a
+                               (mut session)
+                               (mut output)
+                               (mut input)
+                               (mut roots)
+                               (mut markers)
+                               (mut entries)
+                               (mut script)
+                               (fnptr-of execute))
+              (Ok [forms] forms)
+              (Err [_] (panic "batch")))]
+      (defer (free! (mut returned)))
+      (code/release! (mut input))
+      (execution/close! (mut session))
+      (unless (and (= (len returned) 4) (= (.calls script) 3))
+        (panic "batch counts"))
+      (for [i 0 4]
+        (let [entry (get returned i)
+              expected-id
+                (match (forms/sequence-item-0 (field (mut expected) store)
+                                              want
+                                              i)
+                  (Some [id] id)
+                  (None [] (panic "expected id")))]
+          (match (code/equal? a
+                              (mut output)
+                              (.form entry)
+                              (mut expected)
+                              expected-id)
+            (Ok [same] (unless same (panic "batch order")))
+            (Err [_] (panic "equality")))
+          (match (.module entry)
+            (Some [name]
+                  (unless (= name (if (< i 2) "left" "right")) (panic "module")))
+            (None [] (panic "missing module"))))))
+    (println "staged request batches: returned bundles, multiple modules, root-indexed failure, retry and independent output lifetime passed")
+    0))

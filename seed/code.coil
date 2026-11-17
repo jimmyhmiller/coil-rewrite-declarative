@@ -27,10 +27,13 @@
 
 ;;; The generated shape parser selects values and owns Text. This traversal
 ;;; preserves reader metadata against the actual generated child identities.
-(defn contexts! [(syntax (mut Syntax)) (id forms/N0Id) (form (ptr Sexp))]
+(defn contexts-from! [(syntax (mut Syntax))
+                      (documents (ptr source/Sources))
+                      (id forms/N0Id)
+                      (form (ptr Sexp))]
   (-> (Result bool source/SourceError))
   (block :done
-    (match (get (.documents (.source-data (.store syntax))) (.source form))
+    (match (get (.documents documents) (.source form))
       (None [] (break :done (Err (source/SourceMissing (.source form)))))
       (Some [doc]
             (unless (and (>= (.lo form) 0)
@@ -38,7 +41,13 @@
                          (<= (.hi form) (len (.text doc))))
               (break
                 :done
-                  (Err (source/SourceSpan (.source form) (.lo form) (.hi form)))))))
+                  (Err (source/SourceSpan (.source form) (.lo form) (.hi form)))))
+            (match (forms/store-source! (mut (.store syntax))
+                                        (.source form)
+                                        (.name doc)
+                                        (.text doc))
+              (Ok [_])
+              (Err [e] (break :done (Err e))))))
     (let [module
             (forms/store-text! (mut (.store syntax)) (hmod-name (.hmod form)))]
       (set! (mut (.contexts syntax))
@@ -61,7 +70,10 @@
                   (match (forms/sequence-item-0 (field syntax store) ids i)
                     (Some [id] id)
                     (None [] (panic "generated syntax child")))]
-            (match (contexts! (mut syntax) child (sexp-nth form i))
+            (match (contexts-from! (mut syntax)
+                                   documents
+                                   child
+                                   (sexp-nth form i))
               (Ok [_])
               (Err [e] (break :done (Err e))))))))
     (Ok true)))
@@ -74,9 +86,12 @@
     :ctxt (.ctxt d)
     :msg (forms/store-text! (mut (.store syntax)) (.msg d))))
 
-;;; Register all referenced immutable documents before importing a reader form.
-;;; Failure publishes no root, but may leave unreferenced rows in the owned store.
-(defn import-form! [(syntax (mut Syntax)) (form (ptr Sexp))]
+;;; Import a valid acyclic reader graph, copying each referenced document from
+;;; the supplied registry and preserving metadata. Unrelated documents are not
+;;; copied. Failure publishes no root, but may leave unreferenced rows/documents.
+(defn import-from! [(syntax (mut Syntax))
+                    (documents (ptr source/Sources))
+                    (form (ptr Sexp))]
   (-> (Result forms/N0Id SyntaxError))
   (let [parsed (forms/surface-0 (mut (.store syntax)) form)]
     (while (< (len (.contexts syntax)) (len (.rows0 (.store syntax))))
@@ -91,9 +106,22 @@
     (match parsed
       (Err [d] (Err (ReadError (own-diagnostic! (mut syntax) d))))
       (Ok [id]
-          (match (contexts! (mut syntax) id form)
+          (match (contexts-from! (mut syntax) documents id form)
             (Err [e] (Err (DocumentError e)))
             (Ok [_] (Ok id)))))))
+
+(defn contexts! [(syntax (mut Syntax)) (id forms/N0Id) (form (ptr Sexp))]
+  (-> (Result bool source/SourceError))
+  (contexts-from! (mut syntax)
+                  (field (mut (.store syntax)) source-data)
+                  id
+                  form))
+
+;;; The reader graph is valid and acyclic. It may borrow this store's documents;
+;;; registration of identical existing documents does not mutate their storage.
+(defn import-form! [(syntax (mut Syntax)) (form (ptr Sexp))]
+  (-> (Result forms/N0Id SyntaxError))
+  (import-from! (mut syntax) (field (mut (.store syntax)) source-data) form))
 
 ;;; Parsing lives in temporary storage; the returned root sequence and all its
 ;;; values, metadata and documents belong to syntax, including on repeated reads.

@@ -7,7 +7,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 compiler = ROOT/'build/schema-seed'
 base = '(node Atom (value Int)) '
-policy = '(walk probe (opaque-list "data") (prefix "function" 2 (keyword 1 "mode" 3)))'
+policy = '(walk probe (default children) (opaque-list "data") (prefix "function" 2 (keyword 1 "mode" 3))) (walk bundles (prefix-list "bundle" 1) (default keep))'
 with tempfile.TemporaryDirectory(prefix='rewrite-walk-') as directory:
     work = Path(directory)
     for runtime in ['types', 'scope', 'resolution', 'source', 'sequence']:
@@ -32,11 +32,32 @@ with tempfile.TemporaryDirectory(prefix='rewrite-walk-') as directory:
         (KeepSyntax [] (unless (< i 2) (panic "opaque")))
         (VisitChildren [start]
           (unless (and (>= i 2) (= start (cond (= i 3) 2 (= i 4) 3 (= i 5) 2 :else 0))) (panic "prefix")))))
+    (let [input (match (read-all a "(bundle 1 (bundle) (bundle 2 [bundle 3]) (keep (bundle 4)))" 2)
+                  (Ok [forms] forms) (Err [_] (panic "bundles")))
+          leaves (leaves-bundles a (elem input 0))]
+      (unless (= (len leaves) 4) (panic "leaf count"))
+      (unless (and (= (sexp-int (get leaves 0)) 1) (= (sexp-int (get leaves 1)) 2)
+                   (sexp-vec? (get leaves 2)) (sexp-sym-is (sexp-nth (get leaves 3) 0) "keep"))
+        (panic "leaf boundaries"))
+      ; This scale check exercises the generated walk, not recursive owned projection.
+      (let [(mut root) (get leaves 0)]
+        (for [i 0 25000]
+          (let [items (box! a (ArrayList Sexp) (ArrayList::new [Sexp] a))]
+            (push! items (mk-sexp (KSym "bundle") 0 0))
+            (push! items (load (load root)))
+            (set! root (box! a Sexp (mk-sexp (KList items) 0 0)))))
+        (let [deep (leaves-bundles a root)]
+          (unless (and (= (len deep) 1) (= (sexp-int (get deep 0)) 1)) (panic "deep walk")))))
     0))
 ''')
     for flags in [[], ['--debug-checks'], ['--release']]:
         subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)
 for policy, message in [
+    ('(walk probe (default other))', 'expected (default'),
+    ('(walk probe (default keep extra))', 'expected (default'),
+    ('(walk probe (default keep) (default children))', 'duplicate walk default'),
+    ('(walk probe (prefix-list "x" -1))', 'invalid walk rule arity'),
+    ('(walk probe (prefix-list "x" 1) (prefix "x" 2))', 'duplicate walk head'),
     ('(walk bad/name)', 'expected (walk'),
     ('(walk probe) (walk probe)', 'duplicate walk policy'),
     ('(walk probe (unknown "x"))', 'expected opaque-list or prefix'),
@@ -49,4 +70,4 @@ for policy, message in [
 ]:
     result = subprocess.run([str(compiler)], input=(base+policy).encode(), capture_output=True)
     assert result.returncode != 0 and not result.stdout and message.encode() in result.stderr, result
-print('Walk policies: independent heads, keyword pairs, list opacity, vector prefixes and invalid declarations passed')
+print('Walk policies: independent heads, keyword pairs, list opacity, vector prefixes, default policies, iterative leaves and invalid declarations passed')
