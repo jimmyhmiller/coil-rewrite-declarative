@@ -72,3 +72,6 @@ The newer [expansion protocol trace](expansion-protocol.md) distinguishes before
 ## Explicit host linkage
 
 The initial program language now declares unary i64 host signatures. The generated compiler registers these globals before checking any body; callback addresses enter only when loading an image. `native/load-image-with` validates name bindings and symbol-table shape before executable allocation, with no process-global symbol lookup. Callback lifetimes remain the embedding caller's responsibility. Distinct live images can bind one name to different addresses. This supplies a narrow native-runtime boundary for staged operations; it does not supply syntax values, semantic-model state or phase scheduling.
+
+
+Context callbacks extend this boundary with a typed borrowed pointer and a two-argument C callback behind each program-visible unary host operation. A validated linkage plan precedes wrapper generation; wrappers are compiled through CIR and the retained backend. The resulting `ContextImage` owns main and wrapper executable mappings, released in that order. Callback code, contexts and allocator-backed image metadata remain borrowed. Tests cover distinct live contexts and nested re-entry. This mechanism provides explicit context transport but no Code-handle validity or semantic capability policy.

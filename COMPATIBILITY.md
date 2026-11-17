@@ -121,3 +121,9 @@ This adds a runtime call boundary for later compile-time operations, not the sta
 The schema/syntax languages now generate an owned reader-syntax representation for integer/float-bit/symbol/keyword/string/C-string/list/vector values. A Coil adapter retains per-node origins, hygiene scope numbers, definition-module text and diagnostic-context numbers. Temporary reader storage is released before returning root sequences; diagnostic messages and registered documents remain owned. Tests cover exact negative-zero/NaN bits, container distinctions, metadata teardown, failed reads/imports and growth in three configurations.
 
 The generated syntax-value parser also participates in isolated regeneration checks. This is not full Code compatibility: opaque metadata is preserved without implementing scope semantics; runtime views/joins, native handles, builders, invocation contexts and staged execution remain outstanding. Failure can retain unreferenced rows; identities remain store/session-local.
+
+## Explicit callback-context checkpoint
+
+Native host callbacks may now carry a typed borrowed context. The loader validates linkage first and emits CIR wrappers that adapt a program's unary call to a C callback taking context plus argument. A `ContextImage` tracks both executable mappings for ordered release. Two live images can carry distinct mutable contexts, including nested calls from one callback into the other image, without a global current-context variable.
+
+The native suite checks callback types, reordered imports, missing/null callbacks, independent contexts and nested re-entry in three configurations on this Mac. Code-handle validation, invocation-owned syntax, arbitrary multi-argument signatures, semantic capabilities and cumulative staging remain incomplete. Allocator storage, callback code and context lifetimes remain caller-managed.

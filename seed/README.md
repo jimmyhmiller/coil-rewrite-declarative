@@ -399,7 +399,7 @@ Callback addresses are supplied explicitly for each loaded image. They are never
 
 The native suite checks direct and indirect calls, source/host name collisions, invalid host declarations, typed callback rejection, missing/duplicate/unknown/local/null bindings and independent linkage of simultaneously live images in debug/debug-checks/release. The generated program calls a host helper through an ordinary source helper and an explicit function pointer, producing the expected native result.
 
-This is a prerequisite for explicit compile-time runtime operations. Only unary i64 C callbacks are supported; it is not general FFI or Code-valued staging. Multi-argument/aggregate ABI contracts, syntax ownership, stage declarations, retained semantic capabilities and language resumption remain outstanding. No fallback to the reference compiler is involved in executing these generated programs.
+This is a prerequisite for explicit compile-time runtime operations. Program-visible host signatures remain unary i64; callbacks may now carry the explicit context described below. This is not general FFI or Code-valued staging. Multi-argument/aggregate ABI contracts, syntax ownership, stage declarations, retained semantic capabilities and language resumption remain outstanding. No fallback to the reference compiler is involved in executing these generated programs.
 
 
 ## Owned reader syntax
@@ -415,3 +415,16 @@ List and vector shapes remain distinct, including empty containers. The schema p
 `tests/code.coil` checks all scalar variants, signed zero, an explicit NaN payload, containers, empty lists/vectors, metadata copied from poisoned/released scratch storage, source conflicts, unknown source documents, owned diagnostic text, and 2,000 roots plus earlier handles across growth. It runs in all three configurations. `tools/gen-schema.py --check --bootstrap-check` now checks both generated grammars against an isolated rebuilt seed; the evidence identifies both artifacts. This remains generated-source convergence using host Coil, not compiler self-hosting.
 
 This is an owned representation of ordinary reader syntax, not the complete Coil Code API. Runtime list views/joins are not accepted as ordinary reader forms and require a future promotion boundary. Builders, native handle ownership, invocation context, scope-graph operations, semantic queries and staging remain incomplete. The current parser/metadata traversal is recursive and may duplicate shared input syntax; no deep-stack or full-compiler performance guarantee is claimed. Root IDs are valid only in their owning Syntax store and are not native handles or persisted artifact identities.
+
+
+## Context-bearing native callbacks
+
+`native/ContextFunction[C]` pairs a named callback of type `(fnptr (cc/C) [(ptr C) i64] i64)` with a borrowed `(ptr C)`. `load-image-with-contexts` accepts a list with one context type, but each binding can reference a different context object. The generated program still sees its declared unary Int-to-Int host function.
+
+The loader first validates all names and callback addresses through the same linkage planner used by ordinary host functions. It then emits a small CIR wrapper per import: capture the supplied context/callback addresses, accept the unary argument, call the host function with context plus argument, and return its result. These wrappers use the retained native backend rather than handwritten machine-code encoders. Pointer transport uses the scalar register ABI of the retained 64-bit targets. Validation tests currently execute on this Mac; this change does not establish cross-target ABI parity.
+
+The returned `ContextImage` owns the main executable mapping and an optional callback-wrapper mapping. Use `native/unload-context-image!` to unload both, with the main mapping released first. Obtain program entry addresses from its `program` field. The caller's allocator-backed image metadata, callback code and stable context objects must outlive the loaded image. Contexts are borrowed, not copied or freed, and their synchronization remains the caller's responsibility. Import-list storage can be released after loading; wrapper symbol names borrow the original program image's names.
+
+There is no ambient current-context slot. Different live images retain their own captured pointers, and a callback can enter another image and return without replacing the original context. Tests use reversed import order, distinct mutable contexts, nested native re-entry, null/missing callbacks and compile-time callback-signature rejection. They run in debug/debug-checks/release alongside the existing native suite.
+
+This establishes explicit callback context transport. It does not turn an integer into a validated Code handle, retain a syntax store automatically, implement a semantic-query capability, or run the staged protocol. Invocation handle ownership, stale/foreign handle rejection, Code operations, cumulative declarations and language resumption remain required. Context wrappers are counted runtime machinery; no compile-time or memory improvement is claimed.

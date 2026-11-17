@@ -9,8 +9,8 @@
     },
     "authored-seed-and-runtime": {
       "files": 22,
-      "bytes": 266909,
-      "physical_lines": 4713
+      "bytes": 274825,
+      "physical_lines": 4854
     },
     "generated-language-toolchain": {
       "files": 2,
@@ -39,13 +39,13 @@
     },
     "rewrite-build-and-validation-tools": {
       "files": 10,
-      "bytes": 68828,
-      "physical_lines": 1156
+      "bytes": 69132,
+      "physical_lines": 1159
     },
     "rewrite-tests-and-fixtures": {
       "files": 39,
-      "bytes": 112028,
-      "physical_lines": 2104
+      "bytes": 115226,
+      "physical_lines": 2151
     }
   },
   "files": [
@@ -66,16 +66,16 @@
     {
       "path": "runtime/native.coil",
       "category": "authored-seed-and-runtime",
-      "sha256": "e8b2cfa67df73a9785db75d66c3ba7600dae7e1124a8b1cf68ab9183e648495f",
-      "bytes": 4105,
-      "physical_lines": 98
+      "sha256": "69f52824aef907ea66c51a3425a419841bf57e97743866c41089d6a8d70bf4a0",
+      "bytes": 9518,
+      "physical_lines": 226
     },
     {
       "path": "seed/README.md",
       "category": "authored-seed-and-runtime",
-      "sha256": "0e8c8aaf6d5f7b776bf0db74ff38b3798dd3ca3afe0dcda3d74c585af85ee58f",
-      "bytes": 62454,
-      "physical_lines": 417
+      "sha256": "11f388924fb3b920e3f42b8500293dec700b8402ba7eba5de2c66b0a136961a3",
+      "bytes": 64957,
+      "physical_lines": 430
     },
     {
       "path": "seed/alpha.coil",
@@ -283,9 +283,9 @@
     {
       "path": "tests/host-functions.coil.in",
       "category": "rewrite-tests-and-fixtures",
-      "sha256": "ca938db08c5c24bea3aca34264f4a6aead4ba546d0b6ff2517b2fed812894df6",
-      "bytes": 5125,
-      "physical_lines": 80
+      "sha256": "bd4c8f6fc823b7e915d5fc7715b97c851b4590aafe7fe616581be59ae572f7a6",
+      "bytes": 8323,
+      "physical_lines": 127
     },
     {
       "path": "tests/index.coil.in",
@@ -521,9 +521,9 @@
     {
       "path": "tools/check-lowering.py",
       "category": "rewrite-build-and-validation-tools",
-      "sha256": "88cfdf7745f0e0b174e8b9d6ccb3deead3f757beebb08dfe5f9f99f383af2a46",
-      "bytes": 11810,
-      "physical_lines": 153
+      "sha256": "20139ed4ff5681f6b7fa1b0f9ed303b48860932b23c13a79ed6f3bdaf11e2c79",
+      "bytes": 12114,
+      "physical_lines": 156
     },
     {
       "path": "tools/check-seed.py",

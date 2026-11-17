@@ -123,3 +123,6 @@ An explicit host-function boundary is now implemented as a prerequisite for that
 
 
 Owned reader syntax is now described by `languages/code.schema`, including exact float bits, C strings and nominal container sequences. Its generated parser plus a counted Coil metadata adapter retain source documents, origins and opaque hygiene/context identities after reader scratch storage is released. Both schema and syntax-value grammars pass isolated regeneration. Next, define native handle ownership and explicit invocation context before exposing Code operations to host-linked phase entries; ordinary reader syntax is not yet the full Code API or the staged protocol.
+
+
+Context-bearing host callbacks now have a typed native boundary: the loader emits retained-backend CIR wrappers capturing an explicit borrowed context, and the loaded result owns both executable mappings. Independent contexts and nested native re-entry pass regression tests. This removes the need for an ambient current-context variable; it does not yet solve native Code-handle ownership. The next invocation layer must validate handle origin/lifetime against its explicit context before exposing owned syntax operations.

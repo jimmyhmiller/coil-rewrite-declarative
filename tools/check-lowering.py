@@ -64,6 +64,9 @@ with tempfile.TemporaryDirectory(prefix='rewrite-lowering-') as directory:
     (work/'main.coil').write_text(host_client.replace('(fnptr-of host-inc)', '(fnptr-of wrong-signature)'))
     rejected = subprocess.run(['coil', 'check', 'main.coil'], cwd=work, capture_output=True)
     assert rejected.returncode != 0 and b'bool' in rejected.stdout + rejected.stderr and b'i64' in rejected.stdout + rejected.stderr, rejected
+    (work/'main.coil').write_text(host_client.replace('(fnptr-of context-increment)', '(fnptr-of host-inc)'))
+    rejected = subprocess.run(['coil', 'check', 'main.coil'], cwd=work, capture_output=True)
+    assert rejected.returncode != 0 and b'Invocation' in rejected.stdout + rejected.stderr, rejected
     for invalid in [host_schema.replace(b'(host double Int Int)', b'(host increment Int Int)'),
                     host_schema.replace(b'(host double Int Int)', b'(host double Bool Int)'),
                     host_schema.replace(b'(host double Int Int)', b'(host double Int)'),
