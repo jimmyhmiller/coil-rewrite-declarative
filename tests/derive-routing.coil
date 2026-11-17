@@ -1,0 +1,210 @@
+(module rewrite.testderiverouting)
+(import "rewrite.deriveresolution" :as integration)
+(import "rewrite.deriveregistry" :as registry)
+(import "rewrite.deriveregistration" :as admission)
+(import "rewrite.deriveprotocol" :as registration)
+(import "rewrite.resolveprotocol" :as routing)
+(import "rewrite.routing" :as router)
+(import "rewrite.namespace" :as namespace)
+(import "rewrite.nameforms" :as names)
+(import "rewrite.routingfacts" :as facts)
+(import "rewrite.sourceroutes" :as records)
+(import "coil.alloc" :use *)
+(import "coil.arraylist" :use *)
+(import "coil.reader" :use *)
+(import "coil.result" :use *)
+(import "coil.scratch" :use [ScratchArena])
+(import "coil.debug-allocator" :use [DebugAllocator])
+(import "coil.primitive" :as primitive)
+
+(defn parsed [(a (dyn Allocator)) (text (slice u8))] (-> (ptr Sexp))
+  (match (read-all a text 1)
+    (Ok [forms] (elem forms 0))
+    (Err [_] (panic "input"))))
+
+(defn view [(a (dyn Allocator)) (store (ptr names/Store)) (root names/N7Id)]
+  (-> namespace/View)
+  (match (namespace/compile a store root) (Ok [v] v) (Err [_] (panic "view"))))
+
+(defn check [(a (dyn Allocator))
+             (r (ptr registry/Registry))
+             (records (ptr records/Table))] (-> void)
+  (let [(mut scratch) (zeroed ScratchArena)
+        initialized (init (mut scratch) a)
+        sa (allocator (mut scratch))
+        (mut store) (names/store-new a)
+        macro-root
+          (match (names/parse-7 (mut store)
+                                (parsed sa
+                                        "(Namespace [(Declaration \"lib.$scope7@def$m\") (Declaration \"lib.raw\") (Declaration \"app.Later\")] [] [])"))
+            (Ok [id] id)
+            (Err [_] (panic "macro namespace")))
+        old-root
+          (match (names/parse-7 (mut store)
+                                (parsed sa
+                                        "(Namespace [(Declaration \"lib.Known\") (Declaration \"lib.Ambiguous\") (Declaration \"other.Ambiguous\")] [] [])"))
+            (Ok [id] id)
+            (Err [_] (panic "old namespace")))
+        new-root
+          (match (names/parse-7 (mut store)
+                                (parsed sa
+                                        "(Namespace [(Declaration \"lib.Known\") (Declaration \"lib.Later\")] [] [])"))
+            (Ok [id] id)
+            (Err [_] (panic "new namespace")))
+        route-root
+          (match (names/parse-13 (mut store)
+                                 (parsed sa
+                                         "(Routing [(ModuleImports \"app\" [(ImportAlias \"m\" \"lib\")] (Imports [(Reexport \"lib\" (Refer true [] [] [])) (Reexport \"other\" (Refer true [] [] []))]) (Refer true [] [] [])) (ModuleImports \"def\" [] (Imports [(Reexport \"lib\" (Refer true [] [] []))]) (Refer true [] [] []))] [] [] [] \"core\")"))
+            (Ok [id] id)
+            (Err [_] (panic "routing facts")))
+        (mut macros) (view a (mut store) macro-root)
+        (mut old) (view a (mut store) old-root)
+        (mut new) (view a (mut store) new-root)
+        (mut world)
+          (match (facts/compile a (mut store) route-root)
+            (Ok [w] w)
+            (Err [_] (panic "world")))
+        (mut c)
+          (integration/Context
+            :allocator a
+            :macros (primitive/cast (ptr namespace/View) (mut macros))
+            :traits (primitive/cast (ptr namespace/View) (mut old))
+            :world (primitive/cast (ptr facts/World) (mut world))
+            :records records)
+        (mut definition) (HygModule :name "def")
+        pending (parsed sa "(register-derive Later :struct m)")]
+    (defer (close! (mut scratch)))
+    (defer (names/store-free! (mut store)))
+    (defer (namespace/release! (mut macros)))
+    (defer (namespace/release! (mut old)))
+    (defer (namespace/release! (mut new)))
+    (defer (facts/release! (mut world)))
+    (set! (.hyg (sexp-nth pending 3)) 7)
+    (set! (.hmod (sexp-nth pending 3))
+          (primitive/cast (ptr HygModule) (mut definition)))
+    (match (integration/register! (mut c) r pending (Some "app"))
+      (Ok [index] (unless (= index 0) (panic "pending identity")))
+      (Err [_] (panic "scoped registration")))
+    (unless (= (len (.pending r)) 1)
+      (panic "macro names leaked into trait membership"))
+    (match (records/lookup records "def" "$scope7@def$m" 6)
+      (None [] (panic "missing scoped route"))
+      (Some [route]
+            (unless (= (.f2 route) "lib.$scope7@def$m")
+              (panic "wrong scoped target"))))
+    (match (integration/register! (mut c)
+                                  r
+                                  (parsed sa
+                                          "(register-derive m/Known :sum m/raw)")
+                                  (Some "app"))
+      (Ok [_])
+      (Err [_] (panic "alias registration")))
+    (match (integration/register! (mut c)
+                                  r
+                                  (parsed sa
+                                          "(register-derive Known :sum m/raw)")
+                                  (Some "app"))
+      (Ok [_] (panic "canonical duplicate accepted"))
+      (Err [error]
+           (match error
+             (admission/Registry [error]
+                                 (match error
+                                   (registry/Transition [error]
+                                                        (match error
+                                                          (registration/HandlerError [_
+                                                                                      error]
+                                                                                     (match error
+                                                                                       (registry/Duplicate [_])
+                                                                                       (_ (panic "wrong duplicate"))))
+                                                          (_ (panic "duplicate protocol"))))
+                                   (_ (panic "duplicate transition"))))
+             (_ (panic "duplicate admission")))))
+    (match (integration/register! (mut c)
+                                  r
+                                  (parsed sa
+                                          "(register-derive Ambiguous :sum m/raw)")
+                                  (Some "app"))
+      (Ok [_] (panic "ambiguous trait accepted"))
+      (Err [error]
+           (match error
+             (admission/Registry [error]
+                                 (match error
+                                   (registry/Transition [error]
+                                                        (match error
+                                                          (registration/HandlerError [_
+                                                                                      error]
+                                                                                     (match error
+                                                                                       (registry/Resolution [error]
+                                                                                                            (match error
+                                                                                                              (integration/Trait [error]
+                                                                                                                                 (match error
+                                                                                                                                   (routing/HandlerError [_
+                                                                                                                                                          error]
+                                                                                                                                                         (match error
+                                                                                                                                                           (router/Use [error]
+                                                                                                                                                                       (match error
+                                                                                                                                                                         (namespace/Ambiguous [_
+                                                                                                                                                                                               _])
+                                                                                                                                                                         (_ (panic "wrong use error"))))
+                                                                                                                                                           (_ (panic "wrong routing error"))))
+                                                                                                                                   (_ (panic "trait protocol"))))
+                                                                                                              (_ (panic "trait error"))))
+                                                                                       (_ (panic "lookup error"))))
+                                                          (_ (panic "lookup protocol"))))
+                                   (_ (panic "registry error"))))
+             (_ (panic "admission error")))))
+    (records/start! records)
+    (match (integration/register! (mut c)
+                                  r
+                                  (parsed sa
+                                          "(register-derive m/Known :struct missing :sum m/raw)")
+                                  (Some "app"))
+      (Ok [_] (panic "missing macro accepted"))
+      (Err [error]
+           (match error (admission/MissingArm []) (_ (panic "wrong arm error")))))
+    (match (records/lookup records "app" "m/raw" 6)
+      (None [] (panic "second arm was skipped after first miss"))
+      (Some [_]))
+    (unless (= (len (.entries r)) 2) (panic "failed registration appended"))
+    ; A caller publishes a new immutable trait snapshot between operations.
+    (set! (.traits c) (primitive/cast (ptr namespace/View) (mut new)))
+    (match (integration/finish! (mut c) r)
+      (Ok [_])
+      (Err [_] (panic "updated traits did not settle")))
+    (unless (= (len (.pending r)) 0) (panic "settled trait still pending"))
+    (match (registry/lookup r "lib.Later")
+      (None [] (panic "new trait not canonicalized"))
+      (Some [row]
+            (unless (= (.f1 row) "lib.$scope7@def$m") (panic "scoped arm lost"))))
+    ; Re-resolution publishes scoped evidence even when registry uniqueness fails.
+    (match (integration/register! (mut c) r pending (Some "app"))
+      (Ok [_] (panic "settled duplicate accepted"))
+      (Err [_]))))
+
+(defn main [] (-> i64)
+  (let [debug (DebugAllocator::new (malloc-allocator))
+        a (DebugAllocator::view debug)]
+    (let [(mut r) (registry/create a)
+          (mut records) (records/create a)]
+      (records/start! (mut records))
+      (check a (mut r) (mut records))
+      ; All source forms, namespace stores and head outcomes have been released.
+      (match (registry/lookup (mut r) "lib.Later")
+        (None [] (panic "lost registry ownership"))
+        (Some [row]
+              (unless (and (= (.f1 row) "lib.$scope7@def$m")
+                           (= (.f3 row) "app")
+                           (= (.f4 row) "Later"))
+                (panic "dangling registry strings"))))
+      (match (records/lookup (mut records) "def" "$scope7@def$m" 6)
+        (None [] (panic "lost route ownership"))
+        (Some [route]
+              (unless (and (= (.f0 route) "lib")
+                           (= (.f1 route) "$scope7@def$m")
+                           (= (.f2 route) "lib.$scope7@def$m"))
+                (panic "dangling route strings"))))
+      (registry/release! (mut r))
+      (records/release! (mut records)))
+    (unless (= (DebugAllocator::deinit! debug) 0) (panic "derive routing leak")))
+  (println "derive routing: scoped arms, distinct namespaces, aliases, duplicates, ambiguity, both arms, updated traits and owned records passed")
+  0)

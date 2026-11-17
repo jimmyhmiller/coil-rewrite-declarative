@@ -33,6 +33,7 @@ HEADER='''(module fixture.main)
 (import "rewrite.sourceroutes" :as records)
 (import "rewrite.observedresolution" :as observed)
 (import "coil.hashmap" :use *)
+(import "coil.primitive" :as primitive)
 (import "rewrite.resolveprotocol" :as protocol)
 (import "rewrite.routingfacts" :as facts)
 (import "rewrite.namespace" :as namespace)
@@ -83,6 +84,17 @@ HEADER='''(module fixture.main)
       (defer (head/release! (mut output)))
       (match (.result output) (Err [_] (panic "head error"))
         (Ok [answer] (check-record (mut table) (.spelling output) (.module output) answer) (print-answer answer (.spelling output) (.module output)))))))
+(defn query-reader-head [(a (dyn Allocator)) (view (ptr namespace/View)) (world (ptr facts/World))
+                         (name (slice u8)) (scope i64) (definition (slice u8)) (fallback (Option (slice u8)))] (-> void)
+  (let [(mut table) (records/create a) (mut module) (HygModule :name definition)
+        (mut form) (mk-sexp (KSym name) 0 0)]
+    (defer (records/release! (mut table))) (records/start! (mut table))
+    (set! (.hyg form) scope)
+    (set! (.hmod form) (primitive/cast (ptr HygModule) (mut module)))
+    (let [(mut output) (observed/reader-head! a (mut table) view world form fallback)]
+      (defer (head/release! (mut output)))
+      (match (.result output) (Err [_] (panic "reader head error"))
+        (Ok [answer] (check-record (mut table) (.spelling output) (.module output) answer) (print-answer answer (.spelling output) (.module output)))))))
 (defn check [(a (dyn Allocator))] (-> void)
 '''
 
@@ -105,6 +117,7 @@ def fixture(graphs):
         for name,scope,definition,fallback in g['head_queries']:
             md='(None [(slice u8)])' if fallback is None else f'(Some {q(fallback)})'
             b.append(f'(query-head a (mut view) (mut world) {q(name)} {scope} {q(definition)} {md})')
+            b.append(f'(query-reader-head a (mut view) (mut world) {q(name)} {scope} {q(definition)} {md})')
         b.append('))')
     b.append(''')
 (defn main [] (-> i64) (let [debug (DebugAllocator::new (malloc-allocator))]
@@ -116,7 +129,12 @@ def fixture(graphs):
 def main():
     reference=ROOT/'evidence/routing-reference.json';graphs=json.loads(reference.read_text())['cases']
     assert graphs and all(len(g['answers'])==len(g['route_queries'])+len(g['head_queries']) for g in graphs)
-    expected=[v for g in graphs for v in g['answers']];driver=fixture(graphs)
+    expected=[]
+    for g in graphs:
+        count=len(g['route_queries'])
+        expected.extend(g['answers'][:count])
+        expected.extend(v for answer in g['answers'][count:] for v in [answer,answer])
+    driver=fixture(graphs)
     runtime=['types','scope','resolution','source','sequence','refer_runtime','selection_runtime','namespace','search_runtime','routing','routing_facts','macro_head','code','equality_runtime','source_routes','observed_resolution']
     generated=['name_forms','export_search','resolve_protocol','head_protocol','code_forms']
     inputs=[ROOT/f'seed/{n}.coil' for n in runtime]+[ROOT/f'seed/generated/{n}.coil' for n in generated]
@@ -129,7 +147,7 @@ def main():
             assert r.returncode==0,r.stdout+r.stderr
             actual=r.stdout.splitlines();assert len(actual)==len(expected),(flags,len(actual),len(expected))
             for i,(a,b) in enumerate(zip(actual,expected)): assert a==b,(flags,i,a,b)
-    report=dict(scope='Resolver/head helper replay including selected route metadata. Published route contents checked per query. Source parsing, diagnostic text, memo invalidation and complete source-facts lifecycle parity remain outside scope.',graphs=len(graphs),outcomes=len(expected),reference_sha256=hashlib.sha256(reference.read_bytes()).hexdigest(),driver_sha256=hashlib.sha256(driver.encode()).hexdigest(),implementation_sha256={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs},configurations_passed=['default','debug-checks','release'])
+    report=dict(scope='Resolver/head helper replay including selected route metadata; all captured scoped heads run through both owned-row and reader-symbol entry points. Published route contents checked per query. Source parsing, diagnostic text, memo invalidation and complete source-facts lifecycle parity remain outside scope.',graphs=len(graphs),outcomes=len(expected),reference_outcomes=sum(len(g['answers']) for g in graphs),additional_reader_head_replays=sum(len(g['head_queries']) for g in graphs),reference_sha256=hashlib.sha256(reference.read_bytes()).hexdigest(),driver_sha256=hashlib.sha256(driver.encode()).hexdigest(),implementation_sha256={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs},configurations_passed=['default','debug-checks','release'])
     (ROOT/'evidence/routing-replay.json').write_text(json.dumps(report,indent=2)+'\n')
     print(f'Routing/head replay: {len(graphs)} graphs, {len(expected)} matching outcomes/provenance records; three configurations; no allocator leaks')
 

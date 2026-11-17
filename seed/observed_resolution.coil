@@ -10,6 +10,7 @@
 (import "rewrite.codeforms" :as syntax)
 (import "coil.alloc" :use [Allocator])
 (import "coil.result" :use *)
+(import "coil.reader" :use [Sexp])
 
 (defn publish! [(table (ptr routes/Table))
                 (module (Option (slice u8)))
@@ -46,6 +47,19 @@
                    (id syntax/N0Id)
                    (fallback (Option (slice u8)))] (-> head/Outcome)
   (let [outcome (head/resolve a view world input id fallback)]
+    (match (.result outcome)
+      (Err [_])
+      (Ok [answer]
+          (publish! table (.module outcome) (.spelling outcome) answer)))
+    outcome))
+
+(defn reader-head! [(a (dyn Allocator))
+                    (table (ptr routes/Table))
+                    (view (ptr namespace/View))
+                    (world (ptr facts/World))
+                    (input Sexp)
+                    (fallback (Option (slice u8)))] (-> head/Outcome)
+  (let [outcome (head/resolve-reader a view world input fallback)]
     (match (.result outcome)
       (Err [_])
       (Ok [answer]

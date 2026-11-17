@@ -11,7 +11,7 @@
 (import "coil.arraylist" :use *)
 (import "coil.result" :use *)
 (import "coil.str" :use *)
-(import "coil.reader" :use [next-node-id])
+(import "coil.reader" :use [next-node-id Sexp KSym hmod-name])
 (import "coil.cc" :as cc)
 (import "coil.primitive" :as primitive)
 
@@ -27,12 +27,49 @@
    (spelling (slice u8))
    (module (Option (slice u8)))])
 
+;;; Both representations share scope selection and routing; input text is borrowed.
+(defsum Input
+  (Owned [(syntax (ptr code/Syntax)) (head forms/N0Id)])
+  (Reader [(form Sexp)]))
+
+(defstruct Symbol [(name (slice u8)) (scope i64) (module (slice u8))])
+
+(defn symbol [(input Input)] (-> (Result Symbol Error))
+  (block
+    :done
+      (match input
+        (Reader [form]
+                (match (.kind form)
+                  (KSym [name]
+                        (Ok (Symbol
+                              :name name
+                              :scope (.hyg form)
+                              :module (hmod-name (.hmod form)))))
+                  (_ (Err (ExpectedSymbol (.node-id form))))))
+        (Owned [syntax head]
+               (let [index (.index head)
+                     row
+                       (match (forms/lookup-0 (field (field syntax store) rows0)
+                                              head)
+                         (Some [row] row)
+                         (None [] (break :done (Err (InvalidHead index)))))
+                     name
+                       (match row
+                         (forms/N0V2 [name] name)
+                         (_ (break :done (Err (ExpectedSymbol index)))))]
+                 (unless (< index (len (.contexts syntax)))
+                   (break :done (Err (MissingContext index))))
+                 (let [metadata (get (.contexts syntax) index)]
+                   (Ok (Symbol
+                         :name name
+                         :scope (.f0 metadata)
+                         :module (.f1 metadata)))))))))
+
 (defstruct Context
   [(allocator (dyn Allocator))
    (view (ptr namespace/View))
    (world (ptr facts/World))
-   (syntax (ptr code/Syntax))
-   (head forms/N0Id)
+   (input Input)
    (fallback (Option (slice u8)))
    (module (Option (slice u8)))
    (raw (slice u8))
@@ -46,21 +83,13 @@
 (defn prepare :cc (cc/C) [(c (ptr Context))] (-> (Result policy/Event Error))
   (block
     :done
-      (let [index (.index (.head c))
-            row
-              (match (forms/lookup-0 (field (field (.syntax c) store) rows0)
-                                     (.head c))
-                (Some [row] row)
-                (None [] (break :done (Err (InvalidHead index)))))
-            name
-              (match row
-                (forms/N0V2 [name] name)
-                (_ (break :done (Err (ExpectedSymbol index)))))]
-        (unless (< index (len (.contexts (.syntax c))))
-          (break :done (Err (MissingContext index))))
-        (let [metadata (get (.contexts (.syntax c)) index)
-              scope (.f0 metadata)
-              module (.f1 metadata)]
+      (let [head
+              (match (symbol (.input c))
+                (Ok [head] head)
+                (Err [error] (break :done (Err error))))]
+        (let [name (.name head)
+              scope (.scope head)
+              module (.module head)]
           (set! (.raw c) name)
           (set! (.module c)
                 (if (> scope 0)
@@ -107,19 +136,17 @@
 ;;; syntax, namespace/routing stores and fallback module. Negative scopes use the
 ;;; bootstrap reader's shared same-session identity domain, also used by Code.
 ;;; Internal route failures propagate instead of being silently treated as misses.
-(defn resolve [(a (dyn Allocator))
-               (view (ptr namespace/View))
-               (world (ptr facts/World))
-               (syntax (ptr code/Syntax))
-               (head forms/N0Id)
-               (fallback (Option (slice u8)))] (-> Outcome)
+(defn resolve-input [(a (dyn Allocator))
+                     (view (ptr namespace/View))
+                     (world (ptr facts/World))
+                     (input Input)
+                     (fallback (Option (slice u8)))] (-> Outcome)
   (let [(mut context)
           (Context
             :allocator a
             :view view
             :world world
-            :syntax syntax
-            :head head
+            :input input
             :fallback fallback
             :module (None)
             :raw ""
@@ -144,3 +171,20 @@
       :lexical (.lexical context)
       :spelling (.spelling context)
       :module (.module context))))
+
+(defn resolve [(a (dyn Allocator))
+               (view (ptr namespace/View))
+               (world (ptr facts/World))
+               (syntax (ptr code/Syntax))
+               (head forms/N0Id)
+               (fallback (Option (slice u8)))] (-> Outcome)
+  (resolve-input a view world (Owned syntax head) fallback))
+
+;;; A reader symbol carries the same scope/module facts as an owned syntax row.
+;;; No source-document copy or temporary Syntax store is needed for lookup.
+(defn resolve-reader [(a (dyn Allocator))
+                      (view (ptr namespace/View))
+                      (world (ptr facts/World))
+                      (head Sexp)
+                      (fallback (Option (slice u8)))] (-> Outcome)
+  (resolve-input a view world (Reader head) fallback))
