@@ -37,3 +37,5 @@
 (extract module-header ModuleHeader NamedModule NoModule
   (list "module" (capture name symbol) ...))
 (recognize module-form? (list "module" ...))
+(extract import-module ModuleImport Imported NoImport
+  (list "import" (capture target string) ...))
