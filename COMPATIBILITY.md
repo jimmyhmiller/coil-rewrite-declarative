@@ -61,3 +61,10 @@ This establishes the lifetime boundary for the current context-free normalizatio
 Sequence-result maps now omit, introduce and splice declarations while retaining order, sharing and source origins. The native fixture turns one source declaration into an alias and its implementation, calls the alias successfully, and rejects a colliding introduced name using normal duplicate-function checking. An independent fixture checks nominal sequence types, cardinality, shared results, input teardown and capacity errors. Shared-segment storage avoids repeated descendant copying at each splice.
 
 This is a context-free normalization capability, not Coil macro/reader compatibility. Dynamic declaration discovery across expansion rounds, binding-aware transforms, host compile-time capabilities and dependency invalidation remain missing.
+
+
+## Schema collection checkpoint
+
+Sequence-valued node fields and final list/vector rest captures now support arbitrary declaration collections. The native fixture parses a module and nested groups into source sequence fields, maps them into a core module's function field, then compiles normally. An independent vector-record client checks constructor/surface parsing, malformed input diagnostics, compact shared-sequence mapping and text lifetime after source teardown. Segment traversal uses an explicit stack and retries correctly after element failures.
+
+Only node-reference sequences are supported. Binding rules over collections, type-checking sequences, import/module semantics, dynamic expansion rounds and language-toolchain self-description remain incomplete.

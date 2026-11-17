@@ -14,15 +14,15 @@
   (let [(mut arena) (zeroed ScratchArena) initialized (init (mut arena) (malloc-allocator))
         a (allocator (mut arena)) (mut input) (store-new a) (mut output) (store-new a)
         (mut roots) (ArrayList::new [N1Id] a)
-        text "(group (ignore) (group (define-alias inc entry x (bump x)) (define extra x (+ x 9))))"
+        text "(module (group (ignore) (group) (group (define-alias inc entry x (bump x)) (define extra x (+ x 9)))))"
         (mut ok) true
         result (block :done
           (match (store-source! (mut input) 91 "declarations.coil" text) (Err [_] (break :done false)) (Ok [_]))
           (let [forms (match (read-all a text 91) (Ok [forms] forms) (Err [_] (break :done false)))
-                root (match (surface-4 (mut input) (elem forms 0)) (Ok [id] id) (Err [_] (break :done false)))
+                root (match (surface-5 (mut input) (elem forms 0)) (Ok [id] id) (Err [_] (break :done false)))
                 (mut state) (transform-state-new a (mut input) (mut output))]
             (defer (transform-state-free! (mut state)))
-            (let [ids (match (transform-many-4-1 (mut state) root) (Ok [ids] ids) (Err [_] (break :done false)))
+            (let [ids (match (transform-5-6 (mut state) root) (Ok [id] (.f0 (get (.rows6 output) (.index id)))) (Err [_] (break :done false)))
                   count (match (sequence-size-1 (mut output) ids) (Some [n] n) (None [] (break :done false)))
                   rows (len (.rows1 output)) traces (len (.traces output))]
               (unless (= count 3) (break :done false))
@@ -31,8 +31,8 @@
               (match (sequence-item-1 (mut output) ids count) (None []) (Some [_] (break :done false)))
               (match (sequence-item-1 (mut output) ids (- 0 1)) (None []) (Some [_] (break :done false)))
               (match (sequence-size-1 (mut output) (N1Seq :index 9999)) (None []) (Some [_] (break :done false)))
-              (match (transform-many-4-1 (mut state) root)
-                (Ok [again] (unless (and (= (.index ids) (.index again))
+              (match (transform-5-6 (mut state) root)
+                (Ok [again] (unless (and (= (.index ids) (.index (.f0 (get (.rows6 output) (.index again)))))
                                          (= rows (len (.rows1 output))) (= traces (len (.traces output))))
                               (break :done false)))
                 (Err [_] (break :done false)))
@@ -59,16 +59,16 @@
   (let [arena (arena-new 1048576) a (arena-view arena)
         (mut input) (store-new a) (mut output) (store-new a)
         (mut roots) (ArrayList::new [N1Id] a)
-        text "(define-alias same same x x)"
+        text "(module (define-alias same same x x))"
         ok (block :done
           (match (store-source! (mut input) 92 "collision.coil" text)
             (Ok [_]) (Err [_] (break :done false)))
           (let [forms (match (read-all a text 92) (Ok [forms] forms) (Err [_] (break :done false)))
-                root (match (surface-4 (mut input) (elem forms 0)) (Ok [id] id) (Err [_] (break :done false)))
+                root (match (surface-5 (mut input) (elem forms 0)) (Ok [id] id) (Err [_] (break :done false)))
                 (mut state) (transform-state-new a (mut input) (mut output))]
             (defer (transform-state-free! (mut state)))
-            (let [ids (match (transform-many-4-1 (mut state) root)
-                        (Ok [ids] ids) (Err [_] (break :done false)))]
+            (let [ids (match (transform-5-6 (mut state) root)
+                        (Ok [id] (.f0 (get (.rows6 output) (.index id)))) (Err [_] (break :done false)))]
               (match (sequence-materialize-1 a (mut output) ids (mut roots))
                 (Ok [_]) (Err [_] (break :done false)))
               (match (compile-program a (mut output) (mut roots))

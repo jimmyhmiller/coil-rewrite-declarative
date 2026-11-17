@@ -9,7 +9,8 @@
 (import "coil.result" :use *)
 (import "coil.str" :use *)
 
-(defstruct Capture [(field i64) (mode (slice u8)) (path (slice u8))])
+(defstruct Capture
+  [(field i64) (mode (slice u8)) (path (slice u8)) (start i64)])
 
 (defn predicate! [(b (mut StrBuf)) (mode (slice u8)) (path (slice u8))]
   (-> void)
@@ -45,6 +46,7 @@
                 (v (ptr Variant))
                 (pattern (ptr Sexp))
                 (path (slice u8))
+                (start i64)
                 (captures (mut (ArrayList Capture)))]
   (-> (Result i64 Diag))
   (block :done
@@ -62,18 +64,36 @@
       (break :done (Err (problem pattern "expected a syntax pattern"))))
     (let [mode (sexp-sym (sexp-nth pattern 0))]
       (if (or (= mode "list") (= mode "vector"))
-          (do
+          (let [last (sexp-nth pattern (- (sexp-count pattern) 1))
+                rest?
+                  (and (> (sexp-count pattern) 1)
+                       (sexp-list? last)
+                       (> (sexp-count last) 0)
+                       (sexp-sym-is (sexp-nth last 0) "rest"))]
             (push-str! (mut b) "(unless ")
             (predicate! (mut b) mode path)
             (guard-end! (mut b) path "wrong syntax container")
-            (push-str! (mut b) "(unless (= (sexp-count ")
+            (push-str! (mut b)
+                       (if rest?
+                           "(unless (>= (sexp-count "
+                           "(unless (= (sexp-count "))
             (push-str! (mut b) path)
             (push-str! (mut b) ") ")
-            (number! (mut b) (- (sexp-count pattern) 1))
+            (number! (mut b) (- (sexp-count pattern) (if rest? 2 1)))
             (push-str! (mut b) ")")
             (guard-end! (mut b) path "wrong syntax arity")
             (for [i 1 (sexp-count pattern)]
-              (let [(mut child) (StrBuf::new a)]
+              (let [(mut child) (StrBuf::new a)
+                    child-form (sexp-nth pattern i)
+                    child-rest?
+                      (and (sexp-list? child-form)
+                           (> (sexp-count child-form) 0)
+                           (sexp-sym-is (sexp-nth child-form 0) "rest"))]
+                (when (and child-rest? (!= i (- (sexp-count pattern) 1)))
+                  (break
+                    :done
+                      (Err (problem child-form
+                                    "rest capture must be last in its container"))))
                 (push-str! (mut child) "(sexp-nth ")
                 (push-str! (mut child) path)
                 (push-str! (mut child) " ")
@@ -83,7 +103,8 @@
                                  (mut b)
                                  v
                                  (sexp-nth pattern i)
-                                 (str (load child))
+                                 (if child-rest? path (str (load child)))
+                                 (if child-rest? (- i 1) 0)
                                  (mut captures))
                   (Err [d] (break :done (Err d)))
                   (Ok [_]))))
@@ -95,7 +116,8 @@
                              (= mode "bool")
                              (= mode "text")
                              (= mode "symbol")
-                             (= mode "ref")))
+                             (= mode "ref")
+                             (= mode "rest")))
               (break
                 :done (Err (problem pattern "expected typed field capture"))))
             (let [(mut field) (- 0 1)]
@@ -105,12 +127,14 @@
                   (set! field i)))
               (when (< field 0)
                 (break :done (Err (problem pattern "unknown syntax field"))))
-              (let [ty (.type-name (elem (field v fields) field))]
-                (unless (cond (= mode "int") (= ty "Int")
-                              (= mode "bool") (= ty "Bool")
-                              (or (= mode "symbol") (= mode "text"))
-                                (= ty "Text")
-                              :else (not (scalar? ty)))
+              (let [ty (.type-name (elem (field v fields) field))
+                    many? (.many? (elem (field v fields) field))]
+                (unless (and (= many? (= mode "rest"))
+                             (cond (= mode "int") (= ty "Int")
+                                   (= mode "bool") (= ty "Bool")
+                                   (or (= mode "symbol") (= mode "text"))
+                                     (= ty "Text")
+                                   :else (not (scalar? ty))))
                   (break
                     :done
                       (Err (problem pattern
@@ -121,7 +145,7 @@
                     :done
                       (Err (problem pattern
                                     "syntax field captured more than once")))))
-              (unless (= mode "ref")
+              (unless (or (= mode "ref") (= mode "rest"))
                 (push-str! (mut b) "(unless ")
                 (predicate! (mut b) mode path)
                 (guard-end! (mut b) path "wrong syntax scalar"))
@@ -129,7 +153,8 @@
                      (Capture
                        :field field
                        :mode mode
-                       :path path))
+                       :path path
+                       :start start))
               (Ok 0)))))))
 
 ;;; A literal list head commits to its rule, including malformed arity diagnostics.
@@ -231,7 +256,7 @@
                       (Err (problem pattern
                                     "syntax rule shadowed by an earlier root pattern")))))
               (push-str! (mut b) " ")
-              (match (pattern! a (mut b) v pattern "form" (mut captures))
+              (match (pattern! a (mut b) v pattern "form" 0 (mut captures))
                 (Err [d] (break :done (Err d)))
                 (Ok [_]))
               (unless (= (len captures) (len (.fields v)))
@@ -247,7 +272,7 @@
                   (push-str! (mut b) "f")
                   (number! (mut b) (.field capture))
                   (push-str! (mut b) " ")
-                  (if (= mode "ref")
+                  (if (or (= mode "ref") (= mode "rest"))
                       (let [(mut target) (- 0 1)
                             (mut has-syntax) false]
                         (for [i 0 (len (.nodes s))]
@@ -266,14 +291,32 @@
                             :done
                               (Err (problem rule
                                             "referenced schema needs a syntax declaration"))))
+                        (when (= mode "rest")
+                          (push-str! (mut b)
+                                     "(let [(mut children) (ArrayList::new [N")
+                          (number! (mut b) target)
+                          (push-str! (mut b)
+                                     "Id] (.allocator (.source-data store)))] (defer (free! (mut children))) (for [child-index ")
+                          (number! (mut b) (.start capture))
+                          (push-str! (mut b) " (sexp-count ")
+                          (push-str! (mut b) path)
+                          (push-str! (mut b) ")] (push! (mut children) "))
                         (push-str! (mut b) "(match (surface-")
                         (number! (mut b) target)
                         (push-str! (mut b) " (mut store) ")
+                        (when (= mode "rest") (push-str! (mut b) "(sexp-nth "))
                         (push-str! (mut b) path)
+                        (when (= mode "rest")
+                          (push-str! (mut b) " child-index)"))
                         (push-str! (mut b)
-                                   ") (Ok [id] id) (Err [d] (break :parsed (Err d)))) "))
+                                   ") (Ok [id] id) (Err [d] (break :parsed (Err d)))) ")
+                        (when (= mode "rest")
+                          (push-str! (mut b) ")) (sequence-")
+                          (number! (mut b) target)
+                          (push-str! (mut b) " (mut store) (mut children))) ")))
                       (do
-                        (when (or (= mode "text") (= mode "symbol")) (push-str! (mut b) "(store-text! (mut store) "))
+                        (when (or (= mode "text") (= mode "symbol"))
+                          (push-str! (mut b) "(store-text! (mut store) "))
                         (push-str! (mut b)
                                    (cond (= mode "int") "(sexp-int "
                                          (= mode "text") "(sexp-str "
@@ -281,7 +324,10 @@
                                          :else "(sexp-sym-is "))
                         (push-str! (mut b) path)
                         (when (= mode "bool") (push-str! (mut b) " \"true\""))
-                        (push-str! (mut b) (if (or (= mode "text") (= mode "symbol")) ")) " ") "))))))
+                        (push-str! (mut b)
+                                   (if (or (= mode "text") (= mode "symbol"))
+                                       ")) "
+                                       ") "))))))
               (push-str! (mut b) "id (append-")
               (number! (mut b) ni)
               (push-str! (mut b) " (mut (.rows")

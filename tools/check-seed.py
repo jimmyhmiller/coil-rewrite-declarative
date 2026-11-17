@@ -244,3 +244,39 @@ source-roots = ["."]
     (work/'main.coil').write_text((ROOT/'tests/sequence-map.coil.in').read_text())
     for flags in [[], ['--debug-checks'], ['--release']]:
         subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)
+
+field_schema = b"""
+(node Entry (label Text))
+(node SourceBox (children (many Entry)))
+(node TargetEntry (label Text))
+(node TargetBox (children (many TargetEntry)))
+(transform Entry TargetEntry (Entry (TargetEntry label)))
+(transform SourceBox TargetBox (SourceBox (TargetBox children)))
+(syntax Entry (Entry (symbol label)))
+(syntax SourceBox (SourceBox (list "box" (vector (rest children)))))
+"""
+with tempfile.TemporaryDirectory(prefix='rewrite-sequence-fields-') as directory:
+    work = Path(directory)
+    for name in ['types', 'scope', 'source', 'sequence']:
+        shutil.copyfile(ROOT/'seed'/f'{name}.coil', work/f'{name}.coil')
+    (work/'Coil.toml').write_text('''[package]
+name = "fixture"
+entry = "main.coil"
+source-roots = ["."]
+''')
+    (work/'generated.coil').write_bytes(subprocess.check_output([str(ROOT/'build/schema-seed')], input=field_schema))
+    (work/'main.coil').write_text((ROOT/'tests/sequence-fields.coil.in').read_text())
+    for flags in [[], ['--debug-checks'], ['--release']]:
+        subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)
+for invalid, diagnostic in [
+    (b'(node A (xs (many Int)))', b'sequence fields require node elements'),
+    (b'(node A (xs (many Missing)))', b'unknown field type'),
+    (b'(node A (xs (many A) :key))', b'key requires a scalar field'),
+    (field_schema.replace(b'(rest children)', b'(ref children)'), b'syntax capture type disagrees'),
+    (field_schema.replace(b'(vector (rest children))', b'(vector (rest children) "tail")'), b'rest capture must be last'),
+    (field_schema.replace(b'(TargetBox children)', b'(TargetBox (items children))'), b'field type needs a matching schema map'),
+    (b'(sum E (Group (children (many E)))) (judgment E (Group Int (children Int)))', b'premise field must reference'),
+]:
+    result = subprocess.run([str(ROOT/'build/schema-seed')], input=invalid, capture_output=True)
+    assert result.returncode != 0 and not result.stdout and diagnostic in result.stderr, result
+print('Sequence field and rest-capture contracts passed')

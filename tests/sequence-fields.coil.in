@@ -1,0 +1,94 @@
+(module fixture.main)
+(import "rewrite.generated" :use *)
+(import "rewrite.source" :as source)
+(import "rewrite.sequence" :as sequence)
+(import "coil.alloc" :use *)
+(import "coil.arraylist" :use *)
+(import "coil.reader" :use *)
+(import "coil.result" :use *)
+
+(defn mapped-fields [] (-> i64)
+  (let [a (malloc-allocator) reader-arena (arena-new 1048576) ra (arena-view reader-arena)
+        (mut input) (store-new a) (mut output) (store-new a)
+        text "(box [alpha beta alpha]) (box [])"
+        forms (match (read-all ra text 110) (Ok [forms] forms) (Err [_] (panic "source")))
+        small (match (surface-1 (mut input) (elem forms 0)) (Ok [id] id) (Err [_] (panic "surface")))
+        empty (match (surface-1 (mut input) (elem forms 1)) (Ok [id] id) (Err [_] (panic "empty")))
+        (mut big-seq) (.f0 (get (.rows1 input) (.index small)))
+        (mut parts) (ArrayList::new [i64] a)
+        (mut ok) true (mut small-result) (N3Id :index 0)]
+    (match (store-source! (mut input) 110 "fields.coil" text) (Ok [_]) (Err [_] (set! ok false)))
+    (push! (mut parts) 0) (push! (mut parts) 0)
+    (for [i 0 60]
+      (set! (mut parts) 0 (.index big-seq)) (set! (mut parts) 1 (.index big-seq))
+      (set! big-seq (N0Seq :index
+        (match (sequence/join! (mut (.sequences0 input)) (mut parts))
+          (Ok [index] index) (Err [_] (panic "shared sequence"))))))
+    (let [big (append-1 (mut (.rows1 input)) (N1Row :f0 big-seq))
+          bad (append-1 (mut (.rows1 input)) (N1Row :f0 (N0Seq :index 99999)))]
+      (push! (mut (.origins1 input)) (origin-of (elem forms 0)))
+      (push! (mut (.origins1 input)) (origin-of (elem forms 0)))
+      (let [(mut state) (transform-state-new a (mut input) (mut output))]
+        (match (transform-1-3 (mut state) small)
+          (Ok [id] (set! small-result id)) (Err [_] (set! ok false)))
+        (match (transform-1-3 (mut state) empty)
+          (Ok [id] (match (sequence-size-2 (mut output) (.f0 (get (.rows3 output) (.index id))))
+                     (Some [n] (unless (= n 0) (set! ok false))) (None [] (set! ok false))))
+          (Err [_] (set! ok false)))
+        (match (transform-1-3 (mut state) big)
+          (Ok [id] (match (sequence-size-2 (mut output) (.f0 (get (.rows3 output) (.index id))))
+                     (Some [n] (unless (= n 3458764513820540928) (set! ok false))) (None [] (set! ok false))))
+          (Err [_] (set! ok false)))
+        (unless (and (= (len (.rows2 output)) 3) (< (len (.segments (.sequences2 output))) 70)
+                     (< (len (.edges (.sequences2 output))) 130)) (set! ok false))
+        (for [attempt 0 2]
+          (match (transform-1-3 (mut state) bad)
+            (Err [e] (match e (TransformSequence [error]
+                        (match error (sequence/InvalidSequence [index] (unless (= index 99999) (set! ok false)))
+                                     (_ (set! ok false)))) (_ (set! ok false))))
+            (Ok [_] (set! ok false))))
+        (transform-state-free! (mut state))))
+    (for text (.strings (.source-data input)) (for [i 0 (len text)] (set! text i 88)))
+    (store-free! (mut input)) (arena-release! reader-arena)
+    (let [ids (.f0 (get (.rows3 output) (.index small-result))) (mut values) (ArrayList::new [N2Id] a)]
+      (match (sequence-materialize-2 a (mut output) ids (mut values))
+        (Ok [n] (unless (= n 3) (set! ok false))) (Err [_] (set! ok false)))
+      (when (= (len values) 3)
+        (unless (and (= (.f0 (get (.rows2 output) (.index (get values 0)))) "alpha")
+                     (= (.f0 (get (.rows2 output) (.index (get values 1)))) "beta")
+                     (= (.f0 (get (.rows2 output) (.index (get values 2)))) "alpha")) (set! ok false)))
+      (free! (mut values)))
+    (store-free! (mut output)) (free! (mut parts))
+    (println "sequence fields, rest capture, shared mapping and owned text: {}" ok)
+    (if ok 0 1)))
+
+(defn reader-cases [] (-> bool)
+  (let [arena (arena-new 1048576) a (arena-view arena) (mut ok) true]
+    (let [(mut store) (store-new a)
+          forms (match (read-all a "(SourceBox [(Entry \"first\") (Entry \"last\")])" 111)
+                  (Ok [forms] forms) (Err [_] (panic "constructor source")))]
+      (match (parse-1 (mut store) (elem forms 0))
+        (Ok [id]
+          (let [ids (.f0 (get (.rows1 store) (.index id)))]
+            (match (sequence-size-0 (mut store) ids)
+              (Some [n] (unless (= n 2) (set! ok false))) (None [] (set! ok false)))
+            (match (sequence-item-0 (mut store) ids 1)
+              (Some [child] (unless (= (.f0 (get (.rows0 store) (.index child))) "last") (set! ok false)))
+              (None [] (set! ok false)))))
+        (Err [_] (set! ok false)))
+      (store-free! (mut store)))
+    (for text ["(box alpha)" "(box [alpha 7])" "(box [] extra)" "(box)" "(box [alpha] [beta])"]
+      (let [(mut store) (store-new a)
+            forms (match (read-all a text 112) (Ok [forms] forms) (Err [_] (panic "malformed fixture")))]
+        (match (surface-1 (mut store) (elem forms 0))
+          (Err [diag] (unless (and (= (.source diag) 112) (>= (.lo diag) 0)
+                                   (> (.hi diag) (.lo diag)) (<= (.hi diag) (len text))) (set! ok false)))
+          (Ok [_] (set! ok false)))
+        (unless (= (len (.rows1 store)) 0) (set! ok false))
+        (store-free! (mut store))))
+    (arena-release! arena) ok))
+
+(defn main [] (-> i64)
+  (let [mapped (mapped-fields) readers (reader-cases)]
+    (println "sequence constructor and malformed surface readers: {}" readers)
+    (if (and (= mapped 0) readers) 0 1)))

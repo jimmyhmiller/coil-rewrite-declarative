@@ -24,6 +24,52 @@
   (push-str! (mut b) "-")
   (number! (mut b) target))
 
+(defn sequence-function-name! [(b (mut StrBuf))
+                               (source i64)
+                               (target i64)
+                               (many? bool)] (-> void)
+  (push-str! (mut b) "sequence-")
+  (function-name! (mut b) source target many?))
+
+(defn sequence-wrapper! [(b (mut StrBuf))
+                         (source i64)
+                         (target i64)
+                         (many? bool)
+                         (p i64)] (-> void)
+  (push-str! (mut b) "(defn sequence-element-")
+  (number! (mut b) p)
+  (push-str! (mut b) " [(context (ptr TransformState)) (id N")
+  (number! (mut b) source)
+  (push-str! (mut b) "Id)] (-> (Result i64 TransformError)) (match (")
+  (function-name! (mut b) source target many?)
+  (push-str! (mut b) " (mut context) id) (Err [e] (Err e)) (Ok [out] (Ok ")
+  (if many?
+      (push-str! (mut b) "(.index out)")
+      (do
+        (push-str! (mut b) "(sequence/singleton! (mut (.sequences")
+        (number! (mut b) target)
+        (push-str! (mut b) " (.target context))) out)")))
+  (push-str! (mut b) "))))\n(defn ")
+  (sequence-function-name! (mut b) source target many?)
+  (push-str! (mut b) " [(state (mut TransformState)) (ids N")
+  (number! (mut b) source)
+  (push-str! (mut b) "Seq)] (-> (Result N")
+  (number! (mut b) target)
+  (push-str! (mut b)
+             "Seq TransformError)) (block :done (let [input (.source state) store (.target state)] (when (= (transform-primitive/cast i64 input) (transform-primitive/cast i64 store)) (break :done (Err (TransformAliasedStores)))) (match (sequence/map! (.allocator (.source-data store)) (field input sequences")
+  (number! (mut b) source)
+  (push-str! (mut b) ") (mut (.sequences")
+  (number! (mut b) target)
+  (push-str! (mut b) " store)) (mut (.seqmemo")
+  (number! (mut b) p)
+  (push-str! (mut b)
+             " state)) (.index ids) (transform-primitive/cast (ptr TransformState) state) (transform-primitive/fnptr-of sequence-element-")
+  (number! (mut b) p)
+  (push-str! (mut b)
+             ") (transform-primitive/fnptr-of transform-sequence-error)) (Err [e] (Err e)) (Ok [index] (Ok (N")
+  (number! (mut b) target)
+  (push-str! (mut b) "Seq :index index)))))))\n"))
+
 (defn term! [(b (mut StrBuf))
              (s (ptr Schema))
              (passes (ptr (ArrayList Pass)))
@@ -36,6 +82,31 @@
   (-> (Result i64 Diag))
   (block :done
     (when many?
+      (when (sexp-sym? term)
+        (for [f 0 (len (.fields v))]
+          (let [field (elem (field v fields) f)]
+            (when (and (.many? field) (sexp-sym-is term (.name field)))
+              (for [p 0 (len (load passes))]
+                (let [pass (elem passes p)]
+                  (when (and (not (.many? pass))
+                             (= (.type-name field)
+                                (.name (elem (field s nodes) (.source pass))))
+                             (= expected
+                                (.name (elem (field s nodes) (.target pass)))))
+                    (push-str! (mut b) "(match (")
+                    (sequence-function-name! (mut b)
+                                             (.source pass)
+                                             (.target pass)
+                                             false)
+                    (push-str! (mut b) " (mut state) f")
+                    (number! (mut b) f)
+                    (push-str! (mut b)
+                               ") (Ok [ids] ids) (Err [error] (break :done (Err error))))")
+                    (break :done (Ok 0))))))))
+        (break
+          :done
+            (Err (problem term
+                          "sequence field needs a matching single-result element map"))))
       (unless (and (sexp-list? term)
                    (> (sexp-count term) 0)
                    (sexp-sym-is (sexp-nth term 0) "items"))
@@ -73,10 +144,15 @@
                                                          (.target pass)))))
                                 (set! matched true)
                                 (push-str! (mut b) "(let [part (match (")
-                                (function-name! (mut b)
-                                                (.source pass)
-                                                (.target pass)
-                                                true)
+                                (if (.many? field)
+                                    (sequence-function-name! (mut b)
+                                                             (.source pass)
+                                                             (.target pass)
+                                                             true)
+                                    (function-name! (mut b)
+                                                    (.source pass)
+                                                    (.target pass)
+                                                    true))
                                 (push-str! (mut b) " (mut state) f")
                                 (number! (mut b) f)
                                 (push-str! (mut b)
@@ -114,7 +190,9 @@
       (for [i 0 (len (.fields v))]
         (let [field (elem (field v fields) i)]
           (when (sexp-sym-is term (.name field))
-            (if (and (scalar? expected) (= (.type-name field) expected))
+            (if (and (not (.many? field))
+                     (scalar? expected)
+                     (= (.type-name field) expected))
                 (do
                   (when (= expected "Text")
                     (push-str! (mut b) "(store-text! (mut store) "))
@@ -124,7 +202,8 @@
                   (break :done (Ok 0)))
                 (for [p 0 (len (load passes))]
                   (let [pass (elem passes p)]
-                    (when (and (not (.many? pass))
+                    (when (and (not (.many? field))
+                               (not (.many? pass))
                                (= (.type-name field)
                                   (.name (elem (field s nodes) (.source pass))))
                                (= expected
@@ -188,7 +267,7 @@
                         v
                         (sexp-nth term (+ i 1))
                         (.type-name (elem (field variant fields) i))
-                        false
+                        (.many? (elem (field variant fields) i))
                         rule)
             (Err [d] (break :done (Err d)))
             (Ok [_]))
@@ -274,11 +353,15 @@
         (for [p 0 (len passes)]
           (push-str! (mut b) "(memo")
           (number! (mut b) p)
+          (push-str! (mut b) " (ArrayList i64)) (seqmemo")
+          (number! (mut b) p)
           (push-str! (mut b) " (ArrayList i64)) "))
         (push-str! (mut b)
                    "])\n(defn transform-state-new [(a (dyn Allocator)) (input (ptr Store)) (target (ptr Store))] (-> TransformState) (let [")
         (for [p 0 (len passes)]
           (push-str! (mut b) "(mut memo")
+          (number! (mut b) p)
+          (push-str! (mut b) ") (ArrayList::new [i64] a) (mut seqmemo")
           (number! (mut b) p)
           (push-str! (mut b) ") (ArrayList::new [i64] a) "))
         (push-str! (mut b) "] ")
@@ -286,6 +369,11 @@
           (push-str! (mut b) "(for [i 0 (len (.rows")
           (number! (mut b) (.source (elem (mut passes) p)))
           (push-str! (mut b) " input))] (push! (mut memo")
+          (number! (mut b) p)
+          (push-str! (mut b)
+                     ") (- 0 1))) (for [i 0 (len (.segments (.sequences")
+          (number! (mut b) (.source (elem (mut passes) p)))
+          (push-str! (mut b) " input)))] (push! (mut seqmemo")
           (number! (mut b) p)
           (push-str! (mut b) ") (- 0 1))) "))
         (push-str! (mut b)
@@ -295,14 +383,21 @@
           (number! (mut b) p)
           (push-str! (mut b) " memo")
           (number! (mut b) p)
+          (push-str! (mut b) " :seqmemo")
+          (number! (mut b) p)
+          (push-str! (mut b) " seqmemo")
+          (number! (mut b) p)
           (push-str! (mut b) " "))
         (push-str! (mut b)
                    ")))\n(defn transform-state-free! [(state (mut TransformState))] (-> void) (free! (mut (.copied state))) ")
         (for [p 0 (len passes)]
           (push-str! (mut b) "(free! (mut (.memo")
           (number! (mut b) p)
+          (push-str! (mut b) " state))) (free! (mut (.seqmemo")
+          (number! (mut b) p)
           (push-str! (mut b) " state))) "))
-        (push-str! (mut b) ")\n")
+        (push-str! (mut b)
+                   ")\n(defn transform-sequence-error [(error sequence/SequenceError)] (-> TransformError) (TransformSequence error))\n")
         (for [p 0 (len passes)]
           (let [pass (elem (mut passes) p)
                 source (.source pass)
@@ -311,6 +406,7 @@
                 form (field pass form)
                 node (elem (field s nodes) source)
                 (mut seen) (ArrayList::new [i64] a)]
+            (sequence-wrapper! (mut b) source target many? p)
             (for [i 0 (len (.variants node))] (push! (mut seen) 0))
             (push-str! (mut b) "(defn ")
             (function-name! (mut b) source target many?)

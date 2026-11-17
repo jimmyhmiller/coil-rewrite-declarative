@@ -187,7 +187,9 @@
   (block :found
     (for [i 0 (len (.fields v))]
       (let [f (elem (field v fields) i)]
-        (when (and (sexp-sym-is name (.name f)) (= (.type-name f) "Text"))
+        (when (and (not (.many? f))
+                   (sexp-sym-is name (.name f))
+                   (= (.type-name f) "Text"))
           (break :found i))))
     (- 0 1)))
 
@@ -308,7 +310,8 @@
               (let [field (elem (field v fields) f)]
                 (when (= (.name field) (sexp-sym field-name))
                   (set! found true)
-                  (unless (= (.type-name field) (.name n))
+                  (unless (and (not (.many? field))
+                               (= (.type-name field) (.name n)))
                     (break
                       :done
                         (Err (problem field-name

@@ -26,7 +26,13 @@
       (push-str! (mut b) "(f")
       (number! (mut b) j)
       (push-str! (mut b) " ")
-      (type! (mut b) s (.type-name f))
+      (if (.many? f)
+          (for [i 0 (len (.nodes s))]
+            (when (= (.name (elem (field s nodes) i)) (.type-name f))
+              (push-str! (mut b) "N")
+              (number! (mut b) i)
+              (push-str! (mut b) "Seq")))
+          (type! (mut b) s (.type-name f)))
       (push-str! (mut b) ")")))
   (push-str! (mut b) "]"))
 

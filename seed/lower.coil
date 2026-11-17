@@ -13,7 +13,9 @@
   (block :found
     (for [i 0 (len (.fields v))]
       (let [f (elem (field v fields) i)]
-        (when (and (sexp-sym-is name (.name f)) (= (.type-name f) ty))
+        (when (and (not (.many? f))
+                   (sexp-sym-is name (.name f))
+                   (= (.type-name f) ty))
           (break :found i))))
     (- 0 1)))
 

@@ -6,7 +6,11 @@
 (import "coil.result" :use *)
 
 (defstruct Field
-  [(name (slice u8)) (type-name (slice u8)) (key? bool) (origin Sexp)])
+  [(name (slice u8))
+   (type-name (slice u8))
+   (many? bool)
+   (key? bool)
+   (origin Sexp)])
 
 (defstruct Variant [(name (slice u8)) (fields (ArrayList Field)) (origin Sexp)])
 
@@ -33,22 +37,36 @@
     false))
 
 (defn parse-field [(form (ptr Sexp))] (-> (Result Field Diag))
-  (if (not (and (sexp-list? form)
-                (or (= (sexp-count form) 2) (= (sexp-count form) 3))))
-      (Err (problem form "expected (field-name Type [:key])"))
-      (let [name (sexp-nth form 0)
-            ty (sexp-nth form 1)]
-        (if (not (and (sexp-sym? name)
-                      (sexp-sym? ty)
-                      (or (= (sexp-count form) 2)
-                          (and (sexp-kw? (sexp-nth form 2))
-                               (= (sexp-kw (sexp-nth form 2)) "key")))))
-            (Err (problem form "field needs symbol name/type and optional :key"))
-            (Ok (Field
-                  :name (sexp-sym name)
-                  :type-name (sexp-sym ty)
-                  :key? (= (sexp-count form) 3)
-                  :origin (load form)))))))
+  (block :done
+    (unless (and (sexp-list? form)
+                 (or (= (sexp-count form) 2) (= (sexp-count form) 3)))
+      (break :done (Err (problem form "expected (field-name Type [:key])"))))
+    (let [name (sexp-nth form 0)
+          ty (sexp-nth form 1)
+          many? (sexp-list? ty)]
+      (unless (and (sexp-sym? name)
+                   (or (sexp-sym? ty)
+                       (and many?
+                            (= (sexp-count ty) 2)
+                            (sexp-sym-is (sexp-nth ty 0) "many")
+                            (sexp-sym? (sexp-nth ty 1))))
+                   (or (= (sexp-count form) 2)
+                       (and (sexp-kw? (sexp-nth form 2))
+                            (= (sexp-kw (sexp-nth form 2)) "key"))))
+        (break
+          :done
+            (Err (problem form
+                          "field needs symbol name/type or (many Node), and optional :key"))))
+      (let [element (if many? (sexp-sym (sexp-nth ty 1)) (sexp-sym ty))]
+        (when (and many? (scalar? element))
+          (break
+            :done (Err (problem ty "sequence fields require node elements"))))
+        (Ok (Field
+              :name (sexp-sym name)
+              :type-name element
+              :many? many?
+              :key? (= (sexp-count form) 3)
+              :origin (load form)))))))
 
 (defn parse-variant [(a (dyn Allocator)) (form (ptr Sexp)) (offset i64)]
   (-> (Result Variant Diag))
@@ -147,7 +165,9 @@
                 (for [j 0 (len (.fields variant))]
                   (let [f (elem (field variant fields) j)]
                     (when (and (.key? f)
-                               (or (.sum? n) (not (scalar? (.type-name f)))))
+                               (or (.sum? n)
+                                   (.many? f)
+                                   (not (scalar? (.type-name f)))))
                       (break
                         :result
                           (Err (problem (field f origin)

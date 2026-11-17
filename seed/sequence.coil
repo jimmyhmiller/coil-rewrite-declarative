@@ -3,6 +3,7 @@
 (import "coil.alloc" :use [Allocator])
 (import "coil.arraylist" :use *)
 (import "coil.result" :use *)
+(import "coil.cc" :as cc)
 
 (defstruct Segment [(join? bool) (start i64) (count i64) (length i64)])
 
@@ -11,7 +12,12 @@
    (edges (ArrayList i64))
    (segments (ArrayList Segment))])
 
-(defsum SequenceError (InvalidSequence [(index i64)]) (SequenceCapacity))
+(defsum SequenceError
+  (InvalidSequence [(index i64)])
+  (SequenceCapacity)
+  (SequenceSourceChanged)
+  (SequenceCycle [(index i64)])
+  (InvalidSequenceRange [(start i64)]))
 
 (defn create [T] [(a (dyn Allocator))] (-> (Table T))
   (Table
@@ -55,35 +61,42 @@
 
 ;;; Edges only point to existing segments, so construction cannot introduce cycles.
 ;;; Validate every handle and total length before publishing any part of a join.
+(defn join-range! [T] [(table (mut (Table T)))
+                       (parts (ptr (ArrayList i64)))
+                       (from i64)]
+  (-> (Result i64 SequenceError))
+  (block :done
+    (unless (and (>= from 0) (<= from (len (load parts))))
+      (break :done (Err (InvalidSequenceRange from))))
+    (let [(mut length) 0
+          (mut count) 0
+          (mut only) 0]
+      (for [i from (len (load parts))]
+        (let [id (get (load parts) i)]
+          (unless (valid? table id) (break :done (Err (InvalidSequence id))))
+          (let [n (.length (get (.segments table) id))]
+            (when (> n (- 9223372036854775807 length))
+              (break :done (Err (SequenceCapacity))))
+            (set! length (+ length n))
+            (when (> n 0) (set! count (+ count 1)) (set! only id)))))
+      (when (= count 1) (break :done (Ok only)))
+      (let [index (len (.segments table))
+            start (len (.edges table))]
+        (for [i from (len (load parts))]
+          (let [id (get (load parts) i)]
+            (when (> (.length (get (.segments table) id)) 0)
+              (push! (mut (.edges table)) id))))
+        (push! (mut (.segments table))
+               (Segment
+                 :join? true
+                 :start start
+                 :count count
+                 :length length))
+        (Ok index)))))
+
 (defn join! [T] [(table (mut (Table T))) (parts (ptr (ArrayList i64)))]
   (-> (Result i64 SequenceError))
-  (block
-    :done
-      (let [(mut length) 0
-            (mut count) 0
-            (mut only) 0]
-        (for [i 0 (len (load parts))]
-          (let [id (get (load parts) i)]
-            (unless (valid? table id) (break :done (Err (InvalidSequence id))))
-            (let [n (.length (get (.segments table) id))]
-              (when (> n (- 9223372036854775807 length))
-                (break :done (Err (SequenceCapacity))))
-              (set! length (+ length n))
-              (when (> n 0) (set! count (+ count 1)) (set! only id)))))
-        (when (= count 1) (break :done (Ok only)))
-        (let [index (len (.segments table))
-              start (len (.edges table))]
-          (for [i 0 (len (load parts))]
-            (let [id (get (load parts) i)]
-              (when (> (.length (get (.segments table) id)) 0)
-                (push! (mut (.edges table)) id))))
-          (push! (mut (.segments table))
-                 (Segment
-                   :join? true
-                   :start start
-                   :count count
-                   :length length))
-          (Ok index)))))
+  (join-range! (mut table) parts 0))
 
 (defn size [T] [(table (ptr (Table T))) (index i64)] (-> (Option i64))
   (if (valid? table index)
@@ -141,3 +154,87 @@
                 (push! (mut output)
                        (get (.values table) (+ (.start segment) i)))))))
       (Ok (.length (get (.segments table) index))))))
+
+(defstruct MapFrame [(index i64) (position i64) (start i64)])
+
+;;; Map each shared segment once, preserving compact joins and avoiding host-stack depth.
+;;; The caller owns a memo initialized to -1 for every immutable input segment.
+(defn map! [S T C E] [(a (dyn Allocator))
+                      (input (ptr (Table S)))
+                      (target (mut (Table T)))
+                      (memo (mut (ArrayList i64)))
+                      (index i64)
+                      (context (ptr C))
+                      (element (fnptr (cc/C) [(ptr C) S] (Result i64 E)))
+                      (failure (fnptr (cc/C) [SequenceError] E))]
+  (-> (Result i64 E))
+  (block :done
+    (unless (= (len (load memo)) (len (.segments input)))
+      (break :done (Err (failure (SequenceSourceChanged)))))
+    (unless (valid? input index)
+      (break :done (Err (failure (InvalidSequence index)))))
+    (let [cached (get (load memo) index)]
+      (when (>= cached 0) (break :done (Ok cached)))
+      (when (= cached (- 0 2))
+        (break :done (Err (failure (SequenceCycle index))))))
+    (let [(mut frames) (ArrayList::new [MapFrame] a)
+          (mut parts) (ArrayList::new [i64] a)]
+      (defer (do
+               (for frame frames
+                 (when (= (get (load memo) (.index frame)) (- 0 2))
+                   (set! (mut memo) (.index frame) (- 0 1))))
+               (free! (mut frames))
+               (free! (mut parts))))
+      (set! (mut memo) index (- 0 2))
+      (push! (mut frames)
+             (MapFrame
+               :index index
+               :position 0
+               :start 0))
+      (while (> (len frames) 0)
+        (let [top (- (len frames) 1)
+              frame (get frames top)
+              segment (get (.segments input) (.index frame))]
+          (if (= (.position frame) (.count segment))
+              (let [out
+                      (match (join-range! (mut target)
+                                          (mut parts)
+                                          (.start frame))
+                        (Ok [out] out)
+                        (Err [e] (break :done (Err (failure e)))))]
+                (while (> (len parts) (.start frame)) (pop! (mut parts)))
+                (set! (mut memo) (.index frame) out)
+                (pop! (mut frames))
+                (when (= (len frames) 0) (break :done (Ok out)))
+                (push! (mut parts) out))
+              (do
+                (set! (mut frames)
+                      top
+                      (MapFrame
+                        :index (.index frame)
+                        :position (+ (.position frame) 1)
+                        :start (.start frame)))
+                (if (.join? segment)
+                    (let [child
+                            (get (.edges input)
+                                 (+ (.start segment) (.position frame)))]
+                      (unless (valid? input child)
+                        (break :done (Err (failure (InvalidSequence child)))))
+                      (let [cached (get (load memo) child)]
+                        (when (= cached (- 0 2))
+                          (break :done (Err (failure (SequenceCycle child)))))
+                        (if (>= cached 0)
+                            (push! (mut parts) cached)
+                            (do
+                              (set! (mut memo) child (- 0 2))
+                              (push! (mut frames)
+                                     (MapFrame
+                                       :index child
+                                       :position 0
+                                       :start (len parts)))))))
+                    (match (element context
+                                    (get (.values input)
+                                         (+ (.start segment) (.position frame))))
+                      (Err [e] (break :done (Err e)))
+                      (Ok [id] (push! (mut parts) id))))))))
+      (panic "sequence map finished without a result"))))
