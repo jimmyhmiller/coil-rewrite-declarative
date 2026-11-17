@@ -82,3 +82,13 @@ with tempfile.TemporaryDirectory(prefix='rewrite-judgment-') as directory:
         result = subprocess.run([str(ROOT / 'build/schema-seed')], input=invalid, capture_output=True)
         assert result.returncode != 0 and not result.stdout and diagnostic in result.stderr, result
 print('Generated judgments: valid/invalid typing, malformed rules, bounds and cycles passed')
+
+with tempfile.TemporaryDirectory(prefix='rewrite-reader-') as directory:
+    work = Path(directory)
+    (work / 'Coil.toml').write_text('[package]\nname = "fixture"\nentry = "main.coil"\nsource-roots = ["."]\n')
+    (work / 'generated.coil').write_bytes(subprocess.check_output(
+        [str(ROOT / 'build/schema-seed')], input=(ROOT / 'tests/schemas/typing.schema').read_bytes()))
+    (work / 'main.coil').write_text((ROOT / 'tests/reader.coil.in').read_text())
+    for flags in [[], ['--debug-checks'], ['--release']]:
+        subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)
+print('Schema-derived source readers and typing pipeline passed')

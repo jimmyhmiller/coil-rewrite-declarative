@@ -1,6 +1,7 @@
 (module rewrite.main)
 (import "rewrite.schema" :as schema)
 (import "rewrite.emit" :as emit)
+(import "rewrite.readers" :as readers)
 (import "rewrite.judgment" :as judgment)
 (import "coil.reader" :use *)
 (import "coil.arraylist" :use *)
@@ -25,6 +26,7 @@
             (let [sp (box! a schema/Schema s)
                   (mut output) (StrBuf::new a)]
               (push-str! (mut output) (emit/emit a sp))
+              (push-str! (mut output) (readers/emit a sp))
               (for [i 0 (len (load forms))]
                 (let [form (elem forms i)]
                   (when (judgment? form)

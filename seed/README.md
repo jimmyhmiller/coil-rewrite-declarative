@@ -67,3 +67,13 @@ Lexical contexts are expressed through lookup and premise-local extension:
 `lookup` requires a Text field and returns the nearest binding's type, or `UnboundName` with the expression ID and name. `bind` also requires a Text field. Its type must be a scalar or a variable bound by an earlier premise; it cannot depend on the premise whose context it extends. Each extension exists only for that recursive premise. The implementation uses immutable linked stack frames, so returning from a child restores the parent's context without mutation or cleanup bookkeeping. The empty root context is a sentinel and is never followed to its null parent.
 
 This lets the rules specify non-recursive let scope: value in the outer context, body in the extended context. Tests check unresolved names, shadowing, outer-name use in an initializer, and sibling isolation. Binding Text is borrowed from the expression table; the table and its strings must outlive a judgment call. General namespace resolution, mutually recursive bindings, function types and environment-dependent caching remain unimplemented.
+
+Schemas also derive constructor readers and a multi-table `Store`. `parse-N(store, form)` reads a `coil.reader/Sexp` into the corresponding node table. For example:
+
+```
+(Let "x" (Integer 42) (Add (Variable "x") (Integer 1)))
+```
+
+The schema controls constructor names, arity, scalar validation and recursive dispatch, including references between different node types. The reader emits children before parents and returns a nominal ID. `store-new` initializes the tables, `store-free!` releases them. A parallel origins table keeps the original Sexp for every row created by the reader, preserving source identity and spans for later diagnostics. These are borrowed syntax values: retain their source/reader arena for the store lifetime. Manually appending directly to row tables bypasses origin tracking and must not be mixed with reader-owned store construction.
+
+On a failed parse, previously appended child rows remain in the store; discard that store/arena if transactional behavior is required. No partially constructed parent is published. The generated reader currently recognizes explicit constructor syntax, not Coil surface syntax. Tests run source through the generated reader and judgment checker, exercising lets, shadowing, invalid names, branch disagreement, malformed fields/arity and unknown constructors in debug, debug-checks and release. The standalone reader and generated table machinery are still bootstrap dependencies to count.
