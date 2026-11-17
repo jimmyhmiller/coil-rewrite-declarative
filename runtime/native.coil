@@ -1,0 +1,38 @@
+;;; Scalar CIR/image boundary. The caller owns the allocator and image lifetime.
+(module rewrite.native)
+(import "coil.alloc" :use [Allocator])
+(import "coil.arraylist" :use [ArrayList])
+(import "native.cir" :as cir)
+(import "declarative.rt.image" :as image)
+(import "declarative.rt.jit" :as jit)
+(import "declarative.target" :as target)
+
+(target/machine-pick (import "declarative.a64-direct.unit" :as dst)
+                     (import "declarative.x64-direct.unit" :as dst))
+
+(target/machine-pick (import "declarative.a64-direct.plans" :as plans)
+                     (import "declarative.x64-direct.plans" :as plans))
+
+(target/machine-pick (import "declarative.a64.target" :as isa)
+                     (import "declarative.x64.target" :as isa))
+
+(defn emit! [(a (dyn Allocator))
+             (im (mut image/Image))
+             (f (ptr cir/Func))
+             (symbol i64)] (-> void)
+  (let [(mut state) (dst/create a)]
+    (set! (.f state) f)
+    (dst/begin! (mut state))
+    (plans/quick (mut state))
+    (image/add-function! (mut im)
+                         symbol
+                         (.code state)
+                         (.reloc-at state)
+                         (.reloc-symbol state)
+                         (.reloc-op state)
+                         isa/ALIGN)))
+
+(defn load-image [(a (dyn Allocator)) (im image/Image)] (-> jit/Loaded)
+  (let [(mut outside) (ArrayList::new [u64] a)]
+    (for [i 0 (len (.names im))] (push! (mut outside) 0))
+    (jit/load-image im outside (fnptr-of isa/patch))))

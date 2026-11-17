@@ -41,12 +41,13 @@
             constant? (sexp-sym-is op "const")
             boolean? (sexp-sym-is op "bool")
             add? (sexp-sym-is op "add")
+            call? (sexp-sym-is op "call")
             branch? (sexp-sym-is op "if")
             lookup? (sexp-sym-is op "name")
             bind? (sexp-sym-is op "let")
             arity
               (cond (or (or constant? boolean?) lookup?) 1
-                    add? 2
+                    (or add? call?) 2
                     (or branch? bind?) 3
                     :else 0)
             (mut fields) (ArrayList::new [i64] (malloc-allocator))]
@@ -106,6 +107,14 @@
                   (push-str! (mut b) " rows f")
                   (number! (mut b) (get fields 2))
                   (push-str! (mut b) " function (mut scope)))"))
+              call?
+                (do
+                  (push-str! (mut b) "(let [callee ")
+                  (child! (mut b) ni (get fields 0))
+                  (push-str! (mut b) " argument ")
+                  (child! (mut b) ni (get fields 1))
+                  (push-str! (mut b)
+                             " (mut args) (ArrayList::new [u32] (malloc-allocator)) (mut flags) (ArrayList::new [u32] (malloc-allocator)) (mut results) (ArrayList::new [u8] (malloc-allocator))] (defer (free! (mut args))) (defer (free! (mut flags))) (defer (free! (mut results))) (push! (mut args) argument) (push! (mut flags) 0) (push! (mut results) (cast u8 cop/T-I64)) (let [value (cir/val function callee) direct (and (= (cast i64 (.op value)) cop/OP-SYM) (= (.imm2 value) 0))] (cir/call! function (if direct (cast u32 (.imm value)) (cir/none)) (if direct (cir/none) callee) (mut args) (mut flags) (mut results) false)))"))
               add?
                 (do
                   (push-str! (mut b) "(let [left ")

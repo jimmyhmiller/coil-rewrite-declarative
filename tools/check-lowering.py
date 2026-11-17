@@ -14,6 +14,7 @@ with tempfile.TemporaryDirectory(prefix='rewrite-lowering-') as directory:
     roots = ['.', *[str(ROOT / 'vendor/coil' / p) for p in ['src/compiler/declarative', 'src/compiler/native', 'src/declarative/tests']]]
     (work/'Coil.toml').write_text('[package]\nname = "fixture"\nentry = "main.coil"\nsource-roots = '+json.dumps(roots)+'\n')
     shutil.copyfile(ROOT/'seed/types.coil', work/'types.coil')
+    shutil.copyfile(ROOT/'runtime/native.coil', work/'native.coil')
     (work/'generated.coil').write_bytes(subprocess.check_output([str(ROOT/'build/schema-seed')], input=(ROOT/'tests/schemas/lowering.schema').read_bytes()))
     rng = random.Random(90210)
     def expression(depth, env):
@@ -44,6 +45,9 @@ with tempfile.TemporaryDirectory(prefix='rewrite-lowering-') as directory:
         client += f'(unless (check {json.dumps(source)} {expected}) (println "generated case {index} failed") (set! failures (+ failures 1)))\n'
     client += 'failures))\n'
     (work/'main.coil').write_text(client)
+    for flags in [[], ['--debug-checks'], ['--release']]:
+        subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)
+    (work/'main.coil').write_text((ROOT/'tests/calls.coil.in').read_text())
     for flags in [[], ['--debug-checks'], ['--release']]:
         subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)
 print('Source -> generated checking/lowering -> CIR -> native execution passed')

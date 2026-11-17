@@ -13,3 +13,5 @@ The new lowering should construct `native.cir/Func` and invoke the retained dire
 Include retained authored DSLs, language machinery and runtime in the 45,000-line accounting. Generated output and backend tests are separately reported; being vendored does not exempt authored production code from the budget.
 
 The scalar source slice is connected as of the lowering-language milestone. Run `python3 tools/check-lowering.py`: generated constructor reader -> generated judgment -> generated CIR lowering -> retained direct backend -> native execution. The earlier unconnected statement describes the initial snapshot baseline. Full frontend/backend integration, including direct calls and production object emission, is still incomplete.
+
+The execution suite now uses `runtime/native.coil`, a caller-allocated direct compilation/image adapter. It no longer imports the backend test loader. A two-function fixture verifies direct and indirect calls, relocations and unary i64 calling convention; function signature/symbol registration is still explicit test scaffolding. The adapter does not yet provide external runtime helpers, object files or general ABI support.
