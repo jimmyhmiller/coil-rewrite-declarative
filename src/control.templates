@@ -6,3 +6,5 @@
 ("return-from" 2 exact (break (arg 1) (arg 2)))
 ("defer" 0 rest (defer* (tail 1)))
 ("cond" 0 pairs-right (if-keyword "else" (value) (if (item) (value) (rest))) 0)
+("|>" 1 fold-left ((stage-head "expected a function at the start of the threading stage") (accumulator) (splice-stage 1)))
+("|>>" 1 fold-left ((splice-stage 0) (accumulator)))

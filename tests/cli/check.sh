@@ -546,3 +546,13 @@ TOML
         [ ! -e rejected ]
     done
 )
+
+run_both 17 '(defn main [] (-> i64) (|> (|>> 17)))'
+run_both 12 '(defn double [(x i64)] (-> i64) (+ x x)) (defn main [] (-> i64) (|> 9 (- 3) double))'
+run_both 14 '(defn double [(x i64)] (-> i64) (+ x x)) (defn main [] (-> i64) (|>> 3 (- 10) double))'
+run_both 42 '(defn main [] (-> i64) (|> true (if 42 9)))'
+run_both 11 '(defn answer [] (-> i64) 11) (defn main [] (-> i64) (|>> answer ()))'
+run_both 21 '(defn main [] (-> i64) (let [(mut x) 0] (|>> (do (set! x (+ (* x 10) 1)) x) (+ (do (set! x (+ (* x 10) 2)) x))) x))'
+compare 1 '(defn main [] (-> i64) (|> 1 ()))'
+compare 1 '(defn main [] (-> i64) (|> 2 undefined-stage))'
+compare 1 '(defn main [] (-> i64) (let [(mut n) 0] (& false (do (set! n 1) true)) n))'

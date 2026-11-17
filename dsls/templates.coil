@@ -7,7 +7,25 @@
 ;; Compile syntax constructors once. Captured subtrees retain their original
 ;; identity and spans. Introduced syntax takes the invocation's span.
 (defn template [(form Code) (arity i64) (mode Code)] (-> Code)
-  (cond (and (or (p/code-eq mode `pairs-right) (p/code-eq mode `fold-right))
+  (cond (and (p/code-eq mode `fold-left) (p/code-eq form `(accumulator)))
+          `(load folded)
+        (and (p/code-eq mode `fold-left)
+             (p/code-list? form)
+             (= (p/code-count form) 2)
+             (p/code-eq (get form 0) `stage-head)
+             (p/code-string? (get form 1)))
+          `(if (sexp-list? stage)
+               (do
+                 (when (= (sexp-count stage) 0)
+                   (return-from
+                     :expand
+                       (Err (mk-diag-src (.source stage)
+                                         (.lo stage)
+                                         (.hi stage)
+                                         ~(get form 1)))))
+                 (load (sexp-nth stage 0)))
+               (load stage))
+        (and (or (p/code-eq mode `pairs-right) (p/code-eq mode `fold-right))
              (p/code-eq form `(item)))
           `(load (sexp-nth site position))
         (and (or (p/code-eq mode `pairs-right) (p/code-eq mode `fold-right))
@@ -34,19 +52,41 @@
                 (for [i 0 (p/code-count form)]
                   (let [item (get form i)]
                     (p/code-list-push! actions
-                                       (if (and (p/code-list? item)
-                                                (and (= (p/code-count item) 2)
-                                                     (p/code-eq (get item 0)
-                                                                `tail)))
-                                           (let [start (p/code-int (get item 1))]
-                                             (when (or (< start 1)
-                                                       (> start (+ arity 1)))
-                                               (p/error "tail index is out of bounds"))
-                                             `(for [k ~start (sexp-count site)]
-                                                (push! (mut children)
-                                                       (load (sexp-nth site k)))))
-                                           `(push! (mut children)
-                                                   ~(template item arity mode))))))
+                                       (cond (and (p/code-eq mode `fold-left)
+                                                  (or (p/code-eq item
+                                                                 `(splice-stage 0))
+                                                      (p/code-eq item
+                                                                 `(splice-stage 1))))
+                                               (let [start (get item 1)]
+                                                 `(if (sexp-list? stage)
+                                                      (for [k
+                                                            ~start
+                                                            (sexp-count stage)]
+                                                        (push! (mut children)
+                                                               (load (sexp-nth stage
+                                                                               k))))
+                                                      (when (= ~start 0)
+                                                        (push! (mut children)
+                                                               (load stage)))))
+                                             (and (p/code-list? item)
+                                                  (= (p/code-count item) 2)
+                                                  (p/code-eq (get item 0) `tail))
+                                               (let [start
+                                                       (p/code-int (get item 1))]
+                                                 (when (or (< start 1)
+                                                           (> start (+ arity 1)))
+                                                   (p/error "tail index is out of bounds"))
+                                                 `(for [k
+                                                        ~start
+                                                        (sexp-count site)]
+                                                    (push! (mut children)
+                                                           (load (sexp-nth site
+                                                                           k)))))
+                                             :else
+                                               `(push! (mut children)
+                                                       ~(template item
+                                                                  arity
+                                                                  mode))))))
                 `(let [(mut children) (ArrayList::new [Sexp] a)]
                    ~@(p/code-list-done actions)
                    (mk-sexp-src (KList (box-items a children)) site))))
@@ -62,26 +102,38 @@
         (let [n (get rule 1)
               mode (get rule 2)
               fold (p/code-eq mode `fold-right)
+              left (p/code-eq mode `fold-left)
               pairs (p/code-eq mode `pairs-right)
               body (template (get rule 3) (p/code-int n) mode)]
           (when (!= (p/code-count rule) (if pairs 5 4))
             (p/error "incorrect number of template fields"))
           (when (< (p/code-int n) 0)
             (p/error "template arity must be nonnegative"))
+          (when (and left (!= (p/code-int n) 1))
+            (p/error "fold-left requires one seed operand"))
           (when (and fold (< (p/code-int n) 1))
             (p/error "fold-right requires an initial operand"))
           (p/code-list-push! arms
                              `(and (= name ~(get rule 0))
                                    ~(cond (p/code-eq mode `exact) `(= argc ~n)
-                                          (or pairs
-                                              (or fold (p/code-eq mode `rest)))
+                                          (or left
+                                              pairs
+                                              fold
+                                              (p/code-eq mode `rest))
                                             `(>= argc ~n)
                                           :else
                                             (do
                                               (p/error "unknown template arity")
                                               `false))))
           (p/code-list-push! arms
-                             (cond fold
+                             (cond left
+                                     `(let [(mut folded)
+                                              (load (sexp-nth site 1))]
+                                        (for [position 2 (+ argc 1)]
+                                          (let [stage (sexp-nth site position)]
+                                            (set! folded ~body)))
+                                        (Some (box-sexp a (load folded))))
+                                   fold
                                      `(let [(mut folded)
                                               (load (sexp-nth site argc))]
                                         (for [offset 1 (+ (- argc ~n) 1)]
@@ -113,8 +165,11 @@
                                  (defn expand-call [(a (dyn Allocator))
                                                     (site (ptr Sexp))
                                                     (name (slice u8))]
-                                   (-> (Option (ptr Sexp)))
-                                   (let [argc (- (sexp-count site) 1)]
-                                     (cond ~@(p/code-list-done arms) :else
-                                           (None [(ptr Sexp)]))))))
+                                   (-> (Result (Option (ptr Sexp)) Diag))
+                                   (block
+                                     :expand
+                                       (let [argc (- (sexp-count site) 1)]
+                                         (Ok (cond ~@(p/code-list-done arms)
+                                                     :else
+                                                   (None [(ptr Sexp)]))))))))
                  `(reader-config))))
