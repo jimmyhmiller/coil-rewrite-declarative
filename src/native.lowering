@@ -8,13 +8,14 @@
 (use "declarative.rt.graph" graph)
 (use "declarative.backend.nodes" ir)
 (use "rewrite.nodes" nodes)
+(use "rewrite.check" checker)
 (use "rewrite.declarations" syntax)
 (use "rewrite.host" host)
 
 (context Frame
   [(a (dyn Allocator)) (g graph/Graph) (control i32)
-   (types (hm/HashMap i64 (slice u8)))
-   (locals (hm/HashMap (slice u8) i32))])
+   (checked checker/Checked)
+   (locals (hm/HashMap i64 i32))])
 
 (translate machine-type [(type (slice u8)) (at (ptr Sexp))] (Result i32 Diag)
   (where (= type "i64") (yield (Ok ir/T-I64)))
@@ -34,14 +35,14 @@
   (on (typed-parameter param) (Parameter [name type])
     (need rep (machine-type (sexp-sym type) type))
     (bind value (nodes/parameter (mut (.g f)) rep (cast u64 position)))
-    (perform (set! (mut (.locals f)) (sexp-sym name) value))
+    (perform (set! (mut (.locals f)) (.node-id name) value))
     (yield (Ok rep)))
   (otherwise (yield (Err (mk-diag (.lo param) (.hi param) "invalid native parameter")))))
 
 (translate lower-expression
   [(f (mut Frame)) (im (mut image/Image))
    (signatures (hm/HashMap (slice u8) (ptr Sexp))) (expr (ptr Sexp))] (Result i32 Diag)
-  (on (get (.types f) (.node-id expr)) (Some [type])
+  (on (get (.types (.checked f)) (.node-id expr)) (Some [type])
     (need rep (machine-type type expr))
     (yield (lower-value (mut f) (mut im) signatures expr rep)))
   (otherwise (yield (Err (mk-diag (.lo expr) (.hi expr) "missing checked expression type")))))
@@ -55,16 +56,29 @@
   (where (true-literal? expr) (yield (Ok (nodes/literal (mut (.g f)) ir/T-BOOL 1))))
   (where (false-literal? expr) (yield (Ok (nodes/literal (mut (.g f)) ir/T-BOOL 0))))
   (where (identifier? expr)
-    (choose
-      (on (get (.locals f) (sexp-sym expr)) (Some [value]) (yield (Ok value)))
-      (otherwise (yield (Err (mk-diag (.lo expr) (.hi expr) "unknown native local"))))))
+    (yield (read-binding (mut f) expr expected)))
+  (on (explicit-load expr) (LoadLocal [name])
+    (yield (read-binding (mut f) name expected)))
+  (on (local-store expr) (WriteLocal [name value])
+    (yield (write-binding (mut f) (mut im) signatures name value)))
+  (on (explicit-store expr) (StoreLocal [name value])
+    (yield (write-binding (mut f) (mut im) signatures name value)))
+  (on (local-bindings expr) (Bindings [pairs])
+    (walk-pairs name init pairs
+      (need value (lower-expression (mut f) (mut im) signatures init))
+      (choose
+        (on (mutable-binding name) (CellBinding [symbol])
+          (bind bits (ir/type-bits (graph/ty (.g f) value)))
+          (bind address (nodes/stack-storage (mut (.g f)) (cast u64 (/ (+ bits 7) 8))))
+          (perform (set! (mut (.locals f)) (.node-id symbol) address))
+          (perform (save-scalar (mut f) address value))
+          (yield 0))
+        (otherwise
+          (perform (set! (mut (.locals f)) (.node-id name) value))
+          (yield 0))))
+    (yield (lower-sequence (mut f) (mut im) signatures expr 2)))
   (on (sequence-expression expr) (Sequence [])
-    (bind (mut last-value) (.control f))
-    (walk position item expr 1
-      (need value (lower-expression (mut f) (mut im) signatures item))
-      (perform (set! last-value value))
-      (yield 0))
-    (yield (Ok (load last-value))))
+    (yield (lower-sequence (mut f) (mut im) signatures expr 1)))
   (on (conditional expr) (Branches [condition then else])
     (need predicate (lower-expression (mut f) (mut im) signatures condition))
     (bind type (graph/ty (.g f) predicate))
@@ -98,13 +112,58 @@
       (otherwise (yield (Err (mk-diag (.lo expr) (.hi expr) "unknown native callee"))))))
   (otherwise (yield (Err (mk-diag (.lo expr) (.hi expr) "unsupported native expression")))))
 
+(translate read-binding [(f (mut Frame)) (expr (ptr Sexp)) (type i32)] (Result i32 Diag)
+  (on (get (.references (.checked f)) (.node-id expr)) (Some [binding])
+    (choose
+      (on (get (.locals f) binding) (Some [value])
+        (choose
+          (where (contains? (.cells (.checked f)) binding)
+            (bind stored-type (if (= type ir/T-BOOL) ir/T-U8 type))
+            (bind loaded (nodes/load-scalar (mut (.g f)) (.control f) value stored-type))
+            (perform (set! (.control f) loaded))
+            (yield (Ok (if (= type ir/T-BOOL) (nodes/nonzero (mut (.g f)) stored-type loaded) loaded))))
+          (otherwise (yield (Ok value)))))
+      (otherwise (yield (Err (mk-diag (.lo expr) (.hi expr) "binding has no native value"))))))
+  (otherwise (yield (Err (mk-diag (.lo expr) (.hi expr) "unresolved native local")))))
+
+(translate save-scalar [(f (mut Frame)) (address i32) (value i32)] i32
+  (otherwise
+    (bind stored (if (= (graph/ty (.g f) value) ir/T-BOOL) (nodes/bool-byte (mut (.g f)) value) value))
+    (bind write (nodes/store-scalar (mut (.g f)) (.control f) address stored))
+    (perform (set! (.control f) write))
+    (yield write)))
+
+(translate write-binding
+  [(f (mut Frame)) (im (mut image/Image)) (signatures (hm/HashMap (slice u8) (ptr Sexp)))
+   (name (ptr Sexp)) (expr (ptr Sexp))] (Result i32 Diag)
+  (on (get (.references (.checked f)) (.node-id name)) (Some [binding])
+    (choose
+      (on (get (.locals f) binding) (Some [address])
+        (need value (lower-expression (mut f) (mut im) signatures expr))
+        (perform (save-scalar (mut f) address value))
+        (yield (Ok (nodes/literal (mut (.g f)) ir/T-I64 0))))
+      (otherwise (yield (Err (mk-diag (.lo name) (.hi name) "missing native cell"))))))
+  (otherwise (yield (Err (mk-diag (.lo name) (.hi name) "unresolved native cell")))))
+
+(translate lower-sequence
+  [(f (mut Frame)) (im (mut image/Image))
+   (signatures (hm/HashMap (slice u8) (ptr Sexp)))
+   (expr (ptr Sexp)) (start i64)] (Result i32 Diag)
+  (otherwise
+    (bind (mut last-value) (.control f))
+    (walk position item expr start
+      (need value (lower-expression (mut f) (mut im) signatures item))
+      (perform (set! last-value value))
+      (yield 0))
+    (yield (Ok (load last-value)))))
+
 (translate lower-function
   [(a (dyn Allocator)) (im (mut image/Image))
-   (signatures (hm/HashMap (slice u8) (ptr Sexp))) (types (hm/HashMap i64 (slice u8))) (form (ptr Sexp))] (Result i64 Diag)
+   (signatures (hm/HashMap (slice u8) (ptr Sexp))) (checked checker/Checked) (form (ptr Sexp))] (Result i64 Diag)
   (on (ordinary-function form) (Function [_ name parameters result])
     (need rep (machine-type (sexp-sym result) result))
-    (bind (mut f) (Frame :a a :types types :g (graph/create a) :control 0
-                         :locals (hm/HashMap::new [(slice u8) i32] a (str/keyops-borrowed))))
+    (bind (mut f) (Frame :a a :checked checked :g (graph/create a) :control 0
+                         :locals (hm/HashMap::new-scalar [i64 i32] a)))
     (perform (set! (.control f) (nodes/start (mut (.g f)))))
     (walk position param parameters 0
       (need _ (lower-parameter (mut f) position param))
@@ -123,11 +182,11 @@
 
 (translate emit-object
   [(a (dyn Allocator)) (signatures (hm/HashMap (slice u8) (ptr Sexp)))
-   (types (hm/HashMap i64 (slice u8))) (forms (ptr (al/ArrayList Sexp))) (output (slice u8))] (Result i64 Diag)
+   (checked checker/Checked) (forms (ptr (al/ArrayList Sexp))) (output (slice u8))] (Result i64 Diag)
   (otherwise
     (bind (mut im) (image/create a))
     (visit form forms
-      (need _ (lower-function a (mut im) signatures types form))
+      (need _ (lower-function a (mut im) signatures checked form))
       (yield 0))
     (bind bytes (host/object-bytes a im))
     (choose

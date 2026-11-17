@@ -57,3 +57,19 @@
 (builder finish-void [(control i32)] i32
   (node ret declarative.backend.nodes.return! control 0)
   (yield ret))
+
+(builder stack-storage [(bytes u64)] i32
+  (node address declarative.backend.nodes.slot! bytes)
+  (yield address))
+
+(builder store-scalar [(control i32) (address i32) (value i32)] i32
+  (node write declarative.backend.nodes.store-node! 0 control address value)
+  (yield write))
+
+(builder load-scalar [(control i32) (address i32) (type i32)] i32
+  (node read declarative.backend.nodes.load-node! type 0 control address)
+  (yield read))
+
+(builder bool-byte [(value i32)] i32
+  (node byte declarative.backend.nodes.zext! declarative.backend.nodes.T-U8 value)
+  (yield byte))

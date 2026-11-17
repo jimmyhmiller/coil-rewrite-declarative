@@ -50,6 +50,15 @@
                    (let [~item (coil.reader.sexp-nth ~tree ~index)]
                      ~(steps step 5)))
                  ~(steps body (+ i 1))))
+          (p/code-eq tag `walk-pairs)
+            (let [tree (get step 3)]
+              `(do
+                 (for [pair 0 (/ (coil.reader.sexp-count ~tree) 2)]
+                   (let [~(get step 1) (coil.reader.sexp-nth ~tree (* 2 pair))
+                         ~(get step 2)
+                           (coil.reader.sexp-nth ~tree (+ (* 2 pair) 1))]
+                     ~(steps step 4)))
+                 ~(steps body (+ i 1))))
           (p/code-eq tag `visit)
             `(do
                (for [i 0 (len (load ~(get step 2)))]

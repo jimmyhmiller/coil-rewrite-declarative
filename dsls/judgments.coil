@@ -44,6 +44,13 @@
               `(for [~position ~(get rule 3) (coil.reader.sexp-count ~form)]
                  (let [~(get rule 1) (coil.reader.sexp-nth ~form ~position)]
                    ~(premises rule 5))))
+          (p/code-eq tag `each-pair)
+            (let [tree (get rule 3)]
+              `(for [pair 0 (/ (coil.reader.sexp-count ~tree) 2)]
+                 (let [~(get rule 1) (coil.reader.sexp-nth ~tree (* 2 pair))
+                       ~(get rule 2)
+                         (coil.reader.sexp-nth ~tree (+ (* 2 pair) 1))]
+                   ~(premises rule 4))))
           (p/code-eq tag `distinct)
             (let [keys (get rule 1)]
               `(let [(mut ~keys)
@@ -103,6 +110,8 @@
         (p/code-list-push! output
                            (cond (p/code-eq tag `use)
                                    `(import ~(get rule 1) :use *)
+                                 (p/code-eq tag `context)
+                                   `(defstruct ~(get rule 1) ~(get rule 2))
                                  (p/code-eq tag `domain)
                                    `(defsum ~@(p/code-rest rule))
                                  (p/code-eq tag `intervals)

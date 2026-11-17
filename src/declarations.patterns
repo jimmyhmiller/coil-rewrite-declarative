@@ -15,3 +15,13 @@
   (list "if" (capture condition _) (capture then _) (capture else _)))
 (extract sequence-expression SequenceExpression Sequence NoSequence
   (list "do" ...))
+(extract local-bindings LetExpression Bindings NoBindings
+  (list "let" (capture bindings (vector ...)) _ ...))
+(extract mutable-binding MutableBinding CellBinding NoCellBinding
+  (list "mut" (capture name symbol)))
+(extract local-store LocalStore WriteLocal NoWriteLocal
+  (list "set!" (capture name symbol) (capture value _)))
+(extract explicit-store ExplicitStore StoreLocal NoStoreLocal
+  (list "store!" (capture name symbol) (capture value _)))
+(extract explicit-load ExplicitLoad LoadLocal NoLoadLocal
+  (list "load" (capture name symbol)))
