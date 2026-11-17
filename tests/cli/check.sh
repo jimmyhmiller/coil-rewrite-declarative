@@ -90,6 +90,25 @@ run_both 42 '(const answer (if 0 9 (: 42 u8))) (defn main [] (-> i64) (cast i64 
 compare 1 '(const answer (if true 42 (runtime))) (defn runtime [] (-> i64) 2)'
 compare 1 '(const answer (if false 300 (: 42 u8)))'
 compare 1 '(const a 300) (defn f [] (-> u8) a)'
+run_both 42 '(module app) (module values) (export enabled amount) (def enabled true) (def amount (: 42.5 f32)) (module app) (import "values" :as v) (defn main [] (-> i64) (if v/enabled (cast i64 v/amount) 0))'
+run_both 42 '(const k 42) (def stored (: k i8)) (defn main [] (-> i64) (cast i64 stored))'
+compare 1 '(def a 1) (defn f [] (-> u8) a)'
+compare 1 '(def a 42) (const alias a) (def b alias)'
+compare 1 '(def a (if true 42 b)) (def b 1)'
+# Read the emitted data symbol directly through the platform C ABI.
+printf '%s\n' '(def amount (: -42 i16))' > '7.static.coil'
+cat > static-reader.c <<'C'
+#include <stdint.h>
+#define STRINGIFY_INNER(x) #x
+#define STRINGIFY(x) STRINGIFY_INNER(x)
+extern const int16_t amount __asm__(STRINGIFY(__USER_LABEL_PREFIX__) "coil_def._7_static.amount");
+int main(void) { return amount != -42; }
+C
+for compiler in coil ./rewrite; do
+    "$compiler" emit-obj 7.static.coil -o static.o
+    cc static-reader.c static.o -o static-reader
+    ./static-reader
+done
 run_both 72 '(defn main [] (-> i64) (third 9 45 72)) (defn third [(x i64) (y i64) (z i64)] (-> i64) z)'
 run_both 19 '(defn main [] (-> i64) (discard false -7) 19) (defn discard [(x bool) (y i8)] (-> i8) y)'
 

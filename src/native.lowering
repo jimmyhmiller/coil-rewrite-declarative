@@ -109,6 +109,10 @@
     (yield (Ok (nodes/literal (mut (.g f)) expected (cast u64 (sexp-int expr))))))
   (where (true-literal? expr) (yield (Ok (nodes/literal (mut (.g f)) ir/T-BOOL 1))))
   (where (false-literal? expr) (yield (Ok (nodes/literal (mut (.g f)) ir/T-BOOL 0))))
+  (on (get (.statics (.checked f)) (.node-id expr)) (Some [form])
+    (bind symbol (image/symbol! (mut im) (modules/symbol-for signatures form)))
+    (bind address (ir/symbol! (mut (.g f)) (cast u64 symbol)))
+    (yield (Ok (load-scalar-at (mut f) address expected))))
   (on (get (.constants (.checked f)) (.node-id expr)) (Some [constant])
     (yield (lower-value (mut f) (mut im) signatures (.literal constant) expected)))
   (where (identifier? expr)
@@ -240,13 +244,17 @@
       (on (get (.locals f) binding) (Some [value])
         (choose
           (where (contains? (.cells (.checked f)) binding)
-            (bind stored-type (if (= type ir/T-BOOL) ir/T-U8 type))
-            (bind loaded (nodes/load-scalar (mut (.g f)) (.control f) value stored-type))
-            (perform (set! (.control f) loaded))
-            (yield (Ok (if (= type ir/T-BOOL) (nodes/nonzero (mut (.g f)) stored-type loaded) loaded))))
+            (yield (Ok (load-scalar-at (mut f) value type))))
           (otherwise (yield (Ok value)))))
       (otherwise (yield (Err (mk-diag-src (.source expr) (.lo expr) (.hi expr) "binding has no native value"))))))
   (otherwise (yield (Err (mk-diag-src (.source expr) (.lo expr) (.hi expr) "unresolved native local")))))
+
+(translate load-scalar-at [(f (mut Frame)) (address i32) (type i32)] i32
+  (otherwise
+    (bind stored-type (if (= type ir/T-BOOL) ir/T-U8 type))
+    (bind loaded (nodes/load-scalar (mut (.g f)) (.control f) address stored-type))
+    (perform (set! (.control f) loaded))
+    (yield (if (= type ir/T-BOOL) (nodes/nonzero (mut (.g f)) stored-type loaded) loaded))))
 
 (translate save-scalar [(f (mut Frame)) (address i32) (value i32)] i32
   (otherwise
@@ -293,6 +301,22 @@
 (translate lower-function
   [(a (dyn Allocator)) (im (mut image/Image))
    (signatures modules/Lookup) (checked checker/Checked) (form (ptr Sexp))] (Result i64 Diag)
+  (where (static-definition? form)
+    (choose
+      (on (get (.constants checked) (.node-id form)) (Some [value])
+        (need rep (machine-type (.type value) form))
+        (bind literal (.literal value))
+        (bind bits (match (.kind literal)
+                     (KFloat [raw] (float-literal-bits raw rep))
+                     (KInt [raw] (cast u64 raw))
+                     (_ (if (true-literal? literal) (: 1 u64) (: 0 u64)))))
+        (bind size (cast i64 (/ (+ (ir/type-bits rep) 7) 8)))
+        (bind (mut bytes) (al/ArrayList::new [u8] a))
+        (perform (for [i 0 size] (push! (mut bytes) (cast u8 (>> bits (cast u64 (* i 8)))))))
+        (bind symbol (image/symbol! (mut im) (modules/symbol-for signatures form)))
+        (perform (image/add-data! (mut im) symbol (slice bytes) size))
+        (yield (Ok 0)))
+      (otherwise (yield (Err (mk-diag-src (.source form) (.lo form) (.hi form) "missing static initializer"))))))
   (on (constant-declaration form) (Constant [_ _]) (yield (Ok 0)))
   (where (modules/external? form) (yield (Ok 0)))
   (on (ordinary-function form) (Function [_ name parameters result])

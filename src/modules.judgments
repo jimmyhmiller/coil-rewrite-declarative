@@ -182,6 +182,20 @@
             (coil.text.sconcat allocator prefix spelling)))))
 
 
+(value implicit-module-name [(allocator (dyn coil.alloc.Allocator)) (path (slice u8))] (slice u8)
+  (let [base (coil.path.basename path)
+        end (cond (coil.project.d-ends-with? base ".coil") (- (len base) 5)
+                  (coil.project.d-ends-with? base ".scm") (- (len base) 4)
+                  :else (len base))
+        (mut bytes) (coil.arraylist.ArrayList::new [u8] allocator)]
+    (when (and (> end 0) (>= (get base 0) #\0) (<= (get base 0) #\9))
+      (push! (mut bytes) (: 95 u8)))
+    (for [i 0 end]
+      (let [c (get base i)]
+        (push! (mut bytes) (if (or (and (>= c #\a) (<= c #\z)) (and (>= c #\A) (<= c #\Z))
+                                   (and (>= c #\0) (<= c #\9)) (= c #\-) (= c #\_)) c (: 95 u8)))))
+    (if (= end 0) "app" (slice bytes))))
+
 (context SourceFile [(path (slice u8)) (bytes (slice u8))])
 (context NativePackage [(root (slice u8)) (manifest (Option (ptr coil.project.Manifest)))
                         (requires (coil.arraylist.ArrayList (slice u8)))])
@@ -422,6 +436,11 @@
                         (require (same-foreign-signature? prior form) form "extern declared with conflicting signatures"))
                       (_))
                     (record (.globals unit) canonical form)
+                    (when (static-definition? form)
+                      (with qualified (if (= (load namespace) "")
+                                        (definition-name allocator (implicit-module-name allocator (.path (get (.files sources) (.source form)))) false spelling)
+                                        canonical)
+                        (record (.symbols unit) (.node-id form) (coil.text.sconcat allocator "coil_def." qualified))))
                     (when (match (callable form) (Function [_ _ _ _] true) (_ false))
                       (record (.symbols unit) (.node-id form) (if (external? form) (external-symbol form name) canonical)))
                     (record (.locals scope) spelling form)

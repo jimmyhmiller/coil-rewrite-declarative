@@ -11,9 +11,10 @@
 (domain Expectation (Infer) (Discard) (Expect [(type (slice u8))]))
 
 (context LoopScope [(cleanup-depth i64) (unlabelled bool) (id i64) (label (slice u8)) (expected Expectation) (result (Option (slice u8)))])
-(context ConstantValue [(literal (ptr coil.reader.Sexp)) (type (slice u8))])
+(context ConstantValue [(reads-storage bool) (literal (ptr coil.reader.Sexp)) (type (slice u8))])
 (context Checked
-  [(constants (coil.hashmap.HashMap i64 ConstantValue))
+  [(statics (coil.hashmap.HashMap i64 (ptr coil.reader.Sexp)))
+   (constants (coil.hashmap.HashMap i64 ConstantValue))
    (evaluating (coil.hashmap.HashMap i64 bool))
    (callees (coil.hashmap.HashMap i64 (ptr coil.reader.Sexp)))
    (active-cleanups (coil.arraylist.ArrayList (ptr coil.reader.Sexp)))
@@ -70,6 +71,7 @@
   (with actual (.type value)
     (with wanted (match expected (Expect [t] t) (_ actual))
       (when (= wanted actual) (conclude actual))
+      (require (not (.reads-storage value)) site "static value differs from expected type")
       (when (and (= actual "i64") (int-literal? (.literal value)))
         (require (integer-result? wanted (coil.reader.sexp-int (.literal value))) site "constant does not fit expected type")
         (conclude wanted))
@@ -78,9 +80,9 @@
 
 (derive evaluate-constant [(lookup rewrite.modules.Lookup) (checked (mut Checked))
                            (expr (ptr coil.reader.Sexp))] ConstantValue
-  (when (int-literal? expr) (conclude (ConstantValue :literal expr :type "i64")))
-  (when (float-literal? expr) (conclude (ConstantValue :literal expr :type "f64")))
-  (when (or (true-literal? expr) (false-literal? expr)) (conclude (ConstantValue :literal expr :type "bool")))
+  (when (int-literal? expr) (conclude (ConstantValue :reads-storage false :literal expr :type "i64")))
+  (when (float-literal? expr) (conclude (ConstantValue :reads-storage false :literal expr :type "f64")))
+  (when (or (true-literal? expr) (false-literal? expr)) (conclude (ConstantValue :reads-storage false :literal expr :type "bool")))
   (when (identifier? expr)
     (obtain resolution (rewrite.modules.find-declaration lookup expr)
       (cases resolution
@@ -92,7 +94,7 @@
       (prove (check-type type))
       (obtain value (evaluate-constant lookup (mut checked) inner)
         (obtain t (constant-type value (Expect (scalar-type type)) inner)
-          (conclude (ConstantValue :literal (.literal value) :type t)))))
+          (conclude (ConstantValue :reads-storage (.reads-storage value) :literal (.literal value) :type t)))))
     (_))
   (cases (conditional expr)
     ((Branches [condition yes no])
@@ -106,7 +108,7 @@
               (prove (constant-type right (Expect joined) no))
               (with taken (if (int-literal? (.literal test)) (!= (coil.reader.sexp-int (.literal test)) 0)
                               (true-literal? (.literal test)))
-                (conclude (ConstantValue :type joined :literal (if taken (.literal left) (.literal right))))))))))
+                (conclude (ConstantValue :reads-storage (or (.reads-storage test) (.reads-storage left) (.reads-storage right)) :type joined :literal (if taken (.literal left) (.literal right))))))))))
     (_))
   (reject expr "unsupported constant initializer"))
 
@@ -120,6 +122,11 @@
       (require (not (contains? (.evaluating checked) (.node-id form))) init "cyclic constant initializer")
       (record (.evaluating checked) (.node-id form) true)
       (obtain value (evaluate-constant (rewrite.modules.lookup-for unit form) (mut checked) init)
+        (when (static-definition? form)
+          (require (not (.reads-storage value)) init "static initializer cannot read another static definition")
+          (with stored (ConstantValue :literal (.literal value) :type (.type value) :reads-storage true)
+            (record (.constants checked) (.node-id form) stored)
+            (conclude stored)))
         (record (.constants checked) (.node-id form) value)
         (conclude value)))
     (_ (reject form "expected a constant declaration"))))
@@ -150,6 +157,7 @@
            (cases resolution
              ((Some [found])
                (obtain value (constant-value (.unit signatures) (mut checked) found)
+                 (when (static-definition? found) (record (.statics checked) (.node-id expr) found))
                  (record (.constants checked) (.node-id expr) value)
                  (obtain t (constant-type value expected expr) (conclude t))))
              (_ (reject expr "unbound identifier")))))))
@@ -462,7 +470,8 @@
 (derive check-functions
   [(allocator (dyn coil.alloc.Allocator))
    (unit (ptr rewrite.modules.SourceUnit))] Checked
-  (with (mut checked) (Checked :constants (coil.hashmap.HashMap::new-scalar [i64 ConstantValue] allocator)
+  (with (mut checked) (Checked :statics (coil.hashmap.HashMap::new-scalar [i64 (ptr coil.reader.Sexp)] allocator)
+                               :constants (coil.hashmap.HashMap::new-scalar [i64 ConstantValue] allocator)
                                :evaluating (coil.hashmap.HashMap::new-scalar [i64 bool] allocator)
                                :callees (coil.hashmap.HashMap::new-scalar [i64 (ptr coil.reader.Sexp)] allocator) :active-cleanups (coil.arraylist.ArrayList::new [(ptr coil.reader.Sexp)] allocator)
                                :barrier 0 :guards (coil.hashmap.HashMap::new-scalar [i64 bool] allocator)
