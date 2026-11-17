@@ -1,0 +1,26 @@
+(builder start [] i32
+  (node entry declarative.backend.nodes.start!)
+  (yield entry))
+
+(builder literal [(type i32) (bits u64)] i32
+  (node value declarative.backend.nodes.const! type bits)
+  (yield value))
+
+(builder parameter [(type i32) (position u64)] i32
+  (node value declarative.backend.nodes.param! type position)
+  (yield value))
+
+(builder invoke [(control i32) (symbol u64) (arguments (slice i32))] i32
+  (node target declarative.backend.nodes.symbol! symbol)
+  (node invocation declarative.backend.nodes.call-node! 0 control target (len arguments))
+  (inputs invocation 2 arguments)
+  (yield invocation))
+
+(builder call-result [(type i32) (invocation i32)] i32
+  (node value declarative.backend.nodes.result! type 0 invocation)
+  (yield value))
+
+(builder finish [(control i32) (value i32)] i32
+  (node ret declarative.backend.nodes.return! control 1)
+  (input ret 1 value)
+  (yield ret))

@@ -1,0 +1,50 @@
+(module rewrite.command-tools)
+(import "coil.alloc" :use *)
+(import "coil.reader" :use [Diag mk-diag cat2])
+(import "coil.temp" :as temp)
+(import "coil.fs" :as fs)
+(import "coil.subprocess" :as proc)
+(import "coil.primitive" :as p)
+
+(defn temporary [(name (slice u8))] (-> (Result (slice u8) Diag))
+  (match (temp/path name)
+    (Ok [path] (Ok path))
+    (Err [_] (Err (mk-diag -1 -1 "cannot create temporary directory")))))
+
+(defn staged-output [(destination (slice u8))] (-> (Result (slice u8) Diag))
+  (match (temp/sibling destination)
+    (Ok [path] (Ok path))
+    (Err [_] (Err (mk-diag -1 -1 "cannot create temporary output path")))))
+
+(defn publish [(a (dyn Allocator)) (staged (slice u8)) (destination (slice u8))]
+  (-> (Result i64 Diag))
+  (match (fs/rename-file a staged destination)
+    (Ok [_] (Ok 0))
+    (Err [_] (Err (mk-diag -1 -1 "cannot publish output file")))))
+
+(defn execute [(a (dyn Allocator))
+               (program (slice u8))
+               (args (slice (slice u8)))]
+  (-> (Result i64 Diag))
+  (let [child (p/alloc-stack proc/Child)
+        io (proc/inherit-stdio)]
+    (match (proc/Child::spawn a child program args io io io)
+      (Err [_] (Err (mk-diag -1 -1 (cat2 a "cannot start " program))))
+      (Ok [_]
+          (match (proc/Child::wait child)
+            (Err [_] (Err (mk-diag -1 -1 (cat2 a "cannot wait for " program))))
+            (Ok [status]
+                (match status
+                  (proc/Exited [code] (Ok code))
+                  (proc/Signaled [signal] (Ok (+ 128 signal))))))))))
+
+(defn run-tool [(a (dyn Allocator))
+                (program (slice u8))
+                (args (slice (slice u8)))]
+  (-> (Result i64 Diag))
+  (match (execute a program args)
+    (Err [d] (Err d))
+    (Ok [code]
+        (if (= code 0)
+            (Ok code)
+            (Err (mk-diag -1 -1 (cat2 a program " exited unsuccessfully")))))))

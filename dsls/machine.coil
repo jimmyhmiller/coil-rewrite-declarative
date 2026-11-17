@@ -1,0 +1,65 @@
+(module rewrite.machine-reader)
+(import "coil.primitive" :as p)
+(import "coil.meta" :as meta)
+
+(reader-provider "rewrite.machine-reader" read-machine)
+
+;; Each machine supplies the same unit, instruction-set, pass-plan and object
+;; writer interfaces. Select the four imports as a unit at bootstrap time.
+(defn choose-target [(forms Code) (i i64) (end i64)] (-> Code)
+  (when (= i end)
+    (p/error "no native backend for this architecture and operating system"))
+  (let [row (get forms i)]
+    (when (!= (p/code-count row) 7)
+      (p/error "target needs architecture, operating system, unit, ISA, plan and object writer"))
+    (if (and (p/code-eq (get row 0) `target)
+             (and (p/code-eq (get row 1) (p/target-arch))
+                  (p/code-eq (get row 2) (p/target-os))))
+        row
+        (choose-target forms (+ i 1) end))))
+
+(defn read-machine [(ctx Code)] (-> Code)
+  (let [forms (p/code-read (get ctx 2) `(reader-config))
+        end (- (p/code-count forms) 1)
+        config (get forms end)
+        machine (choose-target forms 1 end)]
+    (when (not (and (= (p/code-count config) 4)
+                    (p/code-eq (get config 0) `emit)))
+      (p/error "expected (emit append-function object-writer plan)"))
+    (p/code-read (meta/source `(do
+
+                                 (import "declarative.backend.nodes" :as ir)
+                                 (import "declarative.rt.image" :as image)
+                                 (import "declarative.rt.graph" :as graph)
+                                 (import "coil.alloc" :use *)
+                                 (import "coil.arraylist" :use *)
+                                 (import "coil.str" :use *)
+                                 (import ~(get machine 3) :as unit)
+                                 (import ~(get machine 4) :as isa)
+                                 (import ~(get machine 5) :as plans)
+                                 (import ~(get machine 6) :as object)
+                                 (defn ~(get config 1) [(a (dyn coil.alloc.Allocator))
+                                                        (im (mut declarative.rt.image.Image))
+                                                        (symbol i64)
+                                                        (g declarative.rt.graph.Graph)]
+                                   (-> (Result i64 (slice u8)))
+                                   (let [problem
+                                           (declarative.backend.nodes.verify g)]
+                                     (if (!= problem "")
+                                         (Err problem)
+                                         (let [(mut cx) (unit/create g a)]
+                                           (unit/begin! (mut cx))
+                                           (~(get config 3) (mut cx))
+                                           (declarative.rt.image.add-function! (mut im)
+                                                                               symbol
+                                                                               (.code cx)
+                                                                               (.reloc-at cx)
+                                                                               (.reloc-symbol cx)
+                                                                               (.reloc-op cx)
+                                                                               isa/ALIGN)
+                                           (Ok 0)))))
+                                 (defn ~(get config 2) [(a (dyn coil.alloc.Allocator))
+                                                        (im declarative.rt.image.Image)]
+                                   (-> (coil.arraylist.ArrayList u8))
+                                   (object/write im a))))
+                 `(reader-config))))

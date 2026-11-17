@@ -16,8 +16,11 @@ From this checkout, run:
 ```sh
 coil build
 build/debug/rewrite check program.coil
+build/debug/rewrite run program.coil
+build/debug/rewrite build program.coil -o program
+build/debug/rewrite emit-obj program.coil -o program.o
 coil run tests/declarations.coil
 tests/cli/check.sh
 ```
 
-The command pipeline in `src/main.commands` reads a file, indexes ordinary function declarations, validates signatures, and checks bodies. The rules in `src/check.judgments` cover integer and boolean literals, parameter references, and direct calls, including nested and forward calls. The CLI suite compares acceptance and rejection with the installed Coil compiler. Native code generation and self-hosting remain open.
+The command pipeline in `src/main.commands` reads a file, indexes ordinary function declarations, validates signatures, and checks bodies. The rules in `src/check.judgments` cover integer and boolean literals, parameter references, and direct calls, including nested and forward calls. The CLI suite compares acceptance and rejection with the installed Coil compiler. The native lowering rules in `src/native.lowering` build Stogir graphs for these expressions. The host target and object writer are selected in `src/host.machine`. Place the maintained Coil checkout at `../coil` for its `src/declarative` package. Its NOTICE records the backend’s provenance. The CLI tests link and execute generated objects on macOS arm64 and compare program exit statuses with the reference compiler. Native 128-bit integer lowering and self-hosting remain open.

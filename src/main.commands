@@ -1,9 +1,44 @@
+(use "rewrite.native")
 (use "rewrite.signatures")
 (use "rewrite.check")
-(usage "usage: rewrite check <file.coil>\n")
-(source-command "check" path
+(use "rewrite.command-tools")
+(usage "usage: rewrite check|run <file.coil>\n       rewrite build|emit-obj <file.coil> -o <output>\n")
+
+(pipeline check-source
   (read-forms forms)
   (phase signatures collect-signatures allocator forms)
   (phase valid check-signatures allocator forms)
-  (phase checked check-functions signatures forms)
+  (phase checked check-functions signatures forms))
+
+(pipeline compile-object
+  (phase temporary-object temporary "unit.o")
+  (phase emitted emit-object allocator signatures forms temporary-object))
+
+(source-command "check" path
+  (include check-source)
   (exit 0))
+
+(source-command "emit-obj" path
+  (output "-o" destination)
+  (include check-source)
+  (phase object staged-output destination)
+  (phase emitted emit-object allocator signatures forms object)
+  (phase published publish allocator object destination)
+  (exit 0))
+
+(source-command "build" path
+  (output "-o" destination)
+  (include check-source)
+  (include compile-object)
+  (phase executable staged-output destination)
+  (phase linked run-tool allocator "cc" [temporary-object "-o" executable])
+  (phase published publish allocator executable destination)
+  (exit 0))
+
+(source-command "run" path
+  (include check-source)
+  (include compile-object)
+  (phase executable temporary "program")
+  (phase linked run-tool allocator "cc" [temporary-object "-o" executable])
+  (phase status execute allocator executable [])
+  (exit status))

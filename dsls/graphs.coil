@@ -1,0 +1,57 @@
+(module rewrite.graph-reader)
+(import "coil.primitive" :as p)
+
+(reader-provider "rewrite.graph-reader" read-graphs)
+
+;; Bind graph nodes in dependency order. A variadic edge list fills the
+;; slots reserved by its node constructor, starting at the specified port.
+(defn graph-body [(rule Code) (i i64) (graph Code)] (-> Code)
+  (when (>= i (p/code-count rule)) (p/error "builder requires a yield"))
+  (let [line (get rule i)
+        tag (get line 0)]
+    (cond (p/code-eq tag `yield)
+            (if (= (+ i 1) (p/code-count rule))
+                (get line 1)
+                (p/error "yield must end a builder"))
+          (p/code-eq tag `node)
+            (let [args (p/code-rest (p/code-rest (p/code-rest line)))]
+              `(let [~(get line 1) (~(get line 2) (mut ~graph) ~@args)]
+                 ~(graph-body rule (+ i 1) graph)))
+          (p/code-eq tag `inputs)
+            (let [node (get line 1)
+                  offset (get line 2)
+                  values (get line 3)]
+              `(do
+                 (for [i 0 (len ~values)]
+                   (declarative.rt.graph.set-input! (mut ~graph)
+                                                    ~node
+                                                    (+ ~offset i)
+                                                    (get ~values i)))
+                 ~(graph-body rule (+ i 1) graph)))
+          (p/code-eq tag `input)
+            `(do
+               (declarative.rt.graph.set-input! (mut ~graph)
+                                                ~(get line 1)
+                                                ~(get line 2)
+                                                ~(get line 3))
+               ~(graph-body rule (+ i 1) graph))
+          :else (do (p/error "unknown graph builder instruction") `0))))
+
+(defn read-graphs [(ctx Code)] (-> Code)
+  (let [forms (p/code-read (get ctx 2) `(reader-config))
+        out (p/code-list-new)
+        graph (p/datum->syntax ctx "graph")]
+    (for [i 1 (p/code-count forms)]
+      (let [rule (get forms i)]
+        (when (not (p/code-eq (get rule 0) `builder))
+          (p/error "expected builder"))
+        (p/code-list-push! out
+                           `(defn ~(get rule 1) [(~graph (mut declarative.rt.graph.Graph))
+                                                 ~@(get rule 2)]
+                              (-> ~(get rule 3))
+                              ~(graph-body rule 4 graph)))))
+    `(do
+       (import "declarative.rt.graph" :as graph)
+       (import "declarative.backend.nodes" :as ir)
+       (import "coil.slice" :use *)
+       ~@(p/code-list-done out))))

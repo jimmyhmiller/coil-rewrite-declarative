@@ -1,0 +1,86 @@
+(module rewrite.lowering-reader)
+(import "coil.primitive" :as p)
+(import "coil.meta" :as meta)
+
+(reader-provider "rewrite.lowering-reader" read-lowering)
+
+;; A translation is a sequence of ordered pattern clauses. An extraction
+;; introduces the fields of its successful constructor for the remainder of
+;; that clause. A failed extraction proceeds to the next clause.
+(defn alternatives [(rule Code) (i i64)] (-> Code)
+  (when (>= i (p/code-count rule))
+    (p/error "translation requires a final otherwise"))
+  (let [clause (get rule i)
+        tag (get clause 0)]
+    (cond (p/code-eq tag `otherwise)
+            (if (= (+ i 1) (p/code-count rule))
+                (steps clause 1)
+                (p/error "otherwise must be last"))
+          (p/code-eq tag `on)
+            (let [pattern (get clause 2)]
+              `(match ~(get clause 1)
+                 (~(get pattern 0) ~(get pattern 1) ~(steps clause 3))
+                 (_ ~(alternatives rule (+ i 1)))))
+          (p/code-eq tag `where)
+            `(if ~(get clause 1) ~(steps clause 2) ~(alternatives rule (+ i 1)))
+          :else (do (p/error "expected on, where or otherwise") `0))))
+
+(defn steps [(body Code) (i i64)] (-> Code)
+  (when (>= i (p/code-count body))
+    (p/error "translation clause requires a yield"))
+  (let [step (get body i)
+        tag (get step 0)]
+    (cond (p/code-eq tag `yield)
+            (if (= (+ i 1) (p/code-count body))
+                (get step 1)
+                (p/error "yield must end its clause"))
+          (p/code-eq tag `need)
+            `(match ~(get step 2)
+               (Ok [~(get step 1)] ~(steps body (+ i 1)))
+               (Err [diag] (return-from :translation (Err diag))))
+          (p/code-eq tag `bind)
+            `(let [~(get step 1) ~(get step 2)] ~(steps body (+ i 1)))
+          (p/code-eq tag `perform) `(do ~(get step 1) ~(steps body (+ i 1)))
+          (p/code-eq tag `walk)
+            (let [index (get step 1)
+                  item (get step 2)
+                  tree (get step 3)]
+              `(do
+                 (for [~index ~(get step 4) (coil.reader.sexp-count ~tree)]
+                   (let [~item (coil.reader.sexp-nth ~tree ~index)]
+                     ~(steps step 5)))
+                 ~(steps body (+ i 1))))
+          (p/code-eq tag `visit)
+            `(do
+               (for [i 0 (len (load ~(get step 2)))]
+                 (let [~(get step 1) (elem ~(get step 2) i)] ~(steps step 3)))
+               ~(steps body (+ i 1)))
+          (p/code-eq tag `choose) (alternatives step 1)
+          :else (do (p/error "unknown translation step") `0))))
+
+(defn read-lowering [(ctx Code)] (-> Code)
+  (let [forms (p/code-read (get ctx 2) `(reader-config))
+        defs (p/code-list-new)]
+    (for [i 1 (p/code-count forms)]
+      (let [rule (get forms i)
+            tag (get rule 0)]
+        (p/code-list-push! defs
+                           (cond (p/code-eq tag `use)
+                                   `(import ~(get rule 1)
+                                            :as
+                                            ~(get rule 2)
+                                            :use
+                                            *)
+                                 (p/code-eq tag `context)
+                                   `(defstruct ~(get rule 1) ~(get rule 2))
+                                 (p/code-eq tag `translate)
+                                   `(defn ~(get rule 1)
+                                      ~(get rule 2)
+                                      (-> ~(get rule 3))
+                                      (block
+                                        :translation ~(alternatives rule 4)))
+                                 :else
+                                   (do
+                                     (p/error "expected use, context or translate")
+                                     `0)))))
+    (p/code-read (meta/source `(do ~@(p/code-list-done defs))) `(reader-config))))

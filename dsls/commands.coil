@@ -35,6 +35,27 @@
                                                        problem)
                         1)))))))
 
+(defn expand-pipeline [(forms Code) (rule Code)] (-> Code)
+  (let [out (primitive/code-list-new)]
+    (for [i 0 (primitive/code-count rule)]
+      (let [stage (get rule i)]
+        (if (and (primitive/code-list? stage)
+                 (primitive/code-eq (get stage 0) `include))
+            (let [(mut found) false]
+              (for [k 1 (primitive/code-count forms)]
+                (let [candidate (get forms k)]
+                  (when (and (primitive/code-eq (get candidate 0) `pipeline)
+                             (primitive/code-eq (get candidate 1) (get stage 1)))
+                    (when (load found)
+                      (primitive/error "duplicate pipeline name"))
+                    (set! found true)
+                    (for [j 2 (primitive/code-count candidate)]
+                      (primitive/code-list-push! out (get candidate j))))))
+              (unless (load found) (primitive/error "unknown pipeline"))
+              0)
+            (do (primitive/code-list-push! out stage) 0))))
+    (primitive/code-list-done out)))
+
 (defn dispatch [(forms Code)
                 (i i64)
                 (argc Code)
@@ -49,8 +70,17 @@
             rest (dispatch forms (+ i 1) argc argv usage allocator)]
         (if (primitive/code-eq tag `source-command)
             (let [path (get rule 2)
-                  src (primitive/datum->syntax rule "source-bytes")]
-              `(if (and (= ~argc 3)
+                  expanded (expand-pipeline forms rule)
+                  src (primitive/datum->syntax rule "source-bytes")
+                  opt (get rule 3)
+                  output? (primitive/code-eq (get opt 0) `output)
+                  argc-test
+                    (if output?
+                        `(and (= ~argc 5)
+                              (= (coil.str.from-cstr (load (index ~argv 3)))
+                                 ~(get opt 1)))
+                        `(= ~argc 3))]
+              `(if (and ~argc-test
                         (= (coil.str.from-cstr (load (index ~argv 1)))
                            ~(get rule 1)))
                    (let [~allocator (coil.alloc.malloc-allocator)
@@ -59,7 +89,11 @@
                            (coil.source.cli.read-source ~allocator
                                                         (load (index ~argv 2))
                                                         1)]
-                     ~(stages rule 3 path src allocator))
+                     ~(if output?
+                          `(let [~(get opt 2)
+                                   (coil.str.from-cstr (load (index ~argv 4)))]
+                             ~(stages expanded 4 path src allocator))
+                          (stages expanded 3 path src allocator)))
                    ~rest))
             rest))))
 
@@ -80,6 +114,7 @@
                                              `(import ~(get rule 1) :use *))
                   0)
               (primitive/code-eq tag `usage) (do (set! usage (get rule 1)) 0)
+              (primitive/code-eq tag `pipeline) 0
               (primitive/code-eq tag `source-command) 0
               :else (do (primitive/error "unknown command declaration") 0))))
     `(do

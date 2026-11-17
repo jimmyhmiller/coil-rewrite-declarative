@@ -1,0 +1,108 @@
+(use "coil.alloc" alloc)
+(use "coil.arraylist" al)
+(use "coil.hashmap" hm)
+(use "coil.reader" rd)
+(use "coil.str" str)
+(use "coil.fs" fs)
+(use "declarative.rt.image" image)
+(use "declarative.rt.graph" graph)
+(use "declarative.backend.nodes" ir)
+(use "rewrite.nodes" nodes)
+(use "rewrite.declarations" syntax)
+(use "rewrite.host" host)
+
+(context Frame
+  [(a (dyn Allocator)) (g graph/Graph) (control i32)
+   (locals (hm/HashMap (slice u8) i32))])
+
+(translate machine-type [(type (ptr Sexp))] (Result i32 Diag)
+  (where (sexp-sym-is type "i64") (yield (Ok ir/T-I64)))
+  (where (sexp-sym-is type "u64") (yield (Ok ir/T-U64)))
+  (where (sexp-sym-is type "i32") (yield (Ok ir/T-I32)))
+  (where (sexp-sym-is type "u32") (yield (Ok ir/T-U32)))
+  (where (sexp-sym-is type "i16") (yield (Ok ir/T-I16)))
+  (where (sexp-sym-is type "u16") (yield (Ok ir/T-U16)))
+  (where (sexp-sym-is type "i8") (yield (Ok ir/T-I8)))
+  (where (sexp-sym-is type "u8") (yield (Ok ir/T-U8)))
+  (where (sexp-sym-is type "bool") (yield (Ok ir/T-BOOL)))
+  (otherwise (yield (Err (mk-diag-src (.source type) (.lo type) (.hi type)
+                                      "type has no native representation yet")))))
+
+(translate lower-parameter [(f (mut Frame)) (position i64) (param (ptr Sexp))] (Result i32 Diag)
+  (on (typed-parameter param) (Parameter [name type])
+    (need rep (machine-type type))
+    (bind value (nodes/parameter (mut (.g f)) rep (cast u64 position)))
+    (perform (set! (mut (.locals f)) (sexp-sym name) value))
+    (yield (Ok rep)))
+  (otherwise (yield (Err (mk-diag (.lo param) (.hi param) "invalid native parameter")))))
+
+(translate parameter-type [(param (ptr Sexp))] (Result i32 Diag)
+  (on (typed-parameter param) (Parameter [_ type]) (yield (machine-type type)))
+  (otherwise (yield (Err (mk-diag (.lo param) (.hi param) "invalid native parameter")))))
+
+(translate lower-expression
+  [(f (mut Frame)) (im (mut image/Image))
+   (signatures (hm/HashMap (slice u8) (ptr Sexp)))
+   (expr (ptr Sexp)) (expected i32)] (Result i32 Diag)
+  (where (int-literal? expr)
+    (yield (Ok (nodes/literal (mut (.g f)) expected (cast u64 (sexp-int expr))))))
+  (where (true-literal? expr) (yield (Ok (nodes/literal (mut (.g f)) ir/T-BOOL 1))))
+  (where (false-literal? expr) (yield (Ok (nodes/literal (mut (.g f)) ir/T-BOOL 0))))
+  (where (identifier? expr)
+    (choose
+      (on (get (.locals f) (sexp-sym expr)) (Some [value]) (yield (Ok value)))
+      (otherwise (yield (Err (mk-diag (.lo expr) (.hi expr) "unknown native local"))))))
+  (on (application expr) (Apply [operator])
+    (choose
+      (on (get signatures (sexp-sym operator)) (Some [function])
+        (choose
+          (on (ordinary-function function) (Function [_ name parameters result _])
+            (need rep (machine-type result))
+            (bind (mut args) (al/ArrayList::new [i32] (.a f)))
+            (walk position arg expr 1
+              (need t (parameter-type (sexp-nth parameters (- position 1))))
+              (need value (lower-expression (mut f) (mut im) signatures arg t))
+              (perform (push! (mut args) value))
+              (yield 0))
+            (bind symbol (image/symbol! (mut im) (sexp-sym name)))
+            (bind call-node (nodes/invoke (mut (.g f)) (.control f) (cast u64 symbol) (slice args)))
+            (perform (set! (.control f) call-node))
+            (yield (Ok (nodes/call-result (mut (.g f)) rep call-node))))
+          (otherwise (yield (Err (mk-diag (.lo expr) (.hi expr) "invalid native callee"))))))
+      (otherwise (yield (Err (mk-diag (.lo expr) (.hi expr) "unknown native callee"))))))
+  (otherwise (yield (Err (mk-diag (.lo expr) (.hi expr) "unsupported native expression")))))
+
+(translate lower-function
+  [(a (dyn Allocator)) (im (mut image/Image))
+   (signatures (hm/HashMap (slice u8) (ptr Sexp))) (form (ptr Sexp))] (Result i64 Diag)
+  (on (ordinary-function form) (Function [_ name parameters result _])
+    (need rep (machine-type result))
+    (bind (mut f) (Frame :a a :g (graph/create a) :control 0
+                         :locals (hm/HashMap::new [(slice u8) i32] a (str/keyops-borrowed))))
+    (perform (set! (.control f) (nodes/start (mut (.g f)))))
+    (walk position param parameters 0
+      (need _ (lower-parameter (mut f) position param))
+      (yield 0))
+    (walk position expr form 4
+      (bind last? (= (+ position 1) (sexp-count form)))
+      (need value (lower-expression (mut f) (mut im) signatures expr (if last? rep ir/T-I64)))
+      (perform (when last? (nodes/finish (mut (.g f)) (.control f) value)))
+      (yield 0))
+    (choose
+      (on (host/append-graph! a (mut im) (image/symbol! (mut im) (sexp-sym name)) (.g f))
+          (Err [message]) (yield (Err (mk-diag (.lo form) (.hi form) message))))
+      (otherwise (yield (Ok 0)))))
+  (otherwise (yield (Err (mk-diag (.lo form) (.hi form) "unsupported native declaration")))))
+
+(translate emit-object
+  [(a (dyn Allocator)) (signatures (hm/HashMap (slice u8) (ptr Sexp)))
+   (forms (ptr (al/ArrayList Sexp))) (output (slice u8))] (Result i64 Diag)
+  (otherwise
+    (bind (mut im) (image/create a))
+    (visit form forms
+      (need _ (lower-function a (mut im) signatures form))
+      (yield 0))
+    (bind bytes (host/object-bytes a im))
+    (choose
+      (on (fs/write-file a output (slice bytes)) (Ok [_]) (yield (Ok 0)))
+      (otherwise (yield (Err (mk-diag -1 -1 "cannot write object file")))))))

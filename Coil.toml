@@ -4,13 +4,22 @@ entry = "dsls/entry.coil"
 source-roots = ["dsls", "src"]
 
 [readers]
+".lowering" = "rewrite.lowering-reader"
+".machine" = "rewrite.machine-reader"
+".graphs" = "rewrite.graph-reader"
 ".judgments" = "rewrite.judgment-reader"
 ".commands" = "rewrite.command-reader"
 ".scope" = "rewrite.scope-reader"
 ".patterns" = "rewrite.pattern-reader"
 
 [modules]
+"rewrite.native" = "src/native.lowering"
+"rewrite.host" = "src/host.machine"
+"rewrite.nodes" = "src/nodes.graphs"
 "rewrite.declarations" = "src/declarations.patterns"
 "rewrite.signatures" = "src/signatures.scope"
 "rewrite.main" = "src/main.commands"
 "rewrite.check" = "src/check.judgments"
+
+[dependencies]
+declarative = { path = "../coil/src/declarative" }
