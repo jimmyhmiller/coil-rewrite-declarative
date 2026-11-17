@@ -6,6 +6,8 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 (ROOT / 'build').mkdir(exist_ok=True)
+for flags in [[], ['--debug-checks'], ['--release']]:
+    subprocess.run(['coil', 'run', 'tests/types.coil', *flags], cwd=ROOT, check=True)
 subprocess.run(['coil', 'build', 'seed/main.coil', '-o', 'build/schema-seed'], cwd=ROOT, check=True)
 source = (ROOT / 'tests/schemas/expressions.schema').read_bytes()
 generated = subprocess.check_output([str(ROOT / 'build/schema-seed')], input=source)
