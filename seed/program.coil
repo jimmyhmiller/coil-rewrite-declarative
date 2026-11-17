@@ -1,6 +1,7 @@
 ;;; Program declarations derive global signature collection and all-body validation.
 (module rewrite.program)
 (import "rewrite.schema" :use *)
+(import "rewrite.command" :as command)
 (import "rewrite.lower" :use [field-number])
 (import "rewrite.emit" :use [number!])
 (import "rewrite.index" :use [index-name!])
@@ -189,3 +190,58 @@
             (when (sexp-sym-is (sexp-nth (sexp-nth form i) 0) "cumulative")
               (emit-history! (mut b) declaration)))
           (Ok (str (load b))))))))
+
+;;; A typed source entry composes the declared reader and program compiler. The
+;;; caller owns Store and the compilation arena through the returned image's use.
+(defn compile-source-entry [(a (dyn Allocator))
+                            (s (ptr Schema))
+                            (forms (ptr (ArrayList Sexp)))
+                            (form (ptr Sexp))]
+  (-> (Result (slice u8) Diag))
+  (block :done
+    (unless (and (or (= (sexp-count form) 2)
+                     (and (= (sexp-count form) 3)
+                          (sexp-list? (sexp-nth form 2))
+                          (= (sexp-count (sexp-nth form 2)) 1)
+                          (sexp-sym-is (sexp-nth (sexp-nth form 2) 0) "command")))
+                 (sexp-sym? (sexp-nth form 1)))
+      (break
+        :done (Err (problem form "expected (source-program FunctionSchema)"))))
+    (let [(mut declaration) -1
+          (mut syntax?) false
+          (mut program?) false
+          (mut count) 0
+          (mut b) (StrBuf::new a)]
+      (for [i 0 (len (.nodes s))]
+        (when (sexp-sym-is (sexp-nth form 1) (.name (elem (field s nodes) i)))
+          (set! declaration i)))
+      (for [i 0 (len (load forms))]
+        (let [other (elem forms i)]
+          (when (and (sexp-list? other) (> (sexp-count other) 0))
+            (when (sexp-sym-is (sexp-nth other 0) "source-program")
+              (set! count (+ count 1)))
+            (when (and (>= (sexp-count other) 2)
+                       (sexp-sym-is (sexp-nth other 0) "syntax")
+                       (sexp-sym-is (sexp-nth other 1)
+                                    (sexp-sym (sexp-nth form 1))))
+              (set! syntax? true))
+            (when (and (>= (sexp-count other) 3)
+                       (sexp-sym-is (sexp-nth other 0) "program")
+                       (sexp-sym-is (sexp-nth other 2)
+                                    (sexp-sym (sexp-nth form 1))))
+              (set! program? true)))))
+      (unless (and (= count 1) (>= declaration 0) syntax? program?)
+        (break
+          :done
+            (Err (problem form
+                          "source-program requires one entry with matching syntax and program declarations"))))
+      (push-str! (mut b)
+                 "(defsum ProgramSourceError (SourceRead [(diagnostic Diag)]) (SourceDeclaration [(diagnostic Diag)]) (SourceChecking [(error ProgramError)]) (SourceDocument [(error source/SourceError)]))\n(defn compile-source [(a (dyn Allocator)) (store (mut Store)) (path (slice u8)) (text (slice u8)) (source-id i64)] (-> (Result image/Image ProgramSourceError)) (block :done (match (store-source! (mut store) source-id path text) (Err [e] (break :done (Err (SourceDocument e)))) (Ok [_])) (let [forms (match (read-all a text source-id) (Err [d] (break :done (Err (SourceRead d)))) (Ok [v] v)) (mut declarations) (ArrayList::new [N")
+      (number! (mut b) declaration)
+      (push-str! (mut b)
+                 "Id] a)] (defer (free! (mut declarations))) (for [i 0 (len forms)] (match (surface-")
+      (number! (mut b) declaration)
+      (push-str! (mut b)
+                 " (mut store) (elem forms i)) (Err [d] (break :done (Err (SourceDeclaration d)))) (Ok [v] (push! (mut declarations) v)))) (match (compile-program a store (mut declarations)) (Err [e] (Err (SourceChecking e))) (Ok [image] (Ok image))))))\n")
+      (when (= (sexp-count form) 3) (push-str! (mut b) (command/emit)))
+      (Ok (finish! (mut b))))))

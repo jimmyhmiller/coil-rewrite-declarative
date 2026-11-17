@@ -41,7 +41,7 @@ with tempfile.TemporaryDirectory(prefix='rewrite-expansion-policy-') as director
 sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
 evidence = dict(scope='Before-expand guard accounting only; replays eight captured reference changing-round traces. '
                       'Does not execute reference source through the rewritten frontend or model initial form normalization.',
-                reference_evidence_sha256=sha(reference_path), model_sha256=sha(ROOT/'languages/before_expand.protocol'),
+                reference_evidence_sha256=sha(reference_path), model_sha256=sha(ROOT/'compiler/expansion/before_expand.protocol'),
                 generated_sha256=sha(ROOT/'seed/generated/before_protocol.coil'),
                 fixture_sha256=sha(ROOT/'tests/expansion-policy.coil.in'), replay_script_sha256=sha(Path(__file__)),
                 host_compiler_sha256=sha(Path(shutil.which('coil')).resolve()),

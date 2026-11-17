@@ -1,0 +1,39 @@
+{
+  "scope": "Executable DSL-authored compiler integration for unary integer functions; not complete Coil compatibility. CLI runs with empty PATH and does not invoke the bootstrap compiler on guest source.",
+  "library_configurations": [
+    "default",
+    "debug-checks",
+    "release"
+  ],
+  "cli_cases": [
+    {
+      "source": "(defn entry [(x i64)] (-> i64)\n  (let [y (increment x)]\n    (if true (+ y y) 0)))\n\n(defn increment [(x i64)] (-> i64)\n  (+ x 1))\n",
+      "entry": "entry",
+      "argument": "41",
+      "status": 0,
+      "output": "84"
+    },
+    {
+      "source": "(defn bad [(x i64)] (-> i64) (+ x true))",
+      "entry": "bad",
+      "argument": "1",
+      "status": 1,
+      "output": "type checking failed in bad"
+    },
+    {
+      "source": "(defn present [(x i64)] (-> i64) x)",
+      "entry": "absent",
+      "argument": "0",
+      "status": 1,
+      "output": "entry not found: absent"
+    }
+  ],
+  "binary_sha256": "c0a84de8db29c5c956faac312afb9d9c6ca039a5e726b6a8956a66c1285a3c12",
+  "inputs": {
+    "compiler/frontend/core.schema": "89c9135f0cd68a253b36948758a90196c6c5f6f0befb4c25a360cf6e2f045fae",
+    "seed/program.coil": "62c626d29aece635e0a1ca24f0937062a2cbea8bb39d8f745dac85918d13113c",
+    "seed/command.coil": "c733b167c8c188ef819e378b97ef9b60608e59696686022e031459ee66b6031c",
+    "seed/generated/core_compiler.coil": "ee3605ae39a07f91168840fe1317318843047f756363bac0da53f819114004bd",
+    "tools/check-compiler.py": "ca5c54b69af6578fc0e79e73a098fe76992d91c6e96f8c01195ef1cabab28cd2"
+  }
+}

@@ -16,6 +16,7 @@ for flags in [[], ['--debug-checks'], ['--release']]:
     subprocess.run(['coil', 'run', 'tests/protocol.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/types.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/type-syntax.coil', *flags], cwd=ROOT, check=True)
+    subprocess.run(['coil', 'run', 'tests/type-locations.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/type-elaboration.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/type-lexical.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/type-classified.coil', *flags], cwd=ROOT, check=True)
@@ -460,3 +461,5 @@ subprocess.run(['python3', 'tools/check-type-elaboration.py'], cwd=ROOT, check=T
 subprocess.run(['python3', 'tools/check-interning.py'], cwd=ROOT, check=True)
 
 subprocess.run(['python3', 'tools/check-extent-sites.py'], cwd=ROOT, check=True)
+
+subprocess.run(['python3', 'tools/check-compiler.py'], cwd=ROOT, check=True)

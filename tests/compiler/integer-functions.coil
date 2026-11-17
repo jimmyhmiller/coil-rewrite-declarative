@@ -1,0 +1,6 @@
+(defn entry [(x i64)] (-> i64)
+  (let [y (increment x)]
+    (if true (+ y y) 0)))
+
+(defn increment [(x i64)] (-> i64)
+  (+ x 1))

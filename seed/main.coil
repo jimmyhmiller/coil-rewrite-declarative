@@ -71,6 +71,10 @@
                  :source 0
                  :ctxt 0
                  :msg "unknown seed phase implementation"))))
+    (when (= stage "syntax")
+      (match (syntax/validate-locations sp forms)
+        (Ok [_])
+        (Err [d] (break :done (Err d)))))
     (let [(mut output) (StrBuf::new a)]
       (cond (= stage "classification")
               (match (classification/emit a sp forms)
@@ -181,6 +185,13 @@
                             (Err (schema/problem form
                                                  "program requires judgment and lowering for its expression schema")))))
                     (match (program/compile-one a sp form)
+                      (Err [d] (break :done (Err d)))
+                      (Ok [text] (push-str! (mut output) text))))
+                  (when (and (= stage "program")
+                             (sexp-list? form)
+                             (> (sexp-count form) 0)
+                             (sexp-sym-is (sexp-nth form 0) "source-program"))
+                    (match (program/compile-source-entry a sp forms form)
                       (Err [d] (break :done (Err d)))
                       (Ok [text] (push-str! (mut output) text))))
                   (when (and (= stage "lower")

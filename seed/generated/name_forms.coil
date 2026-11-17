@@ -1,4 +1,4 @@
-;;; Generated from languages/names.schema by tools/gen-schema.py. Do not edit.
+;;; Generated from compiler/resolution/names.schema by tools/gen-schema.py. Do not edit.
 (module rewrite.nameforms)
 (import "rewrite.types" :as types)
 (import "coil.result" :use *)

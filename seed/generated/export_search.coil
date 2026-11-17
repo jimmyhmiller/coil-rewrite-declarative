@@ -1,4 +1,4 @@
-;;; Generated from languages/exports.search by tools/gen-schema.py. Do not edit.
+;;; Generated from compiler/resolution/exports.search by tools/gen-schema.py. Do not edit.
 (module rewrite.exportsearch)
 (import "rewrite.searchruntime" :as search)
 (import "coil.alloc" :use [Allocator])

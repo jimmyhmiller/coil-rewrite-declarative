@@ -2,17 +2,20 @@
 (module rewrite.source)
 (import "coil.alloc" :as alloc :use [Allocator])
 (import "coil.arraylist" :use *)
-(import "coil.hashmap" :use [HashMap])
+(import "coil.hashmap" :use [HashMap KeyOps])
 (import "coil.str" :use [keyops-borrowed])
-(import "coil.reader" :use [Sexp])
+(import "coil.reader" :use [Sexp sexp-sym? sexp-sym hmod-name])
 (import "coil.result" :use *)
+(import "coil.primitive" :as primitive)
+(import "coil.cc" :as cc)
 
 (defstruct Origin [(source i64) (lo i64) (hi i64)])
 
 (defstruct Document [(name (slice u8)) (text (slice u8))])
 
 (defstruct Trace
-  [(origin Origin)
+  [(occurrence (Option Occurrence))
+   (origin Origin)
    (target-schema i64)
    (target-node i64)
    (source-schema i64)
@@ -24,7 +27,8 @@
   [(allocator (dyn Allocator))
    (strings (ArrayList (slice u8)))
    (index (HashMap (slice u8) i64))
-   (documents (HashMap i64 Document))])
+   (documents (HashMap i64 Document))
+   (captures (HashMap CaptureKey Occurrence))])
 
 (defsum SourceError
   (SourceConflict [(id i64)])
@@ -39,6 +43,7 @@
 
 (defn create [(a (dyn Allocator))] (-> Sources)
   (Sources
+    :captures (HashMap::new [CaptureKey Occurrence] a (capture-ops))
     :allocator a
     :strings (ArrayList::new [(slice u8)] a)
     :index (HashMap::new [(slice u8) i64] a (keyops-borrowed))
@@ -60,6 +65,7 @@
             copy))))
 
 (defn release! [(sources (mut Sources))] (-> void)
+  (free! (mut (.captures sources)))
   (free! (mut (.index sources)))
   (free! (mut (.documents sources)))
   (for text (.strings sources) (alloc/free [u8] (.allocator sources) text))
@@ -109,3 +115,123 @@
                                   (.text doc))
                   (Err [error] (Err error))
                   (Ok [added] (set! (mut copied) (.source at) true) (Ok added))))))))
+
+;;; Keys describe owned syntax rows, not canonical type identity. Negative field
+;;; slots name the root (-1) and first list item (-2); nonnegative slots are fields.
+(defstruct CaptureKey [(schema i64) (row i64) (field i64)])
+
+(defstruct Occurrence
+  [(origin Origin)
+   (context i64)
+   (node-id i64)
+   (scope i64)
+   (hygiene-origin i64)
+   (module (Option (slice u8)))
+   (symbol? bool)
+   (spelling (slice u8))])
+
+(defn capture-hash :cc (cc/C) [(bytes (ptr i8)) (size i64)] (-> i64)
+  (let [key (primitive/cast (ptr CaptureKey) bytes)
+        (mut h) (- 0 3750763034362895579)]
+    (for [part 0 3]
+      (let [value
+              (cond (= part 0) (.schema key)
+                    (= part 1) (.row key)
+                    :else (.field key))]
+        (for [i 0 8]
+          (set! h
+                (primitive/imul (primitive/ixor h
+                                                (primitive/iand (primitive/ishr value
+                                                                                (* i
+                                                                                   8))
+                                                                255))
+                                1099511628211)))))
+    h))
+
+(defn capture-equal :cc (cc/C) [(left (ptr i8)) (right (ptr i8)) (size i64)]
+  (-> bool)
+  (let [a (primitive/cast (ptr CaptureKey) left)
+        b (primitive/cast (ptr CaptureKey) right)]
+    (and (= (.schema a) (.schema b))
+         (= (.row a) (.row b))
+         (= (.field a) (.field b)))))
+
+(defn capture-ops [] (-> (ptr KeyOps))
+  (primitive/alloc-static KeyOps
+                          (KeyOps
+                            :hash (primitive/fnptr-of capture-hash)
+                            :eq (primitive/fnptr-of capture-equal)
+                            :size (sizeof CaptureKey)
+                            :copy
+                              (zeroed (fnptr (cc/C)
+                                             [(ptr (dyn Allocator)) (ptr i8)]
+                                             i64))
+                            :free
+                              (zeroed (fnptr (cc/C)
+                                             [(ptr (dyn Allocator)) (ptr i8)]
+                                             i64))
+                            :owns 0)))
+
+(defn capture! [(sources (mut Sources))
+                (schema i64)
+                (row i64)
+                (field i64)
+                (form (ptr Sexp))] (-> void)
+  (let [module
+          (if (= (primitive/cast i64 (.hmod form)) 0)
+              (None [(slice u8)])
+              (Some (intern! (mut sources) (hmod-name (.hmod form)))))
+        symbol? (sexp-sym? form)
+        spelling (if symbol? (intern! (mut sources) (sexp-sym form)) "")]
+    (set! (mut (.captures sources))
+          (CaptureKey
+            :schema schema
+            :row row
+            :field field)
+          (Occurrence
+            :origin (origin form)
+            :context (.ctxt form)
+            :node-id (.node-id form)
+            :scope (.hyg form)
+            :hygiene-origin (.horigin form)
+            :module module
+            :symbol? symbol?
+            :spelling spelling))))
+
+(defn captured [(sources (ptr Sources)) (schema i64) (row i64) (field i64)]
+  (-> (Option Occurrence))
+  (get (.captures sources)
+       (CaptureKey
+         :schema schema
+         :row row
+         :field field)))
+
+;;; Move an occurrence into another source pool without retaining reader/input text.
+(defn own-occurrence! [(sources (mut Sources)) (value Occurrence)]
+  (-> Occurrence)
+  (Occurrence
+    :origin (.origin value)
+    :context (.context value)
+    :node-id (.node-id value)
+    :scope (.scope value)
+    :hygiene-origin (.hygiene-origin value)
+    :symbol? (.symbol? value)
+    :spelling (intern! (mut sources) (.spelling value))
+    :module
+      (match (.module value)
+        (None [] (None [(slice u8)]))
+        (Some [name] (Some (intern! (mut sources) name))))))
+
+;;; VALUE must already borrow this pool. Canonical row identities must never be
+;;; used as occurrence keys; their distinct occurrences live in traces instead.
+(defn locate! [(sources (mut Sources))
+               (schema i64)
+               (row i64)
+               (field i64)
+               (value Occurrence)] (-> void)
+  (set! (mut (.captures sources))
+        (CaptureKey
+          :schema schema
+          :row row
+          :field field)
+        value))

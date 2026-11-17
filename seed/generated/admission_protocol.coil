@@ -1,4 +1,4 @@
-;;; Generated from languages/admission.protocol by tools/gen-schema.py. Do not edit.
+;;; Generated from compiler/expansion/admission.protocol by tools/gen-schema.py. Do not edit.
 (module rewrite.admissionprotocol)
 (import "coil.result" :use *)
 (import "coil.cc" :as cc)

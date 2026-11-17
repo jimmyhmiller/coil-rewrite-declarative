@@ -1,4 +1,4 @@
-;;; Generated from languages/resolution.protocol by tools/gen-schema.py. Do not edit.
+;;; Generated from compiler/resolution/lookup.protocol by tools/gen-schema.py. Do not edit.
 (module rewrite.resolveprotocol)
 (import "coil.result" :use *)
 (import "coil.cc" :as cc)

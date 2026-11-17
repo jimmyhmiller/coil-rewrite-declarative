@@ -1,4 +1,4 @@
-;;; Generated from languages/derive.schema by tools/gen-schema.py. Do not edit.
+;;; Generated from compiler/expansion/derive.schema by tools/gen-schema.py. Do not edit.
 (module rewrite.deriveforms)
 (import "rewrite.types" :as types)
 (import "coil.result" :use *)

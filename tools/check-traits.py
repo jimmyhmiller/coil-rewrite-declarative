@@ -56,6 +56,6 @@ evidence=dict(scope='Trait availability membership, idempotent introduction and 
               cases=len(cases),configurations=['default','debug-checks','release'],allocator_leaks=0,
               host_version=subprocess.check_output([str(host),'--version'],text=True).strip(),host_sha256=digest(host.read_bytes()),
               reference_sha256=digest(reference.read_bytes()),driver_sha256=digest(driver.encode()),
-              inputs={str(p.relative_to(ROOT)):digest(p.read_bytes()) for p in inputs+[Path(__file__),ROOT/'languages/code.schema']})
+              inputs={str(p.relative_to(ROOT)):digest(p.read_bytes()) for p in inputs+[Path(__file__),ROOT/'compiler/syntax/code.schema']})
 (ROOT/'evidence/trait-replay.json').write_text(json.dumps(evidence,indent=2)+'\n')
 print(f'Trait availability replay: {len(cases)} cases, three configurations, idempotent publication and no allocator leaks')

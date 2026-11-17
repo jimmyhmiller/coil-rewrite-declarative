@@ -109,7 +109,7 @@ with tempfile.TemporaryDirectory(prefix='rewrite-derive-') as directory:
             import difflib
             raise RuntimeError(''.join(difflib.unified_diff(expected.splitlines(True),result.stdout.splitlines(True),fromfile='reference',tofile='rewrite')))
 host=Path(shutil.which('coil')).resolve(strict=True)
-paths=['tools/check-derive.py','languages/derive.schema','languages/derive_registration.protocol','languages/code.schema']+[f'seed/{n}.coil' for n in runtime]+[f'seed/generated/{n}.coil' for n in generated]
+paths=['tools/check-derive.py','compiler/expansion/derive.schema','compiler/expansion/derive_registration.protocol','compiler/syntax/code.schema']+[f'seed/{n}.coil' for n in runtime]+[f'seed/generated/{n}.coil' for n in generated]
 digest=lambda data:hashlib.sha256(data).hexdigest()
 evidence=dict(scope='Production derive surface registration and registry transitions against captured helper traces, with explicit macro/trait resolver fixtures. Not real module loading, source diagnostics or complete generated-form admission.',
               scenarios=len(reference['cases']),actions=sum(len(c['actions']) for c in reference['cases']),

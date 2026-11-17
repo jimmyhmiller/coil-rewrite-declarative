@@ -1,4 +1,4 @@
-;;; Generated from languages/before_expand.protocol by tools/gen-schema.py. Do not edit.
+;;; Generated from compiler/expansion/before_expand.protocol by tools/gen-schema.py. Do not edit.
 (module rewrite.beforeprotocol)
 (import "coil.result" :use *)
 (import "coil.cc" :as cc)

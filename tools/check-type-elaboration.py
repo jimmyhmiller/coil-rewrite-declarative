@@ -79,7 +79,7 @@ path = ROOT/'build/type-elaboration-replay.coil'; path.write_text(driver)
 for flags in [[], ['--debug-checks'], ['--release']]:
     subprocess.run(['coil','run',str(path),*flags],cwd=ROOT,check=True)
 digest = lambda data: hashlib.sha256(data).hexdigest()
-inputs = [helper, Path(__file__), ROOT/'languages/type_syntax.schema', ROOT/'seed/generated/type_syntax.coil', ROOT/'seed/transform.coil', ROOT/'seed/lexical.coil', ROOT/'seed/text_runtime.coil']
+inputs = [helper, Path(__file__), ROOT/'compiler/frontend/types.schema', ROOT/'seed/generated/type_syntax.coil', ROOT/'seed/transform.coil', ROOT/'seed/lexical.coil', ROOT/'seed/text_runtime.coil']
 evidence = dict(scope='Classified type graph equality for accepted captured struct-field types, scope zero and reference 64-bit target. Pack application encoding is normalized to Pack, and convention dump spelling to Named/Value. Excludes source-site effects, exact errors, canonical interning, nonzero-scope reference parity and full declaration admission.',cases=len(cases),configurations=['default','debug-checks','release'],reference_sha256=digest(reference.read_bytes()),driver_sha256=digest(driver.encode()),inputs={str(p.relative_to(ROOT)):digest(p.read_bytes()) for p in inputs})
 (ROOT/'evidence/type-elaboration-replay.json').write_text(json.dumps(evidence,indent=2)+'\n')
 print(f'Classified type graphs: {len(cases)} accepted real-parser ASTs match in three configurations with independent ownership')

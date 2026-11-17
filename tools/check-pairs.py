@@ -108,6 +108,6 @@ evidence=dict(host_version=subprocess.check_output([str(host),'--version'],text=
               observations=len(replay),configurations=['default','debug-checks','release'],
               reference_sha256=hashlib.sha256((ROOT/'evidence/derive-reference.json').read_bytes()).hexdigest(),
               inputs={p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in
-                      ['tools/check-pairs.py','seed/pair_selection.coil','languages/pair_selection.schema','seed/generated/pair_forms.coil','languages/code.schema','seed/generated/code_forms.coil']})
+                      ['tools/check-pairs.py','seed/pair_selection.coil','languages/pair_selection.schema','seed/generated/pair_forms.coil','compiler/syntax/code.schema','seed/generated/code_forms.coil']})
 (ROOT/'evidence/pair-selection-replay.json').write_text(json.dumps(evidence,indent=2)+'\n')
 print(f'Pair selection: {len(replay)} captured arm observations and invalid policies passed')

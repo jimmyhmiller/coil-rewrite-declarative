@@ -12,22 +12,23 @@ ROOT = Path(__file__).resolve().parents[1]
 SPEC = ROOT / 'languages/schema.schema'
 OUTPUT = ROOT / 'seed/generated/schema_forms.coil'
 LANGUAGE_ARTIFACTS = [(SPEC, OUTPUT, 'rewrite.schemaforms'),
+            (ROOT/'compiler/frontend/core.schema', ROOT/'seed/generated/core_compiler.coil', 'rewrite.corecompiler'),
             (ROOT/'languages/classification.schema', ROOT/'seed/generated/classification_forms.coil', 'rewrite.classificationforms'),
-            (ROOT/'languages/type_syntax.schema', ROOT/'seed/generated/type_syntax.coil', 'rewrite.typesyntax'),
-            (ROOT/'languages/admission.protocol', ROOT/'seed/generated/admission_protocol.coil', 'rewrite.admissionprotocol'),
-            (ROOT/'languages/derive.schema', ROOT/'seed/generated/derive_forms.coil', 'rewrite.deriveforms'),
-            (ROOT/'languages/derive_registration.protocol', ROOT/'seed/generated/derive_protocol.coil', 'rewrite.deriveprotocol'),
+            (ROOT/'compiler/frontend/types.schema', ROOT/'seed/generated/type_syntax.coil', 'rewrite.typesyntax'),
+            (ROOT/'compiler/expansion/admission.protocol', ROOT/'seed/generated/admission_protocol.coil', 'rewrite.admissionprotocol'),
+            (ROOT/'compiler/expansion/derive.schema', ROOT/'seed/generated/derive_forms.coil', 'rewrite.deriveforms'),
+            (ROOT/'compiler/expansion/derive_registration.protocol', ROOT/'seed/generated/derive_protocol.coil', 'rewrite.deriveprotocol'),
             (ROOT/'languages/pair_selection.schema', ROOT/'seed/generated/pair_forms.coil', 'rewrite.pairforms'),
-            (ROOT/'languages/macro_head.protocol', ROOT/'seed/generated/head_protocol.coil', 'rewrite.headprotocol'),
-            (ROOT/'languages/resolution.protocol', ROOT/'seed/generated/resolve_protocol.coil', 'rewrite.resolveprotocol'),
-            (ROOT/'languages/exports.search', ROOT/'seed/generated/export_search.coil', 'rewrite.exportsearch'),
+            (ROOT/'compiler/expansion/macro_head.protocol', ROOT/'seed/generated/head_protocol.coil', 'rewrite.headprotocol'),
+            (ROOT/'compiler/resolution/lookup.protocol', ROOT/'seed/generated/resolve_protocol.coil', 'rewrite.resolveprotocol'),
+            (ROOT/'compiler/resolution/exports.search', ROOT/'seed/generated/export_search.coil', 'rewrite.exportsearch'),
             (ROOT/'languages/search.schema', ROOT/'seed/generated/search_forms.coil', 'rewrite.searchforms'),
-            (ROOT/'languages/names.schema', ROOT/'seed/generated/name_forms.coil', 'rewrite.nameforms'),
-            (ROOT/'languages/code.schema', ROOT/'seed/generated/code_forms.coil', 'rewrite.codeforms'),
+            (ROOT/'compiler/resolution/names.schema', ROOT/'seed/generated/name_forms.coil', 'rewrite.nameforms'),
+            (ROOT/'compiler/syntax/code.schema', ROOT/'seed/generated/code_forms.coil', 'rewrite.codeforms'),
             (ROOT/'languages/protocol.schema', ROOT/'seed/generated/protocol_forms.coil', 'rewrite.protocolforms'),
-            (ROOT/'languages/staging.protocol', ROOT/'seed/generated/stage_protocol.coil', 'rewrite.stageprotocol'),
-            (ROOT/'languages/before_expand.protocol', ROOT/'seed/generated/before_protocol.coil', 'rewrite.beforeprotocol'),
-            (ROOT/'languages/request_expansion.protocol', ROOT/'seed/generated/request_protocol.coil', 'rewrite.requestprotocol')]
+            (ROOT/'compiler/expansion/staging.protocol', ROOT/'seed/generated/stage_protocol.coil', 'rewrite.stageprotocol'),
+            (ROOT/'compiler/expansion/before_expand.protocol', ROOT/'seed/generated/before_protocol.coil', 'rewrite.beforeprotocol'),
+            (ROOT/'compiler/expansion/requests.protocol', ROOT/'seed/generated/request_protocol.coil', 'rewrite.requestprotocol')]
 
 
 def digest(data):

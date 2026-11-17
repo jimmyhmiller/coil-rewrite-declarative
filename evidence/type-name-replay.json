@@ -20,14 +20,14 @@
     "seed/types.coil": "e398f5cb019e3eea3339700ba5b3685b119421eb30ac5a2045c8835d5d9a6ce9",
     "seed/scope.coil": "c7be3143d3e955ecd8c05ea3c7ffb4b8b6d9981a223fc5de55507aa89f35e71f",
     "seed/resolution.coil": "b080dca9f1a7b3848105faf4e2369a3272911fe8ab22a0e23f75e23d112521c6",
-    "seed/source.coil": "2dbc0dbd555bbce2eada0905768648245908c8a7cc9c5cdd6eeeccf8d262ab54",
+    "seed/source.coil": "82dae8e1338ed36fe3283dc027d4b776f92c6122d3fe785241bd023771cc359f",
     "seed/sequence.coil": "0cedbddbb2d87ff758d26012b6d5bed8953469f6cab544bed8909795f8c459bc",
     "seed/text_runtime.coil": "4df8f4bed7ca2af8b8e0aef2de51a7c01788555fe64cf7fdf94acb0563b96b10",
     "seed/lexical.coil": "0c5f048886da8ba0147b8530c86375f94ec9814a6ea9736b4563ceea57e3d2a6",
     "seed/equality_runtime.coil": "677953a98f75ce17eba81be80da3133d56da5387413e15679ba218c10e462039",
-    "seed/generated/type_syntax.coil": "b27f1f5d554c91ddd4b469c7198132e6fd984d1d0be8e43e4f5fa2329547392d",
-    "tools/check-classification.py": "1aa4fb1e6f08f2cd5911f4729c631fd35984c65617ea35c92e8aa82a87b3d66c",
-    "languages/type_syntax.schema": "34f0f7059e686862b61129a67ddb3f7194f35c6a7c5f1ea91a835b6f1253f5e1",
+    "seed/generated/type_syntax.coil": "760da42aea68b0869c7443659fe498f3100f63c42a0c04745bc95d782cbfb0fe",
+    "tools/check-classification.py": "347334c76eb1c3f59f36d87f9c52c2d4ed4c4f2b5c0ac708b0974ba3fd28a690",
+    "compiler/frontend/types.schema": "f1a35de1b1fa276bded3fdb3efe5ed3c4fbf0b3528343c801690456704d5c192",
     "languages/classification.schema": "3118a1eafdda5ab5bff70f89fbc694316016f656b10508bf50c6423c6ee23b78",
     "seed/classification.coil": "a3231f6cdf699a4e68b95d3dba850e9fbfb52dc8f8aa8515779acaf3687ef887"
   }

@@ -9,6 +9,65 @@
 (import "coil.result" :use *)
 (import "coil.str" :use *)
 
+(defn locations? [(forms (ptr (ArrayList Sexp))) (name (slice u8))] (-> bool)
+  (block :found
+    (for [i 0 (len (load forms))]
+      (let [form (elem forms i)]
+        (when (and (sexp-list? form)
+                   (= (sexp-count form) 2)
+                   (sexp-sym-is (sexp-nth form 0) "syntax-locations")
+                   (sexp-sym-is (sexp-nth form 1) name))
+          (break :found true))))
+    false))
+
+(defn validate-locations [(s (ptr Schema)) (forms (ptr (ArrayList Sexp)))]
+  (-> (Result bool Diag))
+  (block :done
+    (for [i 0 (len (load forms))]
+      (let [form (elem forms i)]
+        (when (and (sexp-list? form)
+                   (> (sexp-count form) 0)
+                   (sexp-sym-is (sexp-nth form 0) "syntax-locations"))
+          (unless (and (= (sexp-count form) 2) (sexp-sym? (sexp-nth form 1)))
+            (break
+              :done (Err (problem form "expected (syntax-locations Schema)"))))
+          (let [name (sexp-sym (sexp-nth form 1))
+                (mut found?) false
+                (mut syntax?) false]
+            (for node (.nodes s)
+              (when (= (.name node) name) (set! found? true)))
+            (unless found?
+              (break
+                :done (Err (problem form "unknown syntax-locations schema"))))
+            (for [j 0 (len (load forms))]
+              (let [other (elem forms j)]
+                (when (and (sexp-list? other)
+                           (>= (sexp-count other) 2)
+                           (sexp-sym-is (sexp-nth other 1) name))
+                  (when (sexp-sym-is (sexp-nth other 0) "syntax")
+                    (set! syntax? true))
+                  (when (and (< j i)
+                             (sexp-sym-is (sexp-nth other 0) "syntax-locations"))
+                    (break
+                      :done
+                        (Err (problem form
+                                      "duplicate syntax-locations declaration")))))))
+            (unless syntax?
+              (break
+                :done
+                  (Err (problem form "syntax-locations requires syntax rules"))))))))
+    (Ok true)))
+
+(defn location! [(b (mut StrBuf)) (schema i64) (field i64) (path (slice u8))]
+  (-> void)
+  (push-str! (mut b) "(source/capture! (mut (.source-data store)) ")
+  (number! (mut b) schema)
+  (push-str! (mut b) " (.index id) ")
+  (number! (mut b) field)
+  (push-str! (mut b) " ")
+  (push-str! (mut b) path)
+  (push-str! (mut b) ") "))
+
 (defstruct Capture
   [(field i64) (mode (slice u8)) (path (slice u8)) (start i64) (limit i64)])
 
@@ -522,8 +581,16 @@
                 (number! (mut b) f))
               (push-str! (mut b) "))] (push! (mut (.origins")
               (number! (mut b) ni)
-              (push-str! (mut b)
-                         " store)) (origin-of form)) (break :parsed (Ok id)))) "))))
+              (push-str! (mut b) " store)) (origin-of form)) ")
+              (when (locations? forms (.name node))
+                (location! (mut b) ni -1 "form")
+                (push-str! (mut b)
+                           "(when (and (sexp-list? form) (> (sexp-count form) 0)) ")
+                (location! (mut b) ni -2 "(sexp-nth form 0)")
+                (push-str! (mut b) ") ")
+                (for capture captures
+                  (location! (mut b) ni (.field capture) (.path capture))))
+              (push-str! (mut b) "(break :parsed (Ok id)))) "))))
         (for [i 0 (len seen)]
           (unless (= (get seen i) 1)
             (break

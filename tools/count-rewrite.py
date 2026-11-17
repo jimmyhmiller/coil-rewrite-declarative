@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def category(path):
     if path.startswith('seed/generated/') and path.endswith('.coil'):
         return 'generated-language-toolchain'
-    if path.startswith('languages/'):
+    if path.startswith(('languages/', 'compiler/')):
         return 'authored-language-specifications'
     if path.startswith(('seed/', 'runtime/')):
         return 'authored-seed-and-runtime'

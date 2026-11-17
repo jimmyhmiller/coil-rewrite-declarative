@@ -1,4 +1,4 @@
-;;; Generated from languages/derive_registration.protocol by tools/gen-schema.py. Do not edit.
+;;; Generated from compiler/expansion/derive_registration.protocol by tools/gen-schema.py. Do not edit.
 (module rewrite.deriveprotocol)
 (import "coil.result" :use *)
 (import "coil.cc" :as cc)

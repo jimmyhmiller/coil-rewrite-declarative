@@ -110,6 +110,52 @@
   (block :done
     (when (and (sexp-list? term)
                (> (sexp-count term) 0)
+               (sexp-sym-is (sexp-nth term 0) "at"))
+      (unless (and (= (sexp-count term) 3) (sexp-sym? (sexp-nth term 1)))
+        (break
+          :done (Err (problem term "expected (at source-field expression)"))))
+      (let [(mut selected) -1
+            (mut original-count) 0]
+        (for variant (.variants (elem (field s nodes) source))
+          (when (= (.name variant) (.name v))
+            (set! original-count (len (.fields variant)))))
+        (for [i 0 original-count]
+          (when (sexp-sym-is (sexp-nth term 1)
+                             (.name (elem (field v fields) i)))
+            (set! selected i)))
+        (when (< selected 0)
+          (break :done (Err (problem term "unknown location field"))))
+        (push-str! (mut b)
+                   "(let [site (match (source/captured (field input source-data) ")
+        (number! (mut b) source)
+        (push-str! (mut b) " (.index id) ")
+        (number! (mut b) selected)
+        (push-str! (mut b)
+                   ") (Some [v] v) (None [] (break :done (Err (TransformLocationMissing ")
+        (number! (mut b) source)
+        (push-str! (mut b) " (.index id) ")
+        (number! (mut b) selected)
+        (push-str! (mut b)
+                   "))))) origin (.origin site) occurrence (Some site)] (match (source/transfer! (mut (.source-data store)) (field input source-data) origin (mut (.copied state))) (Err [e] (break :done (Err (TransformSource e)))) (Ok [_])) ")
+        (match (term! (mut b)
+                      s
+                      passes
+                      forms
+                      context
+                      interned
+                      source
+                      v
+                      (sexp-nth term 2)
+                      expected
+                      many?
+                      occurrences?
+                      rule)
+          (Err [d] (break :done (Err d)))
+          (Ok [_]))
+        (push-str! (mut b) ")"))
+      (break :done (Ok 0)))
+    (when (and (sexp-list? term)
+               (> (sexp-count term) 0)
                (sexp-sym-is (sexp-nth term 0) "context"))
       (unless (and (= (sexp-count term) 2)
                    (sexp-sym? (sexp-nth term 1))
@@ -644,7 +690,14 @@
               (number! (mut b) target)
               (push-str! (mut b) " store)) origin) ")))
         (push-str! (mut b)
-                   "(push! (mut (.traces store)) (source/Trace :origin origin :target-schema ")
+                   "(let [owned-occurrence (match occurrence (None [] (None [source/Occurrence])) (Some [v] (Some (source/own-occurrence! (mut (.source-data store)) v))))] ")
+        (unless (get (load interned) target)
+          (push-str! (mut b)
+                     "(match owned-occurrence (None []) (Some [v] (source/locate! (mut (.source-data store)) ")
+          (number! (mut b) target)
+          (push-str! (mut b) " (.index out) -1 v))) "))
+        (push-str! (mut b)
+                   "(push! (mut (.traces store)) (source/Trace :occurrence owned-occurrence :origin origin :target-schema ")
         (number! (mut b) target)
         (push-str! (mut b) " :target-node (.index out) :source-schema ")
         (number! (mut b) source)
@@ -652,7 +705,7 @@
         (number! (mut b) (.lo rule))
         (push-str! (mut b) " :rule-hi ")
         (number! (mut b) (.hi rule))
-        (push-str! (mut b) ")) out)")
+        (push-str! (mut b) ")) out))")
         (Ok 0)))))
 
 (defn context-fields [(a (dyn Allocator)) (forms (ptr (ArrayList Sexp)))]
@@ -774,7 +827,7 @@
         (when (interning/any? (mut interned))
           (push-str! (mut b) "(TransformIntern [(error InternError)]) "))
         (push-str! (mut b)
-                   "(TransformAliasedStores) (TransformSequence [(error sequence/SequenceError)]) (TransformSource [(error source/SourceError)]) (TransformReference [(schema i64) (node i64)]) (TransformCycle [(schema i64) (node i64)]) (TransformOriginMissing [(schema i64) (node i64)]) (TransformSourceChanged [(schema i64)]))\n(defstruct TransformState [(sharing? bool) (source (ptr Store)) (target (ptr Store)) (copied (HashMap i64 bool)) ")
+                   "(TransformLocationMissing [(schema i64) (row i64) (field i64)]) (TransformAliasedStores) (TransformSequence [(error sequence/SequenceError)]) (TransformSource [(error source/SourceError)]) (TransformReference [(schema i64) (node i64)]) (TransformCycle [(schema i64) (node i64)]) (TransformOriginMissing [(schema i64) (node i64)]) (TransformSourceChanged [(schema i64)]))\n(defstruct TransformState [(sharing? bool) (source (ptr Store)) (target (ptr Store)) (copied (HashMap i64 bool)) ")
         (for [c 0 (len context)]
           (push-str! (mut b) "(context")
           (number! (mut b) c)
@@ -900,7 +953,10 @@
                        " (.index id))))) (let [cached (get (load memo) (.index id)) origin (get (.origins")
             (number! (mut b) source)
             (push-str! (mut b)
-                       " input) (.index id))] (match (source/transfer! (mut (.source-data store)) (field input source-data) origin (mut (.copied state))) (Err [error] (break :done (Err (TransformSource error)))) (Ok [_])) (when (and sharing? (>= cached 0)) (break :done (Ok (N")
+                       " input) (.index id)) occurrence (source/captured (field input source-data) ")
+            (number! (mut b) source)
+            (push-str! (mut b)
+                       " (.index id) -1)] (match (source/transfer! (mut (.source-data store)) (field input source-data) origin (mut (.copied state))) (Err [error] (break :done (Err (TransformSource error)))) (Ok [_])) (when (and sharing? (>= cached 0)) (break :done (Ok (N")
             (number! (mut b) target)
             (push-str! (mut b) (if many? "Seq" "Id"))
             (push-str! (mut b)

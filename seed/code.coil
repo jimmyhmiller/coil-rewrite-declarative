@@ -1,4 +1,4 @@
-;;; Owned syntax values generated from languages/code.schema. Scope/context numbers
+;;; Owned syntax values generated from compiler/syntax/code.schema. Scope/context numbers
 ;;; are opaque identities of the originating session, not globally portable IDs.
 (module rewrite.code)
 (import "rewrite.codeforms" :as forms)

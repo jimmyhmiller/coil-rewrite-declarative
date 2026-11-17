@@ -1,4 +1,4 @@
-;;; Generated from languages/request_expansion.protocol by tools/gen-schema.py. Do not edit.
+;;; Generated from compiler/expansion/requests.protocol by tools/gen-schema.py. Do not edit.
 (module rewrite.requestprotocol)
 (import "coil.result" :use *)
 (import "coil.cc" :as cc)

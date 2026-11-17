@@ -1,4 +1,4 @@
-;;; Generated from languages/macro_head.protocol by tools/gen-schema.py. Do not edit.
+;;; Generated from compiler/expansion/macro_head.protocol by tools/gen-schema.py. Do not edit.
 (module rewrite.headprotocol)
 (import "coil.result" :use *)
 (import "coil.cc" :as cc)

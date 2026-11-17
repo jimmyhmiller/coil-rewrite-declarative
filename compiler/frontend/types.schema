@@ -90,21 +90,21 @@
   (Integer (Integer value))
   (Keyword (Keyword value))
   (Boolean (Boolean value))
-  (Reference (Reference (Identifier name scope module))))
+  (Reference (Reference (at name (Identifier name scope module)))))
 (transform Length TypeExtent
   (Fixed (Fixed value))
-  (Parameter (Parameter (Identifier name scope module))))
+  (Parameter (Parameter (at name (Identifier name scope module)))))
 (transform Width TypeExtent
   (Fixed (Fixed value))
-  (Parameter (Parameter (Identifier name scope module))))
+  (Parameter (Parameter (at name (Identifier name scope module)))))
 (transform Convention TypeConvention
-  (Named (Named (Identifier name scope module)))
-  (Value (Value (Identifier name scope module))))
+  (Named (Named (at name (Identifier name scope module))))
+  (Value (Value (at name (Identifier name scope module)))))
 (transform WrittenType Type
   (Integer (Constant (Integer value)))
   (Keyword (Constant (Keyword value)))
   (Boolean (Constant (Boolean value)))
-  (Name (UnclassifiedName (Identifier name scope module)))
+  (Name (UnclassifiedName (at name (Identifier name scope module))))
   (Constant (Constant value))
   (Mask (Vector (Boolean) width))
   (Mutable (Reference true element))
@@ -116,7 +116,7 @@
   (Struct (Nominal name))
   (Dynamic (Dynamic name))
   (Function (Function convention parameters result))
-  (Application (Application (Identifier name scope module) arguments)))
+  (Application (Application (at name (Identifier name scope module)) arguments)))
 (equality Type)
 
 ; Lexical reference components. Occurrence maps cannot be memoized by input ID.
@@ -198,3 +198,10 @@
 (equality CanonicalType)
 
 (intern CanonicalType)
+
+; Locations belong to written occurrences, never canonical type identity.
+(syntax-locations Constant)
+(syntax-locations Length)
+(syntax-locations Convention)
+(syntax-locations WrittenType)
+(syntax-locations Width)

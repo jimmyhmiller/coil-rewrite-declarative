@@ -59,7 +59,7 @@ def fixture(alternate):
 
 expected = ''.join(f"{i} {a['query']} {a['referred'] if a['referred'] is not None else '-'} {a['local'] if a['local'] is not None else '-'} {str(a['drops']).lower()}\n"
                    for i, case in enumerate(evidence['cases']) for a in case['answers'])
-base = (ROOT/'languages/names.schema').read_text().replace('rewrite.nameforms', 'fixture.refer')
+base = (ROOT/'compiler/resolution/names.schema').read_text().replace('rewrite.nameforms', 'fixture.refer')
 other = '''(module fixture.refer)
 (node Rename (local Text) (ignored Int) (exported Text))
 (node Word (ignored Bool) (name Text))

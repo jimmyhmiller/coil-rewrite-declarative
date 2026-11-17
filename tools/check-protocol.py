@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 args = argparse.ArgumentParser()
 args.add_argument('--compiler', type=Path, default=ROOT/'build/schema-seed')
 compiler = args.parse_args().compiler.resolve()
-base = (ROOT/'languages/staging.protocol').read_bytes()
+base = (ROOT/'compiler/expansion/staging.protocol').read_bytes()
 invalid = [
     (base + b'\n' + base, b'duplicate protocol declaration'),
     (base + b'\n(node Bad)', b'protocol module cannot contain schema declarations'),
