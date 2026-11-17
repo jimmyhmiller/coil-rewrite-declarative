@@ -1,0 +1,25 @@
+(module rewrite.main)
+(import "rewrite.schema" :as schema)
+(import "rewrite.emit" :as emit)
+(import "coil.alloc" :use *)
+(import "coil.result" :use *)
+(import "coil.io" :use [stderr])
+(import "coil.source.cli" :use [read-stdin-all write-stdout-all])
+
+(defn main [] (-> i64)
+  (let [arena (arena-new 16777216)
+        a (arena-view arena)
+        source (read-stdin-all a)
+        result
+          (match (schema/parse a source 0)
+            (Err [d]
+                 (do
+                   (fmt (stderr)
+                        "schema error at {}..{}: {}"
+                        (.lo d)
+                        (.hi d)
+                        (.msg d))
+                   1))
+            (Ok [s] (write-stdout-all (emit/emit a (box! a schema/Schema s)))))]
+    (arena-release! arena)
+    result))

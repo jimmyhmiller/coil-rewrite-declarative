@@ -1,0 +1,64 @@
+;;; Schema-derived nominal references and append-only typed tables.
+(module rewrite.emit)
+(import "rewrite.schema" :use *)
+(import "coil.alloc" :use *)
+(import "coil.arraylist" :use *)
+(import "coil.str" :use *)
+
+(defn number! [(b (mut StrBuf)) (n i64)] (-> void)
+  (push-i64! (mut b) n))
+
+(defn type! [(b (mut StrBuf)) (s (ptr Schema)) (name (slice u8))] (-> void)
+  (cond (= name "Int") (push-str! (mut b) "i64")
+        (= name "Bool") (push-str! (mut b) "bool")
+        (= name "Text") (push-str! (mut b) "(slice u8)")
+        :else
+          (for [i 0 (len (.nodes s))]
+            (when (= (.name (elem (field s nodes) i)) name)
+              (push-str! (mut b) "N")
+              (number! (mut b) i)
+              (push-str! (mut b) "Id")))))
+
+;;; Numeric generated names cannot collide with keywords or user-provided symbols.
+;;; Schema order defines the local numbering; artifacts must include schema identity.
+(defn emit [(a (dyn Allocator)) (s (ptr Schema))] (-> (slice u8))
+  (let [(mut b) (StrBuf::new a)]
+    (push-str! (mut b)
+               "(module rewrite.generated)\n(import \"coil.arraylist\" :use *)\n")
+    (for [i 0 (len (.nodes s))]
+      (let [n (elem (field s nodes) i)]
+        (push-str! (mut b) "(defstruct N")
+        (number! (mut b) i)
+        (push-str! (mut b) "Id [(index i64)])\n(defstruct N")
+        (number! (mut b) i)
+        (push-str! (mut b) "Row [")
+        (for [j 0 (len (.fields n))]
+          (let [f (elem (field n fields) j)]
+            (push-str! (mut b) "(f")
+            (number! (mut b) j)
+            (push-str! (mut b) " ")
+            (type! (mut b) s (.type-name f))
+            (push-str! (mut b) ")")))
+        (push-str! (mut b) "])\n(defn append-")
+        (number! (mut b) i)
+        (push-str! (mut b) " [(rows (mut (ArrayList N")
+        (number! (mut b) i)
+        (push-str! (mut b) "Row))) (row N")
+        (number! (mut b) i)
+        (push-str! (mut b) "Row)] (-> N")
+        (number! (mut b) i)
+        (push-str! (mut b) "Id) (let [id (N")
+        (number! (mut b) i)
+        (push-str! (mut b)
+                   "Id :index (len (load rows)))] (push! (mut rows) row) id))\n")
+        (push-str! (mut b) "(defn lookup-")
+        (number! (mut b) i)
+        (push-str! (mut b) " [(rows (ptr (ArrayList N")
+        (number! (mut b) i)
+        (push-str! (mut b) "Row))) (id N")
+        (number! (mut b) i)
+        (push-str! (mut b) "Id)] (-> (Option N")
+        (number! (mut b) i)
+        (push-str! (mut b)
+                   "Row)) (if (and (>= (.index id) 0) (< (.index id) (len (load rows)))) (Some (get (load rows) (.index id))) (None)))\n")))
+    (str (load b))))
