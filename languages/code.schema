@@ -60,3 +60,6 @@
 (walk produced-forms
   (default keep)
   (prefix-list "do" 1))
+
+(equivalence source-reuse Context scope module)
+(equivalence revision-reuse Context scope module origin flags)

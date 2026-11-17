@@ -16,26 +16,37 @@
 (defsum Error [E]
   (AliasedOutput)
   (Request [(root i64) (error (execution/Failure E))])
-  (Normalize [(root i64) (error produced/Error)]))
+  (Normalize [(root i64) (error produced/Error)])
+  (Admission [(root i64) (error E)]))
+
+(defsum Admitted (Accepted))
 
 ;;; Result arrays belong to the caller; forms/module strings belong to output.
 ;;; Session must outlive inspection of a request failure. Callback errors keep
 ;;; their own lifetime contract. No partial result list is published on error;
 ;;; output can retain unreachable rows and callback effects are not rolled back.
 ;;; This layer does not register generated declarations or derive forms.
-(defn run! [C E] [(a (dyn Allocator))
-                  (session (ptr execution/Session))
-                  (output (ptr code/Syntax))
-                  (input (ptr code/Syntax))
-                  (roots (ptr (ArrayList stage/Tagged)))
-                  (markers (ptr (HashMap (slice u8) bool)))
-                  (entries (ptr (HashMap (slice u8) bool)))
-                  (user (ptr C))
-                  (execute (fnptr (cc/C)
-                                  [(ptr C)
-                                   (ptr requests/Call)
-                                   (ptr code/Syntax)]
-                                  (Result forms/N0Id E)))]
+(defn run-with! [C E] [(a (dyn Allocator))
+                       (session (ptr execution/Session))
+                       (output (ptr code/Syntax))
+                       (input (ptr code/Syntax))
+                       (roots (ptr (ArrayList stage/Tagged)))
+                       (markers (ptr (HashMap (slice u8) bool)))
+                       (entries (ptr (HashMap (slice u8) bool)))
+                       (user (ptr C))
+                       (execute (fnptr (cc/C)
+                                       [(ptr C)
+                                        (ptr requests/Call)
+                                        (ptr code/Syntax)]
+                                       (Result forms/N0Id E)))
+                       (admit (fnptr (cc/C)
+                                     [(ptr C)
+                                      i64
+                                      (ptr stage/Tagged)
+                                      (ptr code/Syntax)
+                                      (ptr code/Syntax)
+                                      (ptr (ArrayList stage/Tagged))]
+                                     (Result Admitted E)))]
   (-> (Result (ArrayList stage/Tagged) (Error E)))
   (block :done
     (when (or (= (primitive/cast i64 output) (primitive/cast i64 input))
@@ -48,7 +59,7 @@
           (mut complete?) false]
       (defer (unless complete? (free! (mut result))))
       (for [i 0 (len (load roots))]
-        (let [original (get (load roots) i)
+        (let [(mut original) (get (load roots) i)
               returned
                 (match (execution/run! session
                                        input
@@ -69,6 +80,48 @@
                   (Err [e] (break :done (Err (Normalize [E] i e))))
                   (Ok [forms] forms))]
           (defer (free! (mut normalized)))
+          (match (admit user i (mut original) input output (mut normalized))
+            (Err [e] (break :done (Err (Admission [E] i e))))
+            (Ok [_]))
           (for form normalized (push! (mut result) form))))
       (set! complete? true)
       (Ok result))))
+
+;;; Admission runs after normalization and before the next original root. It may
+;;; inspect/consume normalized forms in place; it cannot retain the array itself.
+;;; Any retained data must borrow output or be independently owned. Its effects
+;;; survive a later failure, just like request callbacks. No-op admission is the
+;;; structural-only operation; registration policies use run-with! explicitly.
+(defn keep-produced :cc (cc/C) [C E] [(user (ptr C))
+                                      (index i64)
+                                      (original (ptr stage/Tagged))
+                                      (input (ptr code/Syntax))
+                                      (output (ptr code/Syntax))
+                                      (normalized (ptr (ArrayList stage/Tagged)))]
+  (-> (Result Admitted E))
+  (Ok (Accepted)))
+
+(defn run! [C E] [(a (dyn Allocator))
+                  (session (ptr execution/Session))
+                  (output (ptr code/Syntax))
+                  (input (ptr code/Syntax))
+                  (roots (ptr (ArrayList stage/Tagged)))
+                  (markers (ptr (HashMap (slice u8) bool)))
+                  (entries (ptr (HashMap (slice u8) bool)))
+                  (user (ptr C))
+                  (execute (fnptr (cc/C)
+                                  [(ptr C)
+                                   (ptr requests/Call)
+                                   (ptr code/Syntax)]
+                                  (Result forms/N0Id E)))]
+  (-> (Result (ArrayList stage/Tagged) (Error E)))
+  (run-with! a
+             session
+             output
+             input
+             roots
+             markers
+             entries
+             user
+             execute
+             (primitive/fnptr-of keep-produced [C E])))

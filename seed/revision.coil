@@ -1,0 +1,99 @@
+;;; Compilation-local form identities and cache revisions after normalization.
+(module rewrite.revision)
+(import "rewrite.stage" :as stage)
+(import "rewrite.code" :as code)
+(import "rewrite.equality" :as equality)
+(import "coil.alloc" :use [Allocator])
+(import "coil.arraylist" :use *)
+(import "coil.result" :use *)
+
+(defstruct Supply [(last i64)])
+
+(defstruct Version [(identity i64) (revision i64) (cached-shape i64)])
+
+(defstruct Tagged [(entry stage/Tagged) (version Version)])
+
+(defsum Error
+  (IdentityExhausted)
+  (InvalidVersion)
+  (RevisionExhausted)
+  (ModuleMismatch [(index i64)])
+  (Comparison [(error equality/Error)]))
+
+(defn fresh! [(supply (mut Supply))] (-> (Result Version Error))
+  (if (or (< (.last supply) 0) (= (.last supply) 9223372036854775807))
+      (Err (IdentityExhausted))
+      (do
+        (set! (.last supply) (+ (.last supply) 1))
+        (Ok (Version
+              :identity (.last supply)
+              :revision 0
+              :cached-shape 0)))))
+
+(defn same-module? [(left (Option (slice u8))) (right (Option (slice u8)))]
+  (-> bool)
+  (match left
+    (None [] (match right (None [] true) (_ false)))
+    (Some [l] (match right (Some [r] (= l r)) (_ false)))))
+
+;;; Call before admission consumes registrations: singleton means the flattened
+;;; result count, not the number of forms ultimately published. All form/module
+;;; references remain borrowed from normalized/output; this function owns only
+;;; its result array. The caller supplies one identity scope for a compilation.
+;;; Errors publish no array; already allocated fresh identities are never reused.
+(defn track! [(a (dyn Allocator))
+              (supply (mut Supply))
+              (original (Option Tagged))
+              (input (ptr code/Syntax))
+              (output (ptr code/Syntax))
+              (normalized (ptr (ArrayList stage/Tagged)))]
+  (-> (Result (ArrayList Tagged) Error))
+  (block
+    :done
+      (let [(mut result) (ArrayList::new [Tagged] a)
+            (mut complete?) false
+            count (len (load normalized))]
+        (defer (unless complete? (free! (mut result))))
+        (for [i 0 count]
+          (let [entry (get (load normalized) i)
+                version
+                  (match original
+                    (Some [prior]
+                          (unless (same-module? (.module (.entry prior))
+                                                (.module entry))
+                            (break :done (Err (ModuleMismatch i))))
+                          (if (= count 1)
+                              (let [old (.version prior)
+                                    same
+                                      (match (code/revision-equal? a
+                                                                   input
+                                                                   (.form (.entry prior))
+                                                                   output
+                                                                   (.form entry))
+                                        (Ok [same] same)
+                                        (Err [e]
+                                             (break :done (Err (Comparison e)))))]
+                                (unless (and (> (.identity old) 0)
+                                             (<= (.identity old) (.last supply))
+                                             (>= (.revision old) 0))
+                                  (break :done (Err (InvalidVersion))))
+                                (if same
+                                    old
+                                    (do
+                                      (when (= (.revision old)
+                                               9223372036854775807)
+                                        (break :done (Err (RevisionExhausted))))
+                                      (Version
+                                        :identity (.identity old)
+                                        :revision (+ (.revision old) 1)
+                                        :cached-shape 0))))
+                              (match (fresh! (mut supply))
+                                (Ok [v] v)
+                                (Err [e] (break :done (Err e))))))
+                    (None []
+                          (match (fresh! (mut supply))
+                            (Ok [v] v)
+                            (Err [e] (break :done (Err e))))))]
+            (push! (mut result) (Tagged :entry entry :version version))))
+        (set! complete? true)
+        (Ok result))))

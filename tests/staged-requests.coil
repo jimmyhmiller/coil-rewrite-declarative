@@ -5,6 +5,7 @@
 (import "rewrite.code" :as code)
 (import "rewrite.codeforms" :as forms)
 (import "rewrite.stage" :as stage)
+(import "rewrite.revision" :as revision)
 (import "coil.alloc" :use *)
 (import "coil.arraylist" :use *)
 (import "coil.hashmap" :use [HashMap])
@@ -14,13 +15,51 @@
 (import "coil.primitive" :use [fnptr-of])
 (import "coil.cc" :as cc)
 
-(defstruct Script [(calls i64) (fail-at i64)])
+(defstruct Script
+  [(calls i64)
+   (fail-at i64)
+   (allocator (dyn Allocator))
+   (supply revision/Supply)
+   (versions (ArrayList revision/Version))
+   (tracked (ArrayList revision/Tagged))
+   (admitted i64)
+   (fail-admit i64)
+   (checking? bool)])
+
+(defn admit :cc (cc/C) [(script (ptr Script))
+                        (index i64)
+                        (original (ptr stage/Tagged))
+                        (input (ptr code/Syntax))
+                        (output (ptr code/Syntax))
+                        (normalized (ptr (ArrayList stage/Tagged)))]
+  (-> (Result batch/Admitted i64))
+  (unless (= index (.admitted script)) (panic "admission order"))
+  (set! (.admitted script) (+ (.admitted script) 1))
+  (if (= index (.fail-admit script))
+      (Err 74)
+      (let [(mut tracked)
+              (match (revision/track! (.allocator script)
+                                      (mut (.supply script))
+                                      (Some (revision/Tagged
+                                              :entry (load original)
+                                              :version
+                                                (get (.versions script) index)))
+                                      input
+                                      output
+                                      normalized)
+                (Ok [forms] forms)
+                (Err [_] (panic "admission tracking")))]
+        (defer (free! (mut tracked)))
+        (for form tracked (push! (mut (.tracked script)) form))
+        (Ok (batch/Accepted)))))
 
 (defn execute :cc (cc/C) [(script (ptr Script))
                           (call (ptr requests/Call))
                           (syntax (ptr code/Syntax))]
   (-> (Result forms/N0Id i64))
   (set! (.calls script) (+ (.calls script) 1))
+  (when (and (.checking? script) (= (.calls script) 3))
+    (unless (= (.admitted script) 1) (panic "next request preceded admission")))
   (if (= (.calls script) (.fail-at script))
       (Err 73)
       (let [args (.arguments call)]
@@ -40,7 +79,17 @@
         (mut roots) (ArrayList::new [stage/Tagged] a)
         (mut markers) (HashMap::new [(slice u8) bool] a (keyops-borrowed))
         (mut entries) (HashMap::new [(slice u8) bool] a (keyops-borrowed))
-        (mut script) (Script :calls 0 :fail-at -1)
+        (mut script)
+          (Script
+            :calls 0
+            :fail-at -1
+            :allocator a
+            :supply (revision/Supply :last 0)
+            :versions (ArrayList::new [revision/Version] a)
+            :tracked (ArrayList::new [revision/Tagged] a)
+            :admitted 0
+            :fail-admit -1
+            :checking? false)
         source
           (match (code/read! (mut input)
                              1
@@ -62,6 +111,8 @@
     (defer (free! (mut roots)))
     (defer (free! (mut markers)))
     (defer (free! (mut entries)))
+    (defer (free! (mut (.versions script))))
+    (defer (free! (mut (.tracked script))))
     (set! (mut markers) "request" true)
     (set! (mut entries) "left.emit" true)
     (set! (mut entries) "right.emit" true)
@@ -74,6 +125,14 @@
                (stage/Tagged
                  :form id
                  :module (if (= i 0) (Some left) (Some right))))))
+    (for [i 0 4]
+      (let [(mut v)
+              (match (revision/fresh! (mut (.supply script)))
+                (Ok [v] v)
+                (Err [_] (panic "initial version")))]
+        (set! (.revision v) 7)
+        (set! (.cached-shape v) 91)
+        (push! (mut (.versions script)) v)))
     ; The second original form fails after the first was fully normalized.
     (set! (.fail-at script) 3)
     (match (batch/run! a
@@ -94,16 +153,42 @@
       (Ok [_] (panic "callback failure accepted")))
     (set! (.calls script) 0)
     (set! (.fail-at script) -1)
+    (set! (.checking? script) true)
+    (set! (.fail-admit script) 1)
+    (match (batch/run-with! a
+                            (mut session)
+                            (mut output)
+                            (mut input)
+                            (mut roots)
+                            (mut markers)
+                            (mut entries)
+                            (mut script)
+                            (fnptr-of execute)
+                            (fnptr-of admit))
+      (Err [e]
+           (match e
+             (batch/Admission [index error]
+                              (unless (and (= index 1) (= error 74))
+                                (panic "admission error")))
+             (_ (panic "wrong batch error"))))
+      (Ok [_] (panic "admission failure accepted")))
+    (unless (and (= (.last (.supply script)) 6) (= (len (.tracked script)) 2))
+      (panic "prior admission effects lost"))
+    (while (> (len (.tracked script)) 0) (pop! (mut (.tracked script))))
+    (set! (.calls script) 0)
+    (set! (.admitted script) 0)
+    (set! (.fail-admit script) -1)
     (let [(mut returned)
-            (match (batch/run! a
-                               (mut session)
-                               (mut output)
-                               (mut input)
-                               (mut roots)
-                               (mut markers)
-                               (mut entries)
-                               (mut script)
-                               (fnptr-of execute))
+            (match (batch/run-with! a
+                                    (mut session)
+                                    (mut output)
+                                    (mut input)
+                                    (mut roots)
+                                    (mut markers)
+                                    (mut entries)
+                                    (mut script)
+                                    (fnptr-of execute)
+                                    (fnptr-of admit))
               (Ok [forms] forms)
               (Err [_] (panic "batch")))]
       (defer (free! (mut returned)))
@@ -111,6 +196,14 @@
       (execution/close! (mut session))
       (unless (and (= (len returned) 4) (= (.calls script) 3))
         (panic "batch counts"))
+      (unless (= (len (.tracked script)) 4) (panic "tracked count"))
+      (for [i 0 4]
+        (let [v (.version (get (.tracked script) i))]
+          (unless (and (= (.identity v)
+                          (cond (= i 0) 7 (= i 1) 8 (= i 2) 2 :else 4))
+                       (= (.revision v) (cond (< i 2) 0 (= i 2) 8 :else 7))
+                       (= (.cached-shape v) (if (= i 3) 91 0)))
+            (panic "batch revisions"))))
       (for [i 0 4]
         (let [entry (get returned i)
               expected-id
@@ -130,5 +223,5 @@
             (Some [name]
                   (unless (= name (if (< i 2) "left" "right")) (panic "module")))
             (None [] (panic "missing module"))))))
-    (println "staged request batches: returned bundles, multiple modules, root-indexed failure, retry and independent output lifetime passed")
+    (println "staged request batches: returned bundles, multiple modules, root-indexed failures, admission ordering, revision tracking, retry and independent output lifetime passed")
     0))

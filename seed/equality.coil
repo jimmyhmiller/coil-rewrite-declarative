@@ -1,6 +1,8 @@
 ;;; Derive structural comparison from schema fields; metadata is an explicit hook.
 (module rewrite.equalgen)
 (import "rewrite.schema" :use *)
+(import "rewrite.protocol" :use [name?])
+(import "rewrite.contextpolicy" :use [find-node])
 (import "rewrite.resolve" :use [indexed! node-number])
 (import "rewrite.emit" :use [number!])
 (import "coil.alloc" :use [Allocator])
@@ -77,6 +79,90 @@
             n
             " :left (.index (get xs i)) :right (.index (get ys i))))) (Ok true)))))\n"))
 
+(defn projections [(a (dyn Allocator))
+                   (schema (ptr Schema))
+                   (forms (ptr (ArrayList Sexp)))]
+  (-> (Result (slice u8) Diag))
+  (block
+    :done
+      (let [(mut b) (StrBuf::new a)
+            (mut names) (ArrayList::new [(slice u8)] a)]
+        (for [i 0 (len (load forms))]
+          (let [form (elem forms i)]
+            (when (and (sexp-list? form)
+                       (> (sexp-count form) 0)
+                       (sexp-sym-is (sexp-nth form 0) "equivalence"))
+              (unless (and (>= (sexp-count form) 3)
+                           (sexp-sym? (sexp-nth form 1))
+                           (name? (sexp-sym (sexp-nth form 1)))
+                           (sexp-sym? (sexp-nth form 2)))
+                (break
+                  :done
+                    (Err (problem form
+                                  "expected (equivalence Name Record fields...)"))))
+              (let [name (sexp-sym (sexp-nth form 1))
+                    n (find-node schema (sexp-sym (sexp-nth form 2)))
+                    (mut selected) (ArrayList::new [i64] a)]
+                (for prior names
+                  (when (= prior name)
+                    (break
+                      :done (Err (problem form "duplicate equivalence policy")))))
+                (push! (mut names) name)
+                (when (< n 0)
+                  (break
+                    :done (Err (problem form "unknown equivalence record"))))
+                (let [node (elem (field schema nodes) n)]
+                  (when (.sum? node)
+                    (break
+                      :done (Err (problem form "equivalence needs a record"))))
+                  (let [fields (field (elem (field node variants) 0) fields)]
+                    (for [j 3 (sexp-count form)]
+                      (let [term (sexp-nth form j)
+                            (mut found) (- 0 1)]
+                        (unless (sexp-sym? term)
+                          (break
+                            :done
+                              (Err (problem term
+                                            "expected equivalence field name"))))
+                        (for [f 0 (len (load fields))]
+                          (when (sexp-sym-is term (.name (elem fields f)))
+                            (set! found f)))
+                        (when (< found 0)
+                          (break
+                            :done
+                              (Err (problem term "unknown equivalence field"))))
+                        (for prior selected
+                          (when (= prior found)
+                            (break
+                              :done
+                                (Err (problem term
+                                              "duplicate equivalence field")))))
+                        (let [field (elem fields found)]
+                          (unless (and (scalar? (.type-name field))
+                                       (not (.many? field)))
+                            (break
+                              :done
+                                (Err (problem term
+                                              "equivalence fields must be scalar")))))
+                        (push! (mut selected) found)))))
+                (push-str! (mut b) "(defn equivalent-")
+                (push-str! (mut b) name)
+                (indexed! (mut b)
+                          " :cc (eqcc/C) [(left (ptr N"
+                          n
+                          "Row)) (right (ptr N")
+                (indexed! (mut b) "" n "Row))] (-> bool) ")
+                (if (= (len selected) 0)
+                    (push-str! (mut b) "true")
+                    (do
+                      (push-str! (mut b) "(and ")
+                      (for f selected
+                        (indexed! (mut b) "(= (.f" f " left) (.f")
+                        (indexed! (mut b) "" f " right)) "))
+                      (push-str! (mut b) ")")))
+                (push-str! (mut b) ")\n")))))
+        (Ok (str (load b))))))
+
 (defn emit [(a (dyn Allocator))
             (schema (ptr Schema))
             (forms (ptr (ArrayList Sexp)))]
@@ -106,9 +192,16 @@
                       :done
                         (Err (problem form "duplicate equality declaration")))))
                 (push! (mut roots) found)))))
-        (when (= (len roots) 0) (break :done (Ok "")))
+        (let [projected
+                (match (projections a schema forms)
+                  (Ok [text] text)
+                  (Err [e] (break :done (Err e))))]
+          (when (or (> (len projected) 0) (> (len roots) 0))
+            (push-str! (mut b) "(import \"coil.cc\" :as eqcc)\n"))
+          (push-str! (mut b) projected))
+        (when (= (len roots) 0) (break :done (Ok (str (load b)))))
         (push-str! (mut b)
-                   "(import \"rewrite.equality\" :as equality)\n(import \"coil.cc\" :as eqcc)\n(import \"coil.primitive\" :as eqprimitive)\n(defstruct EqualityContext [C] [(left (ptr Store)) (right (ptr Store)) (user (ptr C)) (metadata (fnptr (eqcc/C) [(ptr C) (ptr equality/Pair)] (Result bool equality/Error)))])\n(defn equality-ignore :cc (eqcc/C) [(user (ptr i64)) (pair (ptr equality/Pair))] (-> (Result bool equality/Error)) (Ok true))\n")
+                   "(import \"rewrite.equality\" :as equality)\n(import \"coil.primitive\" :as eqprimitive)\n(defstruct EqualityContext [C] [(left (ptr Store)) (right (ptr Store)) (user (ptr C)) (metadata (fnptr (eqcc/C) [(ptr C) (ptr equality/Pair)] (Result bool equality/Error)))])\n(defn equality-ignore :cc (eqcc/C) [(user (ptr i64)) (pair (ptr equality/Pair))] (-> (Result bool equality/Error)) (Ok true))\n")
         (for [n 0 (len (.nodes schema))] (sequence! (mut b) n))
         (push-str! (mut b)
                    "(defn equality-step :cc (eqcc/C) [C] [(context (ptr (EqualityContext C))) (work (ptr equality/Work)) (pair (ptr equality/Pair))] (-> (Result bool equality/Error)) (block :done (let [left (.left context) right (.right context)] (cond ")

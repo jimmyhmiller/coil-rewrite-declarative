@@ -282,7 +282,10 @@
   (-> (Result bool equality/Error))
   (forms/equal-0 a (field left store) l (field right store) r))
 
-(defstruct ReuseContext [(left (ptr Syntax)) (right (ptr Syntax))])
+(defstruct ReuseContext
+  [(left (ptr Syntax))
+   (right (ptr Syntax))
+   (equivalent (fnptr (eqcc/C) [(ptr forms/N1Row) (ptr forms/N1Row)] bool))])
 
 (defn reuse-metadata :cc (eqcc/C) [(context (ptr ReuseContext))
                                    (pair (ptr equality/Pair))]
@@ -291,9 +294,9 @@
         right (.right context)]
     (if (and (< (.left pair) (len (.contexts left)))
              (< (.right pair) (len (.contexts right))))
-        (let [l (get (.contexts left) (.left pair))
-              r (get (.contexts right) (.right pair))]
-          (Ok (and (= (.f0 l) (.f0 r)) (= (.f1 l) (.f1 r)))))
+        (let [predicate (.equivalent context)]
+          (Ok (predicate (elem (field left contexts) (.left pair))
+                         (elem (field right contexts) (.right pair)))))
         (Err (equality/MissingMetadata (load pair))))))
 
 ;;; Source reuse additionally requires equal scope and definition module at every
@@ -304,7 +307,32 @@
                      (right (ptr Syntax))
                      (r forms/N0Id)]
   (-> (Result bool equality/Error))
-  (let [(mut context) (ReuseContext :left left :right right)]
+  (let [(mut context)
+          (ReuseContext
+            :left left
+            :right right
+            :equivalent (eqprimitive/fnptr-of forms/equivalent-source-reuse))]
+    (forms/equal-0-with a
+                        (field left store)
+                        l
+                        (field right store)
+                        r
+                        (mut context)
+                        (eqprimitive/fnptr-of reuse-metadata))))
+
+;;; Revision reuse includes lexical scope/module and expansion origin/flags at
+;;; every syntax node. Source locations, transport context and node IDs are ignored.
+(defn revision-equal? [(a (dyn Allocator))
+                       (left (ptr Syntax))
+                       (l forms/N0Id)
+                       (right (ptr Syntax))
+                       (r forms/N0Id)]
+  (-> (Result bool equality/Error))
+  (let [(mut context)
+          (ReuseContext
+            :left left
+            :right right
+            :equivalent (eqprimitive/fnptr-of forms/equivalent-revision-reuse))]
     (forms/equal-0-with a
                         (field left store)
                         l

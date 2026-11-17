@@ -1,0 +1,222 @@
+(module rewrite.testrevision)
+(import "rewrite.revision" :as revision)
+(import "rewrite.stage" :as stage)
+(import "rewrite.code" :as code)
+(import "rewrite.codeforms" :as forms)
+(import "rewrite.equality" :as equality)
+(import "coil.alloc" :use *)
+(import "coil.arraylist" :use *)
+(import "coil.result" :use *)
+
+(defn read-root [(syntax (mut code/Syntax)) (source i64) (text (slice u8))]
+  (-> forms/N0Id)
+  (let [roots
+          (match (code/read! (mut syntax) source "revision.coil" text)
+            (Ok [roots] roots)
+            (Err [_] (panic "read")))]
+    (match (forms/sequence-item-0 (field syntax store) roots 0)
+      (Some [id] id)
+      (None [] (panic "root")))))
+
+(defn expect [(actual (Result bool equality/Error)) (want bool)] (-> void)
+  (match actual
+    (Ok [value] (unless (= value want) (panic "equivalence")))
+    (Err [_] (panic "equivalence error"))))
+
+(defn main [] (-> i64)
+  (let [a (malloc-allocator)
+        (mut input) (code/create a)
+        (mut output) (code/create a)
+        (mut supply) (revision/Supply :last 0)
+        old (read-root (mut input) 1 "(f 42)")
+        new (read-root (mut output) 2 "\n (f 42)")
+        different (read-root (mut output) 3 "(f 43)")
+        version
+          (match (revision/fresh! (mut supply))
+            (Ok [v] v)
+            (Err [_] (panic "identity")))
+        original
+          (revision/Tagged
+            :entry (stage/Tagged :form old :module (Some "module"))
+            :version
+              (revision/Version
+                :identity (.identity version)
+                :revision 7
+                :cached-shape 91))
+        (mut normalized) (ArrayList::new [stage/Tagged] a)]
+    (defer (code/release! (mut input)))
+    (defer (code/release! (mut output)))
+    (defer (free! (mut normalized)))
+    (push! (mut normalized) (stage/Tagged :form new :module (Some "module")))
+    (expect (code/revision-equal? a (mut input) old (mut output) new) true)
+    (let [items
+            (match (get (.rows0 (.store output)) (.index new))
+              (forms/N0V6 [items] items)
+              (_ (panic "list")))
+          child
+            (match (forms/sequence-item-0 (field (mut output) store) items 1)
+              (Some [id] id)
+              (None [] (panic "child")))
+          saved (get (.contexts output) (.index child))]
+      (for [field 0 6]
+        (let [context (elem (field (mut output) contexts) (.index child))]
+          (cond (= field 0) (set! (.f0 context) (+ (.f0 saved) 1))
+                (= field 1) (set! (.f1 context) "other")
+                (= field 2) (set! (.f2 context) (+ (.f2 saved) 1))
+                (= field 3) (set! (.f3 context) (+ (.f3 saved) 1))
+                (= field 4) (set! (.f4 context) (+ (.f4 saved) 1))
+                :else (set! (.f5 context) (+ (.f5 saved) 1))))
+        (expect (code/revision-equal? a (mut input) old (mut output) new)
+                (or (= field 2) (= field 5)))
+        (expect (code/source-equal? a (mut input) old (mut output) new)
+                (>= field 2))
+        (expect (code/equal? a (mut input) old (mut output) new) true)
+        (let [(mut tracked)
+                (match (revision/track! a
+                                        (mut supply)
+                                        (Some original)
+                                        (mut input)
+                                        (mut output)
+                                        (mut normalized))
+                  (Ok [forms] forms)
+                  (Err [_] (panic "tracked metadata")))
+              got (.version (get tracked 0))
+              stable (or (= field 2) (= field 5))]
+          (defer (free! (mut tracked)))
+          (unless (and (= (.identity got) (.identity version))
+                       (= (.revision got) (if stable 7 8))
+                       (= (.cached-shape got) (if stable 91 0))
+                       (= (.last supply) 1))
+            (panic "revision policy")))
+        (set! (mut (.contexts output)) (.index child) saved)))
+    ; Datum changes invalidate a singleton; multiple outputs get new identities.
+    (set! (mut normalized)
+          0
+          (stage/Tagged :form different :module (Some "module")))
+    (let [(mut tracked)
+            (match (revision/track! a
+                                    (mut supply)
+                                    (Some original)
+                                    (mut input)
+                                    (mut output)
+                                    (mut normalized))
+              (Ok [forms] forms)
+              (Err [_] (panic "changed")))]
+      (defer (free! (mut tracked)))
+      (unless (and (= (.revision (.version (get tracked 0))) 8)
+                   (= (.cached-shape (.version (get tracked 0))) 0))
+        (panic "datum revision")))
+    (push! (mut normalized) (get normalized 0))
+    (let [(mut tracked)
+            (match (revision/track! a
+                                    (mut supply)
+                                    (Some original)
+                                    (mut input)
+                                    (mut output)
+                                    (mut normalized))
+              (Ok [forms] forms)
+              (Err [_] (panic "multiple")))]
+      (defer (free! (mut tracked)))
+      (for [i 0 2]
+        (let [v (.version (get tracked i))]
+          (unless (and (= (.identity v) (+ i 2))
+                       (= (.revision v) 0)
+                       (= (.cached-shape v) 0))
+            (panic "fresh multiple version")))))
+    (pop! (mut normalized))
+    (let [(mut tracked)
+            (match (revision/track! a
+                                    (mut supply)
+                                    (None)
+                                    (mut input)
+                                    (mut output)
+                                    (mut normalized))
+              (Ok [forms] forms)
+              (Err [_] (panic "no original")))]
+      (defer (free! (mut tracked)))
+      (unless (= (.identity (.version (get tracked 0))) 4) (panic "fresh root")))
+    (set! (mut normalized) 0 (stage/Tagged :form new :module (None)))
+    (match (revision/track! a
+                            (mut supply)
+                            (Some original)
+                            (mut input)
+                            (mut output)
+                            (mut normalized))
+      (Err [e]
+           (match e (revision/ModuleMismatch [_]) (_ (panic "module error"))))
+      (Ok [_] (panic "module mismatch accepted")))
+    (pop! (mut normalized))
+    (let [(mut tracked)
+            (match (revision/track! a
+                                    (mut supply)
+                                    (Some original)
+                                    (mut input)
+                                    (mut output)
+                                    (mut normalized))
+              (Ok [forms] forms)
+              (Err [_] (panic "empty")))]
+      (defer (free! (mut tracked)))
+      (unless (and (= (len tracked) 0) (= (.last supply) 4))
+        (panic "deletion allocated identity")))
+    (when (revision/same-module? (None) (Some ""))
+      (panic "empty module collapsed"))
+    (push! (mut normalized)
+           (stage/Tagged :form different :module (Some "module")))
+    (let [exhausted
+            (revision/Tagged
+              :entry (.entry original)
+              :version
+                (revision/Version
+                  :identity 1
+                  :revision 9223372036854775807
+                  :cached-shape 91))]
+      (match (revision/track! a
+                              (mut supply)
+                              (Some exhausted)
+                              (mut input)
+                              (mut output)
+                              (mut normalized))
+        (Err [e]
+             (match e
+               (revision/RevisionExhausted [])
+               (_ (panic "revision exhaustion error"))))
+        (Ok [_] (panic "revision wrapped"))))
+    (set! (mut normalized)
+          0
+          (stage/Tagged
+            :form (forms/N0Id :index 999999)
+            :module (Some "module")))
+    (match (revision/track! a
+                            (mut supply)
+                            (Some original)
+                            (mut input)
+                            (mut output)
+                            (mut normalized))
+      (Err [e]
+           (match e (revision/Comparison [_]) (_ (panic "comparison error"))))
+      (Ok [_] (panic "invalid root accepted")))
+    (set! (mut normalized) 0 (stage/Tagged :form new :module (Some "module")))
+    (push! (mut normalized) (get normalized 0))
+    (set! (.last supply) 9223372036854775806)
+    (match (revision/track! a
+                            (mut supply)
+                            (None)
+                            (mut input)
+                            (mut output)
+                            (mut normalized))
+      (Err [e]
+           (match e
+             (revision/IdentityExhausted [])
+             (_ (panic "partial identity exhaustion"))))
+      (Ok [_] (panic "split identity wrapped")))
+    (unless (= (.last supply) 9223372036854775807)
+      (panic "allocated identity recycled"))
+    (set! (.last supply) 9223372036854775807)
+    (match (revision/fresh! (mut supply))
+      (Err [e]
+           (match e
+             (revision/IdentityExhausted [])
+             (_ (panic "identity error"))))
+      (Ok [_] (panic "identity wrapped")))
+    (println "form revisions: declared recursive metadata equality, stable identity, cache invalidation, splitting, deletion and fresh scopes passed")
+    0))
