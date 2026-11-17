@@ -21,7 +21,8 @@
 (context Instance
   [(definition (ptr Sexp)) (symbol (slice u8)) (types (hm/HashMap (slice u8) (slice u8)))])
 (context Instances
-  [(pending (al/ArrayList Instance)) (symbols (hm/HashMap (slice u8) (slice u8))) (used (hm/HashMap (slice u8) bool))])
+  [(empty-types (hm/HashMap (slice u8) (slice u8))) (costs (hm/HashMap i64 i64))
+   (pending (al/ArrayList Instance)) (symbols (hm/HashMap (slice u8) Instance)) (scheduled (hm/HashMap (slice u8) bool)) (used (hm/HashMap (slice u8) bool))])
 
 (translate concrete [(types (hm/HashMap (slice u8) (slice u8))) (name (slice u8))] (slice u8)
   (on (get types name) (Some [actual]) (yield actual))
@@ -29,6 +30,7 @@
 
 (context Frame
   [(loops (hm/HashMap i64 (ptr LoopEdges))) (a (dyn Allocator)) (g graph/Graph) (control i32)
+   (inline-stack (al/ArrayList i64)) (inline-budget i64)
    (instances (ptr Instances)) (instance Instance) (checked checker/Checked)
    (locals (hm/HashMap i64 i32))])
 
@@ -241,12 +243,8 @@
               (need value (lower-expression (mut f) (mut im) signatures arg) (< (.control f) 0))
               (perform (push! (mut args) value))
               (yield 0))
-            (need canonical (call-symbol (mut f) signatures function expr))
-            (bind symbol (image/symbol! (mut im) canonical))
-            (bind call-node (nodes/invoke (mut (.g f)) (.control f) (cast u64 symbol) (slice args)))
-            (perform (set! (.control f) call-node))
-            (yield (Ok (if (= expected ir/T-CTRL) call-node
-                           (nodes/call-result (mut (.g f)) expected call-node)))))
+            (need callee (call-instance (mut f) signatures function expr))
+            (yield (lower-call (mut f) (mut im) signatures callee parameters (slice args) expected)))
           (otherwise (yield (Err (mk-diag-src (.source expr) (.lo expr) (.hi expr) "invalid native callee"))))))
       (otherwise (yield (Err (mk-diag-src (.source expr) (.lo expr) (.hi expr) "unknown native callee"))))))
   (otherwise (yield (Err (mk-diag-src (.source expr) (.lo expr) (.hi expr) "unsupported native expression")))))
@@ -311,8 +309,8 @@
     (need done (run-cleanups (mut f) (mut im) signatures expr) (< (.control f) 0))
     (yield (Ok (load last-value)))))
 
-(translate call-symbol [(f (mut Frame)) (lookup modules/Lookup) (function (ptr Sexp)) (expr (ptr Sexp))]
-  (Result (slice u8) Diag)
+(translate call-instance [(f (mut Frame)) (lookup modules/Lookup) (function (ptr Sexp)) (expr (ptr Sexp))]
+  (Result Instance Diag)
   (on (function-generics function) (GenericParameters [params])
     (choose
       (on (get (.type-arguments (.checked f)) (.node-id expr)) (Some [arguments])
@@ -331,11 +329,62 @@
             (perform (while (contains? (.used (.instances f)) (load symbol))
                        (set! symbol (text/sconcat (.a f) (load symbol) "."))))
             (perform (set! (mut (.used (.instances f))) (load symbol) true))
-            (perform (set! (mut (.symbols (.instances f))) key (load symbol)))
-            (perform (push! (mut (.pending (.instances f))) (Instance :definition function :symbol (load symbol) :types (load types))))
-            (yield (Ok (load symbol))))))
+            (bind callee (Instance :definition function :symbol (load symbol) :types (load types)))
+            (perform (set! (mut (.symbols (.instances f))) key callee))
+            (yield (Ok callee)))))
       (otherwise (yield (Err (mk-diag-src (.source expr) (.lo expr) (.hi expr) "missing inferred type arguments"))))))
-  (otherwise (yield (Ok (modules/symbol-for lookup function)))))
+  (otherwise (yield (Ok (Instance :definition function :symbol (modules/symbol-for lookup function)
+                                 :types (.empty-types (.instances f)))))))
+
+(translate inline-cost [(expr (ptr Sexp))] i64
+  (otherwise
+    (bind (mut cost) 1)
+    (walk i child expr 0
+      (perform (set! cost (+ (load cost) (inline-cost child))))
+      (yield 0))
+    (yield (load cost))))
+
+(translate definition-cost [(instances (ptr Instances)) (form (ptr Sexp))] i64
+  (on (get (.costs instances) (.node-id form)) (Some [cost]) (yield cost))
+  (otherwise
+    (bind cost (inline-cost form))
+    (perform (set! (mut (.costs instances)) (.node-id form) cost))
+    (yield cost)))
+
+(translate lower-call [(f (mut Frame)) (im (mut image/Image)) (lookup modules/Lookup)
+                       (callee Instance) (parameters (ptr Sexp)) (args (slice i32)) (expected i32)] (Result i32 Diag)
+  (otherwise
+    (bind form (.definition callee))
+    (bind id (.node-id form))
+    (bind policy (match (get (.inline-policies (.checked f)) id) (Some [value] value) (_ "Never")))
+    (bind active (block :found
+                   (for item (.inline-stack f) (when (= item id) (return-from :found true)))
+                   false))
+    (bind cost (if (or (= policy "Never") active (>= (len (.inline-stack f)) 16)) 0 (definition-cost (.instances f) form)))
+    (choose
+      (where (and (> cost 0) (<= cost (.inline-budget f)) (or (= policy "Always") (<= cost 32)))
+        (perform (set! (.inline-budget f) (- (.inline-budget f) cost)))
+        (bind previous (.instance f))
+        (perform (set! (.instance f) callee))
+        (perform (push! (mut (.inline-stack f)) id))
+        (walk i param parameters 0
+          (bind name (sexp-nth param 0))
+          (perform (set! (mut (.locals f)) (.node-id name) (get args i)))
+          (yield 0))
+        (need value (lower-sequence (mut f) (mut im) (modules/lookup-for (.unit lookup) form)
+                                    form (modules/function-body-start form parameters)))
+        (perform (pop! (mut (.inline-stack f))))
+        (perform (set! (.instance f) previous))
+        (yield (Ok value)))
+      (otherwise
+        (perform (when (and (match (function-generics form) (GenericParameters [_] true) (_ false))
+                            (not (contains? (.scheduled (.instances f)) (.symbol callee))))
+                   (set! (mut (.scheduled (.instances f))) (.symbol callee) true)
+                   (push! (mut (.pending (.instances f))) callee)))
+        (bind symbol (image/symbol! (mut im) (.symbol callee)))
+        (bind call-node (nodes/invoke (mut (.g f)) (.control f) (cast u64 symbol) args))
+        (perform (set! (.control f) call-node))
+        (yield (Ok (if (= expected ir/T-CTRL) call-node (nodes/call-result (mut (.g f)) expected call-node))))))))
 
 (translate lower-function
   [(a (dyn Allocator)) (im (mut image/Image))
@@ -362,8 +411,9 @@
   (where (modules/external? form) (yield (Ok 0)))
   (on (ordinary-function form) (Function [_ name parameters result])
     (need rep (machine-type (concrete (.types instance) (checker/scalar-type result)) result))
-    (bind (mut f) (Frame :instances instances :instance instance :loops (hm/HashMap::new-scalar [i64 (ptr LoopEdges)] a) :a a :checked checked :g (graph/create a) :control 0
+    (bind (mut f) (Frame :inline-stack (al/ArrayList::new [i64] a) :inline-budget 16384 :instances instances :instance instance :loops (hm/HashMap::new-scalar [i64 (ptr LoopEdges)] a) :a a :checked checked :g (graph/create a) :control 0
                          :locals (hm/HashMap::new-scalar [i64 i32] a)))
+    (perform (push! (mut (.inline-stack f)) (.node-id form)))
     (perform (set! (.control f) (nodes/start (mut (.g f)))))
     (walk position param parameters 0
       (need _ (lower-parameter (mut f) position param))
@@ -384,10 +434,12 @@
    (checked checker/Checked) (unit (ptr modules/SourceUnit)) (output (slice u8))] (Result i64 Diag)
   (otherwise
     (bind (mut im) (image/create a))
-    (bind instances (box! a Instances (Instances :pending (al/ArrayList::new [Instance] a)
-                                        :symbols (hm/HashMap::new [(slice u8) (slice u8)] a (str/keyops-borrowed))
-                                        :used (hm/HashMap::new [(slice u8) bool] a (str/keyops-borrowed)))))
     (bind empty (hm/HashMap::new [(slice u8) (slice u8)] a (str/keyops-borrowed)))
+    (bind instances (box! a Instances (Instances :empty-types empty :costs (hm/HashMap::new-scalar [i64 i64] a)
+                                        :pending (al/ArrayList::new [Instance] a)
+                                        :scheduled (hm/HashMap::new [(slice u8) bool] a (str/keyops-borrowed))
+                                        :symbols (hm/HashMap::new [(slice u8) Instance] a (str/keyops-borrowed))
+                                        :used (hm/HashMap::new [(slice u8) bool] a (str/keyops-borrowed)))))
     (visit form (.declarations unit)
       (choose
         (on (get (.symbols unit) (.node-id form)) (Some [symbol])

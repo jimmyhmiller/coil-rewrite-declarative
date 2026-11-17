@@ -1,12 +1,12 @@
 (extract function-generics FunctionGenerics GenericParameters Monomorphic
-  (list (spellings "defn" "defn*") symbol (capture types (vector ...)) (vector ...) (list "->" _) ...))
+  (list (spellings "defn" "defn*") symbol (optional (keyword "cc") (list symbol)) (optional (keyword "inline") _)
+        (capture types (vector ...)) (vector ...) (list "->" _) ...))
 (extract ordinary-function FunctionDeclaration Function NoFunction
-  (capture declaration (list (spellings "defn" "defn*") (capture name symbol) (capture parameters (vector ...))
-        (list "->" (capture result _)) ...))
-  (capture declaration (list (spellings "defn" "defn*") (capture name symbol) (vector ...) (capture parameters (vector ...))
-        (list "->" (capture result _)) ...))
-  (capture declaration (list (spellings "defn" "defn*") (capture name symbol) (keyword "cc") (list symbol)
+  (capture declaration (list (spellings "defn" "defn*") (capture name symbol)
+        (optional (keyword "cc") (list symbol)) (optional (keyword "inline") _) (optional (vector ...))
         (capture parameters (vector ...)) (list "->" (capture result _)) ...)))
+(extract inline-annotation InlineAnnotation Inline NoInline
+  (list (spellings "defn" "defn*") symbol (optional (keyword "cc") (list symbol)) (keyword "inline") (capture value _) ...))
 (extract typed-parameter ParameterDeclaration Parameter NoParameter
   (list (capture name symbol) (capture type _)))
 (extract nullary-call CallExpression Call NoCall

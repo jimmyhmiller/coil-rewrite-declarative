@@ -17,6 +17,29 @@
           test
           `(or ~test ~(spelling-test pattern node (+ index 1)))))))
 
+(defn optional-index [(pattern Code)] (-> i64)
+  (block :found
+    (for [i 1 (primitive/code-count pattern)]
+      (let [item (get pattern i)]
+        (when (and (primitive/code-list? item) (> (primitive/code-count item) 0)
+                   (primitive/code-eq (get item 0) `optional))
+          (return-from :found i))))
+    -1))
+
+(defn optional-test [(pattern Code) (node Code) (i i64)] (-> Code)
+  (let [prefix (primitive/code-slice pattern 0 i)
+        suffix (primitive/code-slice pattern (+ i 1) (primitive/code-count pattern))
+        group (get pattern i)
+        present (pattern-test `(~@prefix ~@(primitive/code-slice group 1 (primitive/code-count group)) ~@suffix) node)
+        absent (pattern-test `(~@prefix ~@suffix) node)
+        values (primitive/code-list-new)]
+    (unless (primitive/code-eq (get present 1) (get absent 1))
+      (primitive/error "optional pattern elements cannot introduce captures"))
+    (for [j 0 (primitive/code-count (get present 2))]
+      (let [yes (get (get present 2) j) no (get (get absent 2) j)]
+        (primitive/code-list-push! values (if (primitive/code-eq yes no) yes `(if ~(get present 0) ~yes ~no)))))
+    `((or ~(get present 0) ~(get absent 0)) ~(get present 1) ~(primitive/code-list-done values))))
+
 (defn pattern-test [(pattern Code) (node Code)] (-> Code)
   (cond (primitive/code-eq pattern `_) (plain-test `true)
         (primitive/code-eq pattern `symbol)
@@ -53,6 +76,8 @@
                                                                                              1))
                               (~node ~@(get inner 2))))
                         (primitive/error "expected (capture name pattern)"))
+                  (and (or (primitive/code-eq tag `list) (primitive/code-eq tag `vector)) (>= (optional-index pattern) 0))
+                    (optional-test pattern node (optional-index pattern))
                   :else
                     (let [kind
                             (cond (primitive/code-eq tag `list)

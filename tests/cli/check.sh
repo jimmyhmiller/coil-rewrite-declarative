@@ -80,6 +80,16 @@ run_both 42 '(defn bytes [T] [] (-> i64) (+ (sizeof T) (alignof T))) (defn via [
 compare 1 '(defn id [T] [(x T)] (-> T) true)'
 compare 1 '(defn id [T] [(x T)] (-> T) x) (defn f [] (-> bool) (id [u8] true))'
 compare 1 '(defn id [T] [(x T)] (-> T) x) (defn f [] (-> i64) (id [i64 u8] 1))'
+run_both 42 '(defn twice :cc (coil.cc.C) :inline (Always) [(x i64)] (-> i64) (+ x x)) (defn main [] (-> i64) (let [(mut x) 20] (twice (do (set! x (+ x 1)) x))))'
+run_both 42 '(module app) (module lib) (defn helper [] (-> i64) 42) (defn f :inline (Hint) [] (-> i64) (helper)) (module app) (import "lib" :as l) (defn helper [] (-> i64) 0) (defn main [] (-> i64) (l/f))'
+run_both 42 '(defn f :inline (Always) [(n i64)] (-> i64) (if n (+ 1 (f (- n 1))) 0)) (defn main [] (-> i64) (f 42))'
+run_both 42 '(defn inlined :inline (coil.core.Always) [T] [(x T)] (-> T) x) (defn separate :inline (Never) [T] [(x T)] (-> T) x) (defn main [] (-> i64) (+ (inlined 40) (separate 2)))'
+symbols=$(nm actual.o)
+case "$symbols" in *separate*) ;; *) exit 1 ;; esac
+case "$symbols" in *inlined*) exit 1 ;; esac
+compare 1 '(defsum X (Always)) (defn f :inline (Always) [] (-> i64) 1)'
+compare 1 '(defn f :inline (Hint) :inline (Always) [] (-> i64) 1)'
+compare 1 '(defn f :inline (Always) :cc (coil.cc.C) [] (-> i64) 1)'
 run_both 42 '(defn main [] (-> i64) (identity (identity 42))) (defn identity [(x i64)] (-> i64) x)'
 run_both 42 '(defn main [] (-> i64) (+ \space \newline))'
 run_both 42 '(defn main [] (-> i64) (if (= (scale 3.5) 7.5) 42 1)) (defn scale [(x f32)] (-> f32) (+ (* 2.0 x) 0.5))'
