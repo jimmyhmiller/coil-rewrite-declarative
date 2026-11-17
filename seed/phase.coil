@@ -58,143 +58,148 @@
                      :source source
                      :ctxt 0
                      :msg "expected one phases form"))))
-        (let [form (elem forms 0)
-              (mut artifacts) (ArrayList::new [Artifact] a)
-              (mut names) (HashMap::new [(slice u8) i64] a (keyops))
-              (mut phase-names) (HashMap::new [(slice u8) i64] a (keyops))
-              (mut phases) (ArrayList::new [Phase] a)]
-          (unless (and (sexp-list? form)
-                       (> (sexp-count form) 0)
-                       (sexp-sym-is (sexp-nth form 0) "phases"))
-            (break :done (Err (problem form "expected phases form"))))
-          (for [i 1 (sexp-count form)]
-            (let [item (sexp-nth form i)]
-              (unless (and (sexp-list? item) (> (sexp-count item) 0))
-                (break :done (Err (problem item "expected input or phase"))))
-              (cond (sexp-sym-is (sexp-nth item 0) "input")
-                      (do
-                        (unless (= (sexp-count item) 3)
+        (schedule-form a (elem forms 0)))))
+
+(defn schedule-form [(a (dyn Allocator)) (form (ptr Sexp))]
+  (-> (Result (ArrayList (slice u8)) Diag))
+  (block
+    :done
+      (let [(mut artifacts) (ArrayList::new [Artifact] a)
+            (mut names) (HashMap::new [(slice u8) i64] a (keyops))
+            (mut phase-names) (HashMap::new [(slice u8) i64] a (keyops))
+            (mut phases) (ArrayList::new [Phase] a)]
+        (unless (and (sexp-list? form)
+                     (> (sexp-count form) 0)
+                     (sexp-sym-is (sexp-nth form 0) "phases"))
+          (break :done (Err (problem form "expected phases form"))))
+        (for [i 1 (sexp-count form)]
+          (let [item (sexp-nth form i)]
+            (unless (and (sexp-list? item) (> (sexp-count item) 0))
+              (break :done (Err (problem item "expected input or phase"))))
+            (cond (sexp-sym-is (sexp-nth item 0) "input")
+                    (do
+                      (unless (= (sexp-count item) 3)
+                        (break
+                          :done
+                            (Err (problem item
+                                          "expected (input name Representation)"))))
+                      (match (add-artifact! (mut artifacts)
+                                            (mut names)
+                                            (sexp-nth item 1)
+                                            (sexp-nth item 2)
+                                            (- 0 1))
+                        (Err [d] (break :done (Err d)))
+                        (Ok [_])))
+                  (sexp-sym-is (sexp-nth item 0) "phase")
+                    (do
+                      (unless (and (= (sexp-count item) 4)
+                                   (sexp-sym? (sexp-nth item 1)))
+                        (break
+                          :done
+                            (Err (problem item
+                                          "expected (phase name (needs ...) (makes ...))"))))
+                      (let [name (sexp-sym (sexp-nth item 1))
+                            needs (sexp-nth item 2)
+                            makes (sexp-nth item 3)
+                            index (len phases)
+                            (mut requirements) (ArrayList::new [Sexp] a)]
+                        (match (get phase-names name)
+                          (Some [_]
+                                (break
+                                  :done
+                                    (Err (problem (sexp-nth item 1)
+                                                  "duplicate phase"))))
+                          (None []))
+                        (unless (and (sexp-list? needs)
+                                     (> (sexp-count needs) 0)
+                                     (sexp-sym-is (sexp-nth needs 0) "needs")
+                                     (sexp-list? makes)
+                                     (> (sexp-count makes) 1)
+                                     (sexp-sym-is (sexp-nth makes 0) "makes"))
                           (break
                             :done
                               (Err (problem item
-                                            "expected (input name Representation)"))))
-                        (match (add-artifact! (mut artifacts)
-                                              (mut names)
-                                              (sexp-nth item 1)
-                                              (sexp-nth item 2)
-                                              (- 0 1))
-                          (Err [d] (break :done (Err d)))
-                          (Ok [_])))
-                    (sexp-sym-is (sexp-nth item 0) "phase")
-                      (do
-                        (unless (and (= (sexp-count item) 4)
-                                     (sexp-sym? (sexp-nth item 1)))
-                          (break
-                            :done
-                              (Err (problem item
-                                            "expected (phase name (needs ...) (makes ...))"))))
-                        (let [name (sexp-sym (sexp-nth item 1))
-                              needs (sexp-nth item 2)
-                              makes (sexp-nth item 3)
-                              index (len phases)
-                              (mut requirements) (ArrayList::new [Sexp] a)]
-                          (match (get phase-names name)
-                            (Some [_]
-                                  (break
-                                    :done
-                                      (Err (problem (sexp-nth item 1)
-                                                    "duplicate phase"))))
-                            (None []))
-                          (unless (and (sexp-list? needs)
-                                       (> (sexp-count needs) 0)
-                                       (sexp-sym-is (sexp-nth needs 0) "needs")
-                                       (sexp-list? makes)
-                                       (> (sexp-count makes) 1)
-                                       (sexp-sym-is (sexp-nth makes 0) "makes"))
-                            (break
-                              :done
-                                (Err (problem item
-                                              "phase requires needs and nonempty makes clauses"))))
-                          (for [j 1 (sexp-count needs)]
-                            (let [need (sexp-nth needs j)]
-                              (unless (and (sexp-list? need)
-                                           (= (sexp-count need) 2)
-                                           (sexp-sym? (sexp-nth need 0))
-                                           (sexp-sym? (sexp-nth need 1)))
+                                            "phase requires needs and nonempty makes clauses"))))
+                        (for [j 1 (sexp-count needs)]
+                          (let [need (sexp-nth needs j)]
+                            (unless (and (sexp-list? need)
+                                         (= (sexp-count need) 2)
+                                         (sexp-sym? (sexp-nth need 0))
+                                         (sexp-sym? (sexp-nth need 1)))
+                              (break
+                                :done
+                                  (Err (problem need
+                                                "expected (artifact Representation) requirement"))))
+                            (push! (mut requirements) (load need))))
+                        (for [j 1 (sexp-count makes)]
+                          (let [product (sexp-nth makes j)]
+                            (unless (and (sexp-list? product)
+                                         (= (sexp-count product) 2))
+                              (break
+                                :done
+                                  (Err (problem product
+                                                "expected (artifact Representation) product"))))
+                            (match (add-artifact! (mut artifacts)
+                                                  (mut names)
+                                                  (sexp-nth product 0)
+                                                  (sexp-nth product 1)
+                                                  index)
+                              (Err [d] (break :done (Err d)))
+                              (Ok [_]))))
+                        (set! (mut phase-names) name index)
+                        (push! (mut phases)
+                               (Phase
+                                 :name name
+                                 :needs requirements
+                                 :origin (load item)))))
+                  :else
+                    (break
+                      :done (Err (problem item "expected input or phase"))))))
+        (let [(mut counts) (ArrayList::new [i64] a)
+              (mut outgoing) (ArrayList::new [(ArrayList i64)] a)
+              (mut ready) (ArrayList::new [i64] a)
+              (mut order) (ArrayList::new [(slice u8)] a)]
+          (for [i 0 (len phases)]
+            (push! (mut counts) 0)
+            (push! (mut outgoing) (ArrayList::new [i64] a)))
+          (for [i 0 (len phases)]
+            (let [phase (elem (mut phases) i)]
+              (for [j 0 (len (.needs phase))]
+                (let [need (elem (field phase needs) j)
+                      artifact
+                        (match (get names (sexp-sym (sexp-nth need 0)))
+                          (None []
                                 (break
                                   :done
                                     (Err (problem need
-                                                  "expected (artifact Representation) requirement"))))
-                              (push! (mut requirements) (load need))))
-                          (for [j 1 (sexp-count makes)]
-                            (let [product (sexp-nth makes j)]
-                              (unless (and (sexp-list? product)
-                                           (= (sexp-count product) 2))
-                                (break
-                                  :done
-                                    (Err (problem product
-                                                  "expected (artifact Representation) product"))))
-                              (match (add-artifact! (mut artifacts)
-                                                    (mut names)
-                                                    (sexp-nth product 0)
-                                                    (sexp-nth product 1)
-                                                    index)
-                                (Err [d] (break :done (Err d)))
-                                (Ok [_]))))
-                          (set! (mut phase-names) name index)
-                          (push! (mut phases)
-                                 (Phase
-                                   :name name
-                                   :needs requirements
-                                   :origin (load item)))))
-                    :else
-                      (break
-                        :done (Err (problem item "expected input or phase"))))))
-          (let [(mut counts) (ArrayList::new [i64] a)
-                (mut outgoing) (ArrayList::new [(ArrayList i64)] a)
-                (mut ready) (ArrayList::new [i64] a)
-                (mut order) (ArrayList::new [(slice u8)] a)]
+                                                  "phase requires an artifact with no producer"))))
+                          (Some [index] (get artifacts index)))]
+                  (unless (sexp-sym-is (sexp-nth need 1) (.kind artifact))
+                    (break
+                      :done
+                        (Err (problem need
+                                      "phase artifact representation mismatch"))))
+                  (when (>= (.producer artifact) 0)
+                    (set! (mut counts) i (+ (get counts i) 1))
+                    (push! (elem (mut outgoing) (.producer artifact)) i))))))
+          (for [i 0 (len phases)]
+            (when (= (get counts i) 0) (push! (mut ready) i)))
+          (let [(mut cursor) 0]
+            (while (< cursor (len ready))
+              (let [i (get ready cursor)
+                    edges (elem (mut outgoing) i)]
+                (push! (mut order) (.name (elem (mut phases) i)))
+                (for [j 0 (len (load edges))]
+                  (let [dependent (get (load edges) j)
+                        remaining (- (get counts dependent) 1)]
+                    (set! (mut counts) dependent remaining)
+                    (when (= remaining 0) (push! (mut ready) dependent)))))
+              (set! cursor (+ cursor 1))))
+          (unless (= (len order) (len phases))
             (for [i 0 (len phases)]
-              (push! (mut counts) 0)
-              (push! (mut outgoing) (ArrayList::new [i64] a)))
-            (for [i 0 (len phases)]
-              (let [phase (elem (mut phases) i)]
-                (for [j 0 (len (.needs phase))]
-                  (let [need (elem (field phase needs) j)
-                        artifact
-                          (match (get names (sexp-sym (sexp-nth need 0)))
-                            (None []
-                                  (break
-                                    :done
-                                      (Err (problem need
-                                                    "phase requires an artifact with no producer"))))
-                            (Some [index] (get artifacts index)))]
-                    (unless (sexp-sym-is (sexp-nth need 1) (.kind artifact))
-                      (break
-                        :done
-                          (Err (problem need
-                                        "phase artifact representation mismatch"))))
-                    (when (>= (.producer artifact) 0)
-                      (set! (mut counts) i (+ (get counts i) 1))
-                      (push! (elem (mut outgoing) (.producer artifact)) i))))))
-            (for [i 0 (len phases)]
-              (when (= (get counts i) 0) (push! (mut ready) i)))
-            (let [(mut cursor) 0]
-              (while (< cursor (len ready))
-                (let [i (get ready cursor)
-                      edges (elem (mut outgoing) i)]
-                  (push! (mut order) (.name (elem (mut phases) i)))
-                  (for [j 0 (len (load edges))]
-                    (let [dependent (get (load edges) j)
-                          remaining (- (get counts dependent) 1)]
-                      (set! (mut counts) dependent remaining)
-                      (when (= remaining 0) (push! (mut ready) dependent)))))
-                (set! cursor (+ cursor 1))))
-            (unless (= (len order) (len phases))
-              (for [i 0 (len phases)]
-                (when (> (get counts i) 0)
-                  (break
-                    :done
-                      (Err (problem (field (elem (mut phases) i) origin)
-                                    "cyclic phase prerequisites"))))))
-            (Ok order))))))
+              (when (> (get counts i) 0)
+                (break
+                  :done
+                    (Err (problem (field (elem (mut phases) i) origin)
+                                  "cyclic phase prerequisites"))))))
+          (Ok order)))))

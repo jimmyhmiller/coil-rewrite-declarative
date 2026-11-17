@@ -64,5 +64,11 @@
 (syntax Function
   (Function (list "defn" (symbol name) (vector (rest parameters)) (list "->" "i64") (ref body))))
 
-(program Expr Function name (each parameters name) body Int Int)
+(program Expr Function name (each parameters name) body Int Int
+  (phases
+    (input declarations Declarations)
+    (phase emit (needs (checked CheckedProgram)) (makes (image NativeImage)))
+    (phase hosts (needs (globals GlobalEnvironment)) (makes (all-globals GlobalEnvironment)))
+    (phase check (needs (all-globals GlobalEnvironment)) (makes (checked CheckedProgram)))
+    (phase register (needs (declarations Declarations)) (makes (globals GlobalEnvironment)))))
 (source-program Function (command))

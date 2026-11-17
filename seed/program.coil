@@ -14,9 +14,6 @@
 (import "coil.result" :use *)
 (import "coil.str" :use *)
 
-(defn program-phases [] (-> (slice u8))
-  "(phases\n  (input declarations Declarations)\n  (phase emit (needs (checked CheckedProgram)) (makes (image NativeImage)))\n  (phase hosts (needs (globals GlobalEnvironment)) (makes (all-globals GlobalEnvironment)))\n  (phase check (needs (all-globals GlobalEnvironment)) (makes (checked CheckedProgram)))\n  (phase register (needs (declarations Declarations)) (makes (globals GlobalEnvironment))))")
-
 (defn emit-history! [(b (mut StrBuf)) (declaration i64)] (-> void)
   (push-str! (mut b)
              "(defstruct ProgramHistory [(store (ptr Store)) (ids (ArrayList N")
@@ -36,11 +33,11 @@
 (defn compile-one [(a (dyn Allocator)) (s (ptr Schema)) (form (ptr Sexp))]
   (-> (Result (slice u8) Diag))
   (block :done
-    (unless (>= (sexp-count form) 8)
+    (unless (>= (sexp-count form) 9)
       (break
         :done
           (Err (problem form
-                        "expected (program Expr Function name parameter body Int Int)"))))
+                        "expected (program Expr Function name parameter body Int Int (phases ...))"))))
     (unless (and (sexp-sym-is (sexp-nth form 6) "Int")
                  (sexp-sym-is (sexp-nth form 7) "Int"))
       (break
@@ -50,7 +47,7 @@
     (let [(mut names) (HashMap::new [(slice u8) bool] a (keyops))
           (mut cumulative?) false]
       (defer (free! (mut names)))
-      (for [i 8 (sexp-count form)]
+      (for [i 9 (sexp-count form)]
         (let [host (sexp-nth form i)]
           (if (and (sexp-list? host)
                    (= (sexp-count host) 1)
@@ -82,9 +79,17 @@
           (mut declaration) (- 0 1)
           (mut b) (StrBuf::new a)
           order
-            (match (phase/schedule a (program-phases) 0)
+            (match (phase/schedule-form a (sexp-nth form 8))
               (Err [d] (break :done (Err d)))
               (Ok [order] order))]
+      (for required ["register" "hosts" "check" "emit"]
+        (let [(mut found) false]
+          (for step order (when (= step required) (set! found true)))
+          (unless found
+            (break
+              :done
+                (Err (problem (sexp-nth form 8)
+                              "missing required program phase"))))))
       (for [i 0 (len (.nodes s))]
         (let [n (elem (field s nodes) i)]
           (when (sexp-sym-is (sexp-nth form 1) (.name n)) (set! expression i))
@@ -268,7 +273,7 @@
                           (push-str! (mut b)
                                      "] (image/symbol! (mut im) (.name d)) (set! (mut global-types) (.name d) (TypeBinding :type signature :category \"function\")) (set! (mut global-values) (.name d) (GlobalSymbol (cast u32 i))))) "))
                       (= name "hosts")
-                        (for [i 8 (sexp-count form)]
+                        (for [i 9 (sexp-count form)]
                           (when (sexp-sym-is (sexp-nth (sexp-nth form i) 0)
                                              "host")
                             (push-str! (mut b) "(let [name ")
@@ -288,7 +293,7 @@
                             (Err (problem form
                                           "unknown program phase implementation"))))))
             (push-str! (mut b) "(Ok im))))\n")
-            (for [i 8 (sexp-count form)]
+            (for [i 9 (sexp-count form)]
               (when (sexp-sym-is (sexp-nth (sexp-nth form i) 0) "cumulative")
                 (emit-history! (mut b) declaration)))
             (if many?
