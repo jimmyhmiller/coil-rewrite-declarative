@@ -121,3 +121,14 @@ Every sum variant needs exactly one lowering case. Operators validate their fiel
 The generated internal `lower-N` function requires an acyclic, fully checked graph with rules covering all reached variants. It does not recheck types or validate graph cycles; callers must successfully run the judgment first. Invalid references indicate a violated internal precondition. The source reader constructs acyclic graphs. No machine code should be emitted for rejected source.
 
 `python3 tools/check-lowering.py` compiles source through generated reading, checking and lowering, then executes the retained direct native backend's result. Tests include both conditional arms, nested joins inside arithmetic and rejection before lowering, in debug/debug-checks/release host builds. The harness uses the retained backend's test image loader; this is acceptance scaffolding, not the eventual production lifetime-managed linker. Direct calls, lexical values, object output, runtime source/debug locations and general lowering types remain pending. `lower` contains no raw Coil escape hatch.
+
+Lowering now supports lexical values:
+
+```
+(Variable (name name))
+(Let (let name value body))
+```
+
+`name` resolves a Text field through the lowering context. `let` lowers its initializer in the outer context, binds the resulting CIR value only for the body, and returns the body's value. Context entries contain CIR value IDs, not source expressions, so uses share the initializer's result. Shadowing and leaving scope do not mutate outer bindings. An initializer's branch merge is completed before its value is bound; body branches receive the same dominating value.
+
+The native suite includes shadowing, outer-name lookup in initializers, branch-local shadowing without leaks, and bindings initialized by conditional merges. It also generates 40 deterministic nested programs with an independent Python value oracle and executes them through the new generated frontend/lowering and retained backend in all three host build configurations. This does not cover side effects or calls yet; those must extend the same semantics tests as implemented.

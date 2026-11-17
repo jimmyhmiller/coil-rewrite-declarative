@@ -18,11 +18,11 @@
     (- 0 1)))
 
 (defn child! [(b (mut StrBuf)) (node i64) (field i64)] (-> void)
-  (push-str! (mut b) "(lower-")
+  (push-str! (mut b) "(lower-worker-")
   (number! (mut b) node)
   (push-str! (mut b) " rows f")
   (number! (mut b) field)
-  (push-str! (mut b) " function)"))
+  (push-str! (mut b) " function context)"))
 
 (defn rule! [(b (mut StrBuf))
              (n (ptr Node))
@@ -42,7 +42,13 @@
             boolean? (sexp-sym-is op "bool")
             add? (sexp-sym-is op "add")
             branch? (sexp-sym-is op "if")
-            arity (cond (or constant? boolean?) 1 add? 2 branch? 3 :else 0)
+            lookup? (sexp-sym-is op "name")
+            bind? (sexp-sym-is op "let")
+            arity
+              (cond (or (or constant? boolean?) lookup?) 1
+                    add? 2
+                    (or branch? bind?) 3
+                    :else 0)
             (mut fields) (ArrayList::new [i64] (malloc-allocator))]
         (defer (free! (mut fields)))
         (unless (and (> arity 0) (= (sexp-count expression) (+ arity 1)))
@@ -57,6 +63,7 @@
                                 field
                                 (cond constant? "Int"
                                       boolean? "Bool"
+                                      (or lookup? (and bind? (= i 1))) "Text"
                                       :else (.name n)))]
             (when (< index 0)
               (break
@@ -81,6 +88,24 @@
                   (number! (mut b) (get fields 0))
                   (when boolean? (push-str! (mut b) " 1 0)"))
                   (push-str! (mut b) ")"))
+              lookup?
+                (do
+                  (push-str! (mut b) "(value-lookup context f")
+                  (number! (mut b) (get fields 0))
+                  (push-str! (mut b) ")"))
+              bind?
+                (do
+                  (push-str! (mut b) "(let [value ")
+                  (child! (mut b) ni (get fields 1))
+                  (push-str! (mut b)
+                             " (mut scope) (ValueContext :present true :name f")
+                  (number! (mut b) (get fields 0))
+                  (push-str! (mut b)
+                             " :value value :parent context)] (lower-worker-")
+                  (number! (mut b) ni)
+                  (push-str! (mut b) " rows f")
+                  (number! (mut b) (get fields 2))
+                  (push-str! (mut b) " function (mut scope)))"))
               add?
                 (do
                   (push-str! (mut b) "(let [left ")
@@ -119,14 +144,14 @@
         (unless (.sum? n)
           (break :done (Err (problem form "lower requires a sum"))))
         (push-str! (mut b)
-                   "(import \"native.cir\" :as cir)\n(import \"native.cir-ops\" :as cop)\n(defn lower-")
+                   "(import \"native.cir\" :as cir)\n(import \"native.cir-ops\" :as cop)\n(defn lower-worker-")
         (number! (mut b) ni)
         (push-str! (mut b) " [(rows (ptr (ArrayList N")
         (number! (mut b) ni)
         (push-str! (mut b) "Row))) (id N")
         (number! (mut b) ni)
         (push-str! (mut b)
-                   "Id) (function (ptr cir/Func))] (-> u32) (match (lookup-")
+                   "Id) (function (ptr cir/Func)) (context (ptr ValueContext))] (-> u32) (match (lookup-")
         (number! (mut b) ni)
         (push-str! (mut b)
                    " rows id) (None [] (panic \"invalid lowering reference\")) (Some [row] (match row ")
@@ -150,4 +175,14 @@
         (unless (= (- (sexp-count form) 2) (len (.variants n)))
           (break :done (Err (problem form "extra lowering case"))))
         (push-str! (mut b) "))))\n")
+        (push-str! (mut b) "(defn lower-")
+        (number! (mut b) ni)
+        (push-str! (mut b) " [(rows (ptr (ArrayList N")
+        (number! (mut b) ni)
+        (push-str! (mut b) "Row))) (id N")
+        (number! (mut b) ni)
+        (push-str! (mut b)
+                   "Id) (function (ptr cir/Func))] (-> u32) (let [(mut context) (zeroed ValueContext)] (lower-worker-")
+        (number! (mut b) ni)
+        (push-str! (mut b) " rows id function (mut context))))\n")
         (Ok (str (load b)))))))
