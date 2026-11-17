@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 subprocess.run(['python3', 'tools/gen-schema.py', '--check', '--bootstrap-check'], cwd=ROOT, check=True)
 for flags in [[], ['--debug-checks'], ['--release']]:
     subprocess.run(['coil', 'run', 'tests/schema.coil', *flags], cwd=ROOT, check=True)
+    subprocess.run(['coil', 'run', 'tests/schema-scale.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/phases.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/types.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/sequences.coil', *flags], cwd=ROOT, check=True)
@@ -141,13 +142,44 @@ with tempfile.TemporaryDirectory(prefix='rewrite-index-') as directory:
     for flags in [[], ['--debug-checks'], ['--release']]:
         subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)
 for source, diagnostic in [
-    (b'(sum Entry (Named (name Text :key)))', b'key requires a scalar field on a record'),
-    (b'(node Entry (parent Entry :key))', b'key requires a scalar field on a record'),
+    (b'(sum Entry (Named (name Text :key)) (Unnamed))', b'sum key must have the same name'),
+    (b'(node Entry (parent Entry :key))', b'key requires a scalar field'),
     (b'(node Entry (name Text :unknown))', b'optional :key'),
 ]:
     result = subprocess.run([str(ROOT/'build/schema-seed')], input=source, capture_output=True)
     assert result.returncode != 0 and not result.stdout and diagnostic in result.stderr, result
 print('Schema keys: content lookup, growth, subset identity, duplicate provenance and rejection passed')
+
+sum_keys = b"""
+(sum Symbol
+  (Local (name Text :key) (serial Int :key) (value Int))
+  (External (serial Int :key) (library Text) (name Text :key))
+  (Alias (target Int) (name Text :key) (serial Int :key)))
+"""
+with tempfile.TemporaryDirectory(prefix='rewrite-sum-keys-') as directory:
+    work = Path(directory)
+    for name in ['types', 'scope', 'source', 'sequence']:
+        shutil.copyfile(ROOT/'seed'/f'{name}.coil', work/f'{name}.coil')
+    (work/'Coil.toml').write_text("""[package]
+name = "fixture"
+entry = "main.coil"
+source-roots = ["."]
+""")
+    (work/'generated.coil').write_bytes(subprocess.check_output([str(ROOT/'build/schema-seed')], input=sum_keys))
+    (work/'main.coil').write_text((ROOT/'tests/sum-index.coil.in').read_text())
+    for flags in [[], ['--debug-checks'], ['--release']]:
+        subprocess.run(['coil', 'run', 'main.coil', *flags], cwd=work, check=True)
+for invalid in [
+    b'(sum A (X (key Text :key)) (Y))',
+    b'(sum A (X) (Y (key Text :key)))',
+    b'(sum A (X (key Text :key)) (Y (key Int :key)))',
+    b'(sum A (X (key Text :key)) (Y (other Text :key)))',
+    b'(sum A (X (key Text :key)) (Y (key Text)))',
+]:
+    result = subprocess.run([str(ROOT/'build/schema-seed')], input=invalid, capture_output=True)
+    assert result.returncode != 0 and not result.stdout and b'sum key must have the same name' in result.stderr, result
+print('Common sum keys and incremental indexes passed')
+
 
 with tempfile.TemporaryDirectory(prefix='rewrite-syntax-') as directory:
     work = Path(directory)

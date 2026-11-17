@@ -1,11 +1,11 @@
 (module rewrite.schemaforms)
 (node Attribute (name Text))
 (sum FieldType (Named (name Text)) (Repeated (name Text)))
-(node FieldForm (name Text) (type FieldType) (attributes (many Attribute)))
-(node VariantForm (name Text) (fields (many FieldForm)))
+(node FieldForm (name Text :key) (type FieldType) (attributes (many Attribute)))
+(node VariantForm (name Text :key) (fields (many FieldForm)))
 (sum Declaration
-  (Record (name Text) (fields (many FieldForm)))
-  (Sum (name Text) (variants (many VariantForm))))
+  (Record (name Text :key) (fields (many FieldForm)))
+  (Sum (name Text :key) (variants (many VariantForm))))
 (syntax Attribute :expect "expected field attribute keyword" (Attribute (keyword name)))
 (syntax FieldType :expect "expected field type"
   (Named (symbol name))

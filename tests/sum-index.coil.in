@@ -1,0 +1,57 @@
+(module fixture.main)
+(import "rewrite.generated" :use *)
+(import "coil.alloc" :use *)
+(import "coil.arraylist" :use *)
+(import "coil.result" :use *)
+(import "coil.str" :use *)
+(import "coil.hashmap" :use [HashMap])
+
+(defn main [] (-> i64)
+  (let [arena (arena-new 16777216) a (arena-view arena)
+        (mut rows) (ArrayList::new [N0Row] a) (mut ids) (ArrayList::new [N0Id] a)
+        (mut names) (new-index-0-0 a) (mut serials) (new-index-0-1 a)
+        (mut ok) true]
+    (for [i 0 10000]
+      (let [(mut name) (StrBuf::new a)]
+        (push-i64! (mut name) i)
+        (let [row (cond (= (% i 3) 0) (N0V0 (str (load name)) i (+ i 1))
+                        (= (% i 3) 1) (N0V1 i "external" (str (load name)))
+                        :else (N0V2 (+ i 1) (str (load name)) i))
+              id (append-0 (mut rows) row)]
+          (push! (mut ids) id)
+          (match (insert-index-0-0 (mut names) (mut rows) id) (Ok [_]) (Err [_] (set! ok false)))
+          (match (insert-index-0-1 (mut serials) (mut rows) id) (Ok [_]) (Err [_] (set! ok false))))))
+    (for [i 0 10000]
+      (let [(mut name) (StrBuf::new a)]
+        (push-i64! (mut name) i)
+        (match (get names (str (load name)))
+          (Some [id] (unless (= (.index id) i) (set! ok false))) (None [] (set! ok false)))
+        (match (get serials i)
+          (Some [id] (unless (= (.index id) i) (set! ok false))) (None [] (set! ok false)))))
+    (match (index-0-0 a (mut rows) (mut ids))
+      (Ok [index] (let [(mut batch) index]
+        (match (get batch "9999") (Some [id] (unless (= (.index id) 9999) (set! ok false))) (None [] (set! ok false)))
+        (free! (mut batch))))
+      (Err [_] (set! ok false)))
+    (let [duplicate (append-0 (mut rows) (N0V2 0 "7" 10000))]
+      (match (insert-index-0-0 (mut names) (mut rows) duplicate)
+        (Err [e] (match e
+          (DuplicateKey [schema field first second]
+            (unless (and (= schema 0) (= field 0) (= first 7) (= second 10000)) (set! ok false)))
+          (_ (set! ok false))))
+        (Ok [_] (set! ok false))))
+    (let [duplicate (append-0 (mut rows) (N0V1 4 "external" "new"))]
+      (match (insert-index-0-1 (mut serials) (mut rows) duplicate)
+        (Err [e] (match e
+          (DuplicateKey [schema field first second]
+            (unless (and (= schema 0) (= field 1) (= first 4) (= second 10001)) (set! ok false)))
+          (_ (set! ok false))))
+        (Ok [_] (set! ok false))))
+    (match (insert-index-0-0 (mut names) (mut rows) (N0Id :index (- 0 1)))
+      (Err [e] (match e (InvalidIndexReference [_ index] (unless (= index (- 0 1)) (set! ok false))) (_ (set! ok false))))
+      (Ok [_] (set! ok false)))
+    (unless (and (= (len names) 10000) (= (len serials) 10000)) (set! ok false))
+    (match (get names "7") (Some [id] (unless (= (.index id) 7) (set! ok false))) (None [] (set! ok false)))
+    (free! (mut names)) (free! (mut serials)) (free! (mut ids)) (free! (mut rows)) (arena-release! arena)
+    (println "common sum keys: dispatch, independent indexes, incremental failure atomicity: {}" ok)
+    (if ok 0 1)))

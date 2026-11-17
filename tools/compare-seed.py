@@ -40,7 +40,7 @@ def cases():
         '(node A (x))', '(node A (x Int :key :key))', '(node A (x Int :unknown))',
         '(node A (x Int key))', '(node A (x (many Int)))',
         '(node A (x (many A more)))', '(node A (x (many (many A))))',
-        '(sum A (B (x Int :key)))', '(unknown A)',
+        '(sum A (B (x Int :key)) (Other))', '(unknown A)',
     ]):
         result.append((f'invalid-schema-{case}', source.encode()))
     return result

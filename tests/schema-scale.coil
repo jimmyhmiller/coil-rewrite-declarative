@@ -1,0 +1,30 @@
+(module rewrite.tests.schemascale)
+(import "rewrite.schema" :as schema)
+(import "coil.alloc" :use *)
+(import "coil.arraylist" :use *)
+(import "coil.result" :use *)
+(import "coil.str" :use *)
+
+(defn main [] (-> i64)
+  (let [arena (arena-new 67108864) a (arena-view arena) (mut input) (StrBuf::new a)
+        count 2000 (mut ok) true]
+    (for [i 0 count]
+      (push-str! (mut input) "(node N") (push-i64! (mut input) i)
+      (push-str! (mut input) " (value Int) (next Last))\n"))
+    (push-str! (mut input) "(node Last)\n(sum Cases ")
+    (for [i 0 count]
+      (push-str! (mut input) "(V") (push-i64! (mut input) i)
+      (push-str! (mut input) " (name Text :key)) "))
+    (push-str! (mut input) ")")
+    (match (schema/parse a (str (load input)) 120)
+      (Err [d] (println "large schema failed: {}" (.msg d)) (set! ok false))
+      (Ok [s]
+        (unless (= (len (.nodes s)) (+ count 2)) (set! ok false))
+        (for [i 0 count]
+          (let [node (get (.nodes s) i) fields (.fields (get (.variants node) 0))]
+            (unless (and (= (len fields) 2) (= (.type-name (get fields 1)) "Last")) (set! ok false))))
+        (let [sum (get (.nodes s) (+ count 1))]
+          (unless (and (.sum? sum) (= (len (.variants sum)) count)) (set! ok false)))))
+    (arena-release! arena)
+    (println "schema indexes: 2000 forward references and 2000 keyed variants: {}" ok)
+    (if ok 0 1)))

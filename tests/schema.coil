@@ -25,7 +25,7 @@
                "(node X (a (many Int)))"
                "(node X (a (many X extra)))"
                "(node X (a (many (many X))))"
-               "(sum X (Case (a Int :key)))"
+               "(sum X (Case (a Int :key)) (Other))"
                "(node X"]
       (match (schema/parse a text 7)
         (Ok [_]

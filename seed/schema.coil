@@ -4,6 +4,8 @@
 (import "coil.arraylist" :use *)
 (import "coil.reader" :use *)
 (import "coil.result" :use *)
+(import "coil.hashmap" :use [HashMap])
+(import "coil.str" :as keystr)
 (import "rewrite.schemaforms" :as grammar)
 
 (defstruct Field
@@ -31,11 +33,45 @@
 (defn scalar? [(name (slice u8))] (-> bool)
   (or (= name "Int") (or (= name "Bool") (= name "Text"))))
 
-(defn known? [(nodes (ptr (ArrayList Node))) (name (slice u8))] (-> bool)
-  (block :found
-    (for [i 0 (len (load nodes))]
-      (when (= (.name (elem nodes i)) name) (break :found true)))
-    false))
+(defn validate-keys [(a (dyn Allocator)) (node (ptr Node))]
+  (-> (Result bool Diag))
+  (block
+    :done
+      (let [(mut expected)
+              (HashMap::new [(slice u8) (slice u8)] a (keystr/keyops-borrowed))
+            (mut expected-count) 0]
+        (defer (free! (mut expected)))
+        (for [v 0 (len (.variants node))]
+          (let [variant (elem (field node variants) v)
+                (mut count) 0]
+            (for [f 0 (len (.fields variant))]
+              (let [field (elem (field variant fields) f)]
+                (when (.key? field)
+                  (unless (and (not (.many? field))
+                               (scalar? (.type-name field)))
+                    (break
+                      :done
+                        (Err (problem (field field origin)
+                                      "key requires a scalar field"))))
+                  (set! count (+ count 1))
+                  (if (= v 0)
+                      (when (> (len (.variants node)) 1)
+                        (set! (mut expected) (.name field) (.type-name field)))
+                      (unless (match (get expected (.name field))
+                                (Some [ty] (= ty (.type-name field)))
+                                (None [] false))
+                        (break
+                          :done
+                            (Err (problem (field field origin)
+                                          "sum key must have the same name and scalar type in every variant"))))))))
+            (if (= v 0)
+                (set! expected-count count)
+                (unless (= expected-count count)
+                  (break
+                    :done
+                      (Err (problem (field variant origin)
+                                    "sum key must have the same name and scalar type in every variant")))))))
+        (Ok true))))
 
 ;;; The generated parser owns shape checking; these adapters retain the current
 ;;; semantic model and its original syntax locations until those clients migrate.
@@ -62,7 +98,10 @@
                     (Some [id] (get (.rows0 store) (.index id)))
                     (None [] (panic "generated attribute")))]
             (unless (= (.f0 attribute) "key")
-              (break :done (Err (problem form "unknown field attribute; only optional :key is supported"))))))
+              (break
+                :done
+                  (Err (problem form
+                                "unknown field attribute; only optional :key is supported"))))))
         (when (and many? (scalar? name))
           (break
             :done
@@ -83,10 +122,12 @@
   (block
     :done
       (let [(mut fields) (ArrayList::new [Field] a)
+            (mut names) (grammar/new-index-2-0 a)
             count
               (match (grammar/sequence-size-2 store ids)
                 (Some [n] n)
                 (None [] (panic "generated field sequence")))]
+        (defer (free! (mut names)))
         (for [i 0 count]
           (let [id
                   (match (grammar/sequence-item-2 store ids i)
@@ -97,9 +138,16 @@
                   (match (decode-field store id at)
                     (Ok [field] field)
                     (Err [d] (break :done (Err d))))]
-            (for prior fields
-              (when (= (.name prior) (.name field))
-                (break :done (Err (problem at "duplicate field")))))
+            (match (grammar/insert-index-2-0 (mut names) (field store rows2) id)
+              (Ok [_])
+              (Err [e]
+                   (match e
+                     (grammar/DuplicateKey [_ _ _ _]
+                                           (break
+                                             :done
+                                               (Err (problem at
+                                                             "duplicate field"))))
+                     (_ (panic "invalid generated field identity")))))
             (push! (mut fields) field)))
         (Ok fields))))
 
@@ -133,10 +181,12 @@
                                    :fields fields
                                    :origin (load form)))))
           (grammar/N4V1 [_ ids]
-                        (let [count
+                        (let [(mut names) (grammar/new-index-3-0 a)
+                              count
                                 (match (grammar/sequence-size-3 store ids)
                                   (Some [n] n)
                                   (None [] (panic "generated variant sequence")))]
+                          (defer (free! (mut names)))
                           (when (= count 0)
                             (break
                               :done
@@ -157,10 +207,19 @@
                                                           1)
                                       (Ok [fields] fields)
                                       (Err [d] (break :done (Err d))))]
-                              (for prior variants
-                                (when (= (.name prior) (.f0 variant))
-                                  (break
-                                    :done (Err (problem at "duplicate variant")))))
+                              (match (grammar/insert-index-3-0 (mut names)
+                                                               (field store
+                                                                      rows3)
+                                                               id)
+                                (Ok [_])
+                                (Err [e]
+                                     (match e
+                                       (grammar/DuplicateKey [_ _ _ _]
+                                                             (break
+                                                               :done
+                                                                 (Err (problem at
+                                                                               "duplicate variant"))))
+                                       (_ (panic "invalid generated variant identity")))))
                               (push! (mut variants)
                                      (Variant
                                        :name (.f0 variant)
@@ -179,7 +238,9 @@
   (block
     :result
       (let [(mut nodes) (ArrayList::new [Node] a)
-            (mut parsed) (grammar/store-new a)]
+            (mut parsed) (grammar/store-new a)
+            (mut names) (grammar/new-index-4-0 a)]
+        (defer (free! (mut names)))
         (for [i 0 (len (load forms))]
           (unless (and (sexp-list? (elem forms i))
                        (> (sexp-count (elem forms i)) 0)
@@ -191,32 +252,40 @@
                            (or (sexp-sym-is (sexp-nth (elem forms i) 0) "lower")
                                (sexp-sym-is (sexp-nth (elem forms i) 0)
                                             "program"))))
-            (match (match (grammar/surface-4 (mut parsed) (elem forms i))
-                     (Err [d] (Err [Node Diag] d))
-                     (Ok [id] (decode-node a (mut parsed) id (elem forms i))))
-              (Err [d] (break :result (Err d)))
-              (Ok [n]
-                  (do
-                    (when (known? (mut nodes) (.name n))
-                      (break
-                        :result (Err (problem (elem forms i) "duplicate node"))))
-                    (push! (mut nodes) n))))))
+            (let [id
+                    (match (grammar/surface-4 (mut parsed) (elem forms i))
+                      (Ok [id] id)
+                      (Err [d] (break :result (Err d))))
+                  node
+                    (match (decode-node a (mut parsed) id (elem forms i))
+                      (Ok [node] node)
+                      (Err [d] (break :result (Err d))))]
+              (match (grammar/insert-index-4-0 (mut names)
+                                               (field (mut parsed) rows4)
+                                               id)
+                (Ok [_])
+                (Err [e]
+                     (match e
+                       (grammar/DuplicateKey [_ _ _ _]
+                                             (break
+                                               :result
+                                                 (Err (problem (elem forms i)
+                                                               "duplicate node"))))
+                       (_ (panic "invalid generated declaration identity")))))
+              (push! (mut nodes) node))))
         (for [i 0 (len nodes)]
           (let [n (elem (mut nodes) i)]
+            (match (validate-keys a n)
+              (Err [d] (break :result (Err d)))
+              (Ok [_]))
             (for [v 0 (len (.variants n))]
               (let [variant (elem (field n variants) v)]
                 (for [j 0 (len (.fields variant))]
                   (let [f (elem (field variant fields) j)]
-                    (when (and (.key? f)
-                               (or (.sum? n)
-                                   (.many? f)
-                                   (not (scalar? (.type-name f)))))
-                      (break
-                        :result
-                          (Err (problem (field f origin)
-                                        "key requires a scalar field on a record"))))
                     (unless (or (scalar? (.type-name f))
-                                (known? (mut nodes) (.type-name f)))
+                                (match (get names (.type-name f))
+                                  (Some [_] true)
+                                  (None [] false)))
                       (break
                         :result
                           (Err (problem (sexp-nth (field f origin) 1)
