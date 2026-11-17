@@ -39,3 +39,4 @@
 (recognize module-form? (list "module" ...))
 (extract import-module ModuleImport Imported NoImport
   (list "import" (capture target string) ...))
+(recognize export-form? (list "export" ...))

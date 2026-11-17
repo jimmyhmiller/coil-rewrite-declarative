@@ -188,7 +188,7 @@
                    (load result)))))
   (on (application expr) (Apply [operator])
     (choose
-      (on (modules/find-function signatures (sexp-sym operator)) (Some [function])
+      (on (get (.callees (.checked f)) (.node-id expr)) (Some [function])
         (choose
           (on (ordinary-function function) (Function [_ name parameters result])
             (bind (mut args) (al/ArrayList::new [i32] (.a f)))
