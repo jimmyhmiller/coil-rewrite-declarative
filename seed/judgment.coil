@@ -190,6 +190,15 @@
             (and (sexp-list? result)
                  (= (sexp-count result) 2)
                  (sexp-sym-is (sexp-nth result 0) "lookup"))]
+      (for [p 2 (sexp-count rule)]
+        (let [premise (sexp-nth rule p)]
+          (unless (and (sexp-list? premise)
+                       (or (= (sexp-count premise) 2)
+                           (= (sexp-count premise) 3)))
+            (break :done (Err (problem premise "expected child premise"))))
+          (match (validate-term (sexp-nth premise 1) rule)
+            (Err [d] (break :done (Err d)))
+            (Ok [_] 0))))
       (unless lookup?
         (match (validate-term result rule)
           (Err [d] (break :done (Err d)))
