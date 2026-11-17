@@ -211,3 +211,24 @@ run_both 13 '(defn main [] (-> i64) (f -17 5)) (defn f [(x i8) (y i8)] (-> i64) 
 run_both 127 '(defn main [] (-> i64) (f 251 2)) (defn f [(x u8) (y u8)] (-> i64) (+ (cast i64 (/ x y)) (* 2 (cast i64 (% x y)))))'
 compare 1 '(defn main [] (-> i64) (% 100 7 3))'
 compare 1 '(defn f [(x i64) (y u64)] (-> i64) (/ x y))'
+
+mkdir -p package/src
+(
+    cd package
+    printf '[package]\nname = "demo"\nentry = "custom.coil"\n' > Coil.toml
+    echo '(defn main [] (-> i64) 31)' > custom.coil
+    for compiler in coil ../rewrite; do
+        "$compiler" check
+        status=0
+        "$compiler" run || status=$?
+        [ "$status" -eq 31 ]
+    done
+    printf '[package]\nname = "demo"\n' > Coil.toml
+    echo '(defn main [] (-> i64) 17)' > src/main.coil
+    for compiler in coil ../rewrite; do
+        "$compiler" check
+        status=0
+        "$compiler" run || status=$?
+        [ "$status" -eq 17 ]
+    done
+)

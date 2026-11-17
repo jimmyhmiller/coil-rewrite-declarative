@@ -74,26 +74,33 @@
                   src (primitive/datum->syntax rule "source-bytes")
                   opt (get rule 3)
                   output? (primitive/code-eq (get opt 0) `output)
+                  default? (primitive/code-eq (get opt 0) `default-input)
                   argc-test
                     (if output?
                         `(and (= ~argc 5)
                               (= (coil.str.from-cstr (load (index ~argv 3)))
                                  ~(get opt 1)))
-                        `(= ~argc 3))]
+                        (if default? `(or (= ~argc 2) (= ~argc 3)) `(= ~argc 3)))]
               `(if (and ~argc-test
                         (= (coil.str.from-cstr (load (index ~argv 1)))
                            ~(get rule 1)))
                    (let [~allocator (coil.alloc.malloc-allocator)
-                         ~path (coil.str.from-cstr (load (index ~argv 2)))
+                         ~path
+                           ~(if default?
+                                `(if (= ~argc 2)
+                                     ~(get opt 1)
+                                     (coil.str.from-cstr (load (index ~argv 2))))
+                                `(coil.str.from-cstr (load (index ~argv 2))))
                          ~src
                            (coil.source.cli.read-source ~allocator
-                                                        (load (index ~argv 2))
+                                                        (coil.str.to-cstr ~allocator
+                                                                          ~path)
                                                         1)]
                      ~(if output?
                           `(let [~(get opt 2)
                                    (coil.str.from-cstr (load (index ~argv 4)))]
                              ~(stages expanded 4 path src allocator))
-                          (stages expanded 3 path src allocator)))
+                          (stages expanded (if default? 4 3) path src allocator)))
                    ~rest))
             rest))))
 
@@ -111,9 +118,20 @@
         (cond (primitive/code-eq tag `use)
                 (do
                   (primitive/code-list-push! imports
-                                             `(import ~(get rule 1) :use *))
+                                             (if (= (primitive/code-count rule)
+                                                    4)
+                                                 `(import ~@(primitive/code-rest rule))
+                                                 `(import ~(get rule 1) :use *)))
                   0)
               (primitive/code-eq tag `usage) (do (set! usage (get rule 1)) 0)
+              (primitive/code-eq tag `input-path)
+                (do
+                  (primitive/code-list-push! imports
+                                             `(defn ~(get rule 1) [(~(get rule
+                                                                          2) (dyn coil.alloc.Allocator))]
+                                                (-> (slice u8))
+                                                ~(get rule 3)))
+                  0)
               (primitive/code-eq tag `pipeline) 0
               (primitive/code-eq tag `source-command) 0
               :else (do (primitive/error "unknown command declaration") 0))))

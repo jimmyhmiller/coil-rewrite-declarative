@@ -1,8 +1,16 @@
+(use "coil.project" :as project)
 (use "rewrite.native")
 (use "rewrite.signatures")
 (use "rewrite.check")
 (use "rewrite.command-tools")
-(usage "usage: rewrite check|run <file.coil>\n       rewrite build|emit-obj <file.coil> -o <output>\n")
+(usage "usage: rewrite check|run [file.coil]\n       rewrite build|emit-obj <file.coil> -o <output>\n")
+
+(input-path package-entry allocator
+    (let [manifest (project/parse-manifest allocator
+                     (coil.source.cli.read-source allocator (coil.str.to-cstr allocator "Coil.toml") 1))]
+      (if (project/m-workspace? manifest)
+          (do (project/m-error allocator "workspace commands are not implemented") "")
+          (if (= (len (.entry manifest)) 0) "src/main.coil" (.entry manifest)))))
 
 (pipeline check-source
   (read-forms forms)
@@ -15,6 +23,7 @@
   (phase emitted emit-object allocator signatures checked forms temporary-object))
 
 (source-command "check" path
+  (default-input (package-entry allocator))
   (include check-source)
   (exit 0))
 
@@ -36,6 +45,7 @@
   (exit 0))
 
 (source-command "run" path
+  (default-input (package-entry allocator))
   (include check-source)
   (include compile-object)
   (phase executable temporary "program")
