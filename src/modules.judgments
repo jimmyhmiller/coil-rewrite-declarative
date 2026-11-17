@@ -215,7 +215,7 @@
 (context SourceFile [(path (slice u8)) (bytes (slice u8))])
 (context NativePackage [(root (slice u8)) (manifest (Option (ptr coil.project.Manifest)))
                         (requires (coil.arraylist.ArrayList (slice u8)))])
-(context PackageRoot [(owner (slice u8)) (path (slice u8)) (excludes (slice u8))])
+(context PackageRoot [(member-prefix (slice u8)) (owner (slice u8)) (path (slice u8)) (excludes (slice u8))])
 (context Sources [(packages (coil.hashmap.HashMap (slice u8) (ptr NativePackage)))
                   (dependency-roots (coil.arraylist.ArrayList PackageRoot))
                   (mapped-paths (coil.hashmap.HashMap (slice u8) bool))
@@ -254,10 +254,10 @@
               ((Some [canonical])
                 (when (not (package-contains? root canonical))
                   (fail (coil.text.sconcat3 allocator origin " declares a source root outside the package: " canonical)))
-                (perform (push! (mut (.dependency-roots sources)) (PackageRoot :owner root :path canonical :excludes excludes))))
+                (perform (push! (mut (.dependency-roots sources)) (PackageRoot :member-prefix "" :owner root :path canonical :excludes excludes))))
               (_))))
         (when (= before (len (.dependency-roots sources)))
-          (perform (push! (mut (.dependency-roots sources)) (PackageRoot :owner root :path root :excludes excludes))))))))
+          (perform (push! (mut (.dependency-roots sources)) (PackageRoot :member-prefix "" :owner root :path root :excludes excludes))))))))
 
 (value native-package [(allocator (dyn coil.alloc.Allocator)) (root (slice u8))] (ptr NativePackage)
   (box! allocator NativePackage (NativePackage :root root :manifest (None [(ptr coil.project.Manifest)])
@@ -290,8 +290,35 @@
                       (_
                         (when (not (coil.project.dir? (coil.str.to-cstr allocator base)))
                           (fail (coil.text.sconcat allocator "dependency is not a directory: " base)))
-                        (perform (push! (mut (.dependency-roots sources)) (PackageRoot :owner base :path base :excludes "")))))))))
+                        (perform (push! (mut (.dependency-roots sources)) (PackageRoot :member-prefix "" :owner base :path base :excludes "")))))))))
             (_ (fail (coil.text.sconcat3 allocator origin " path does not exist: " path)))))))))
+
+(value workspace-directories [(a (dyn coil.alloc.Allocator)) (manifest (ptr coil.project.Manifest))]
+       (ptr (coil.arraylist.ArrayList (slice u8)))
+  (let [directories (box! a (coil.arraylist.ArrayList (slice u8)) (coil.arraylist.ArrayList::new [(slice u8)] a))
+        lines (coil.project.m-lines a (coil.project.m-workspace-packages a manifest))]
+    (for [i 0 (len (load lines))]
+      (let [line (get (load lines) i) separator (coil.project.m-index line (: 61 u8))]
+        (when (>= separator 0) (push! directories (subslice line (+ separator 1) (len line))))))
+    directories))
+
+(judgment workspace-packages [(allocator (dyn coil.alloc.Allocator)) (sources (ptr Sources))
+                              (manifest (ptr coil.project.Manifest))]
+  (with dirs (workspace-directories allocator manifest)
+    (each-index i (len (load dirs))
+      (with base (get (load dirs) i)
+        (with file (coil.path.path-join allocator base "Coil.toml")
+          (with package (coil.project.parse-manifest allocator (coil.project.m-read-text allocator (coil.str.to-cstr allocator file)))
+            (when (not (contains? (.packages sources) base))
+              (with owner (native-package allocator base)
+                (record (.packages sources) base owner)
+                (perform (set! (.manifest owner) (Some package)))
+                (prove (package-mappings allocator sources base package))
+                (prove (read-dependencies allocator sources owner package))))
+            (with prefix (coil.text.sconcat3 allocator (.ws-name manifest) "." (.name package))
+              (perform (push! (mut (.dependency-roots sources))
+                        (PackageRoot :member-prefix prefix :owner base :path base
+                                     :excludes (coil.project.m-excludes-env-at allocator package base)))))))))))
 
 (derive source-catalog [(allocator (dyn coil.alloc.Allocator)) (path (slice u8)) (bytes (slice u8))] (ptr Sources)
   (with sources (box! allocator Sources (Sources
@@ -315,7 +342,8 @@
             (with owner (native-package allocator root)
               (record (.packages sources) root owner)
               (prove (package-mappings allocator sources root manifest))
-              (prove (read-dependencies allocator sources owner manifest))))))
+              (prove (read-dependencies allocator sources owner manifest))
+              (when (coil.project.m-workspace? manifest) (prove (workspace-packages allocator sources manifest)))))))
       (_))
     (conclude sources)))
 
@@ -325,6 +353,15 @@
     (coil.source.diagnostic.report (coil.io.stderr) (.path file) (.bytes file) problem)
     1))
 
+(judgment check-member-name [(allocator (dyn coil.alloc.Allocator)) (sources (ptr Sources))
+                             (site (ptr coil.reader.Sexp)) (path (slice u8)) (name (slice u8))]
+  (each-index i (len (.dependency-roots sources))
+    (with root (get (.dependency-roots sources) i)
+      (when (and (> (len (.member-prefix root)) 0) (package-contains? (.path root) path))
+        (with prefix (coil.text.sconcat allocator (.member-prefix root) ".")
+          (require (and (coil.str.starts-with name prefix) (> (len name) (len prefix))) site
+                   (coil.text.sconcat3 allocator path " must declare a module below " (.member-prefix root))))))))
+
 (judgment index-path [(allocator (dyn coil.alloc.Allocator)) (sources (ptr Sources))
                       (site (ptr coil.reader.Sexp)) (path (slice u8))]
   (cases (coil.fs.read-file allocator path)
@@ -332,6 +369,7 @@
       (cases (coil.project.namespace-declared-module bytes)
         ((Some [header])
           (with name (coil.text.sconcat allocator header "")
+            (prove (check-member-name allocator sources site path name))
             (cases (get (.mappings sources) name)
               ((Some [prior])
                 (when (!= path prior)
@@ -366,13 +404,14 @@
               (when (not (contains? (.mapped-paths sources) path))
                 (prove (index-path allocator sources site path)))))))
       (each-index i (len (.dependency-roots sources))
-        (prove (index-source-root allocator sources site (get (.dependency-roots sources) i)))))
+        (with root (get (.dependency-roots sources) i)
+          (when (= (len (.member-prefix root)) 0) (prove (index-source-root allocator sources site root))))))
     (_
       (with entry (get (.files sources) 0)
         (with directory (coil.path.dirname (.path entry))
           (cases (coil.project.m-realpath allocator (if (= directory "") "/" directory))
             ((Some [root])
-              (prove (index-source-root allocator sources site (PackageRoot :owner "" :path root :excludes ""))))
+              (prove (index-source-root allocator sources site (PackageRoot :member-prefix "" :owner "" :path root :excludes ""))))
             (_ (reject site "cannot resolve entry source directory"))))))))
 
 (predicate namespace-import? [(name (slice u8))]
@@ -419,6 +458,10 @@
       (cases (module-header form)
         ((NamedModule [name])
           (perform (set! namespace (coil.reader.sexp-sym name)))
+          (when (match (.manifest sources) (Some [m] (coil.project.m-workspace? m)) (_ false))
+            (cases (coil.project.m-realpath allocator (.path (get (.files sources) (.source form))))
+              ((Some [path]) (prove (check-member-name allocator sources form path (load namespace))))
+              (_)))
           (when (not (contains? (.scopes sources) (load namespace)))
             (record (.scopes sources) (load namespace) (new-scope allocator (load namespace))))
           (when (and entry? (= (len (.root sources)) 0))
@@ -487,6 +530,9 @@
 
 (derive read-unit [(allocator (dyn coil.alloc.Allocator)) (sources (ptr Sources))
                    (forms (ptr (coil.arraylist.ArrayList coil.reader.Sexp)))] (ptr SourceUnit)
+  (when (and (> (len (load forms)) 0)
+             (match (.manifest sources) (Some [m] (coil.project.m-workspace? m)) (_ false)))
+    (prove (index-package allocator sources (elem forms 0))))
   (with (mut unit) (SourceUnit
     :visibility (coil.arraylist.ArrayList::new [VisibilityCheck] allocator)
     :declarations (box! allocator (coil.arraylist.ArrayList coil.reader.Sexp) (coil.arraylist.ArrayList::new [coil.reader.Sexp] allocator))

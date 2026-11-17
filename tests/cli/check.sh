@@ -637,3 +637,32 @@ run_both 21 '(defn main [] (-> i64) (let [(mut x) 0] (|>> (do (set! x (+ (* x 10
 compare 1 '(defn main [] (-> i64) (|> 1 ()))'
 compare 1 '(defn main [] (-> i64) (|> 2 undefined-stage))'
 compare 1 '(defn main [] (-> i64) (let [(mut n) 0] (& false (do (set! n 1) true)) n))'
+
+mkdir -p ws/members/app ws/members/lib
+(
+    cd ws
+    printf '%s\n' '[workspace]' 'name = "work"' 'members = ["members/*"]' > Coil.toml
+    printf '%s\n' '[package]' 'name = "app"' 'entry = "main.coil"' '[cc]' 'sources = ["locate.c"]' > members/app/Coil.toml
+    printf '%s\n' '[package]' 'name = "lib"' > members/lib/Coil.toml
+    echo '(module work.app.main) (import "work.lib.values" :as v) (extern locate [] (-> i64)) (defn main [] (-> i64) (- (locate) (v/value)))' > members/app/main.coil
+    echo '(module work.lib.values) (defn value [] (-> i64) 42)' > members/lib/values.coil
+    printf '%s\n' '#include <unistd.h>' 'long locate(void) { return access("member-marker", F_OK) == 0 ? 42 : 99; }' > members/app/locate.c
+    touch member-marker
+    for compiler in coil ../rewrite; do
+        "$compiler" check 2>diagnostic
+        grep -F '2/2 members ok' diagnostic >/dev/null
+        "$compiler" run 2>diagnostic
+        grep -F '1/1 members ok' diagnostic >/dev/null
+        "$compiler" build 2>diagnostic
+        ./members/app/build/debug/app
+        "$compiler" build -o picked 2>diagnostic
+        ./picked
+        rm -f picked members/app/build/debug/app
+    done
+    echo '(module work.lib.bad) (defn broken [] (-> i64) missing)' > members/lib/bad.coil
+    for compiler in coil ../rewrite; do
+        if "$compiler" check >diagnostic 2>&1; then exit 1; fi
+        grep -F '1/2 members ok' diagnostic >/dev/null
+        grep -F 'bad.coil' diagnostic >/dev/null
+    done
+)

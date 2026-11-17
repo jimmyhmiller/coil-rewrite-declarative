@@ -1,6 +1,7 @@
 (use "coil.project" :as project)
 (use "coil.fs" :as fs)
 (use "coil.text" :as text)
+(use "rewrite.workspace")
 (use "rewrite.native")
 (use "rewrite.link")
 (use "rewrite.modules")
@@ -13,8 +14,6 @@
                    (coil.source.cli.read-source allocator (coil.str.to-cstr allocator "Coil.toml") 1))
         entry (.entry manifest)]
     (cond
-      (project/m-workspace? manifest)
-        (do (project/m-error allocator "workspace commands are not implemented") "")
       (= (len entry) 0) "src/main.coil"
       :else
         (let [path (coil.str.to-cstr allocator entry)]
@@ -33,6 +32,11 @@
 (pipeline compile-object
   (phase temporary-object temporary "unit.o")
   (phase emitted emit-object allocator checked unit temporary-object))
+
+(route (or (= argc 2) (and (= argc 4) (= (coil.str.from-cstr (load (index argv 2))) "-o")))
+  (workspace-command allocator (coil.str.from-cstr (load (index argv 0)))
+    (coil.str.from-cstr (load (index argv 1)))
+    (if (= argc 4) (Some (coil.str.from-cstr (load (index argv 3)))) (None [(slice u8)]))))
 
 (source-command "check" path
   (default-input (package-entry allocator))

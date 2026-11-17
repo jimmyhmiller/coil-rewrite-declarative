@@ -72,6 +72,12 @@
       (let [rule (get forms i)
             tag (get rule 0)
             rest (dispatch forms (+ i 1) argc argv usage allocator)]
+        (if (primitive/code-eq tag `route)
+            `(block :dispatch-route
+                 (when ~(get rule 1)
+                   (let [~allocator (coil.alloc.malloc-allocator)]
+                     (match ~(get rule 2) (Some [status] (return-from :dispatch-route status)) (_ 0))))
+                 ~rest)
         (if (primitive/code-eq tag `source-command)
             (let [path (get rule 2)
                   expanded (expand-pipeline forms rule)
@@ -134,7 +140,7 @@
                                                                            ~src
                                                                            problem)))))
                    ~rest))
-            rest))))
+            rest)))))
 
 (defn read-commands [(context Code)] (-> Code)
   (let [forms (primitive/code-read (get context 2) `(reader-config))
@@ -164,6 +170,7 @@
                                                 (-> (slice u8))
                                                 ~(get rule 3)))
                   0)
+              (primitive/code-eq tag `route) 0
               (primitive/code-eq tag `pipeline) 0
               (primitive/code-eq tag `source-command) 0
               :else (do (primitive/error "unknown command declaration") 0))))
