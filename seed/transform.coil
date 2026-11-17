@@ -1,6 +1,7 @@
 ;;; Total schema-to-schema maps derive traversal, memoization and provenance.
 (module rewrite.transform)
 (import "rewrite.schema" :use *)
+(import "rewrite.interning" :as interning)
 (import "rewrite.protocol" :use [name?])
 (import "rewrite.emit" :use [number!])
 (import "rewrite.readers" :use [quoted!])
@@ -97,6 +98,7 @@
              (passes (ptr (ArrayList Pass)))
              (forms (ptr (ArrayList Sexp)))
              (context (ptr (ArrayList Field)))
+             (interned (ptr (ArrayList bool)))
              (source i64)
              (v (ptr Variant))
              (term (ptr Sexp))
@@ -138,6 +140,7 @@
                       passes
                       forms
                       context
+                      interned
                       source
                       v
                       (sexp-nth term i)
@@ -182,6 +185,7 @@
                         passes
                         forms
                         context
+                        interned
                         source
                         v
                         (sexp-nth term 2)
@@ -197,6 +201,7 @@
                         passes
                         forms
                         context
+                        interned
                         source
                         v
                         (sexp-nth term 3)
@@ -283,6 +288,7 @@
                                 passes
                                 forms
                                 context
+                                interned
                                 source
                                 (mut extended)
                                 (sexp-nth arm 2)
@@ -323,6 +329,7 @@
                       passes
                       forms
                       context
+                      interned
                       source
                       v
                       (sexp-nth term i)
@@ -438,6 +445,7 @@
                                 passes
                                 forms
                                 context
+                                interned
                                 source
                                 v
                                 child
@@ -497,6 +505,7 @@
                                 passes
                                 forms
                                 context
+                                interned
                                 source
                                 v
                                 (sexp-nth term 2)
@@ -597,6 +606,7 @@
                         passes
                         forms
                         context
+                        interned
                         source
                         v
                         (sexp-nth term (+ i 1))
@@ -607,11 +617,17 @@
             (Err [d] (break :done (Err d)))
             (Ok [_]))
           (push-str! (mut b) " "))
-        (push-str! (mut b) "out (append-")
+        (push-str! (mut b)
+                   (if (get (load interned) target)
+                       "out (match (intern-"
+                       "out (append-"))
         (number! (mut b) target)
-        (push-str! (mut b) " (mut (.rows")
-        (number! (mut b) target)
-        (push-str! (mut b) " store)) (N")
+        (if (get (load interned) target)
+            (push-str! (mut b) "! (mut store) (N")
+            (do
+              (push-str! (mut b) " (mut (.rows")
+              (number! (mut b) target)
+              (push-str! (mut b) " store)) (N")))
         (number! (mut b) target)
         (if (.sum? node)
             (do (push-str! (mut b) "V") (number! (mut b) vi))
@@ -620,10 +636,15 @@
           (unless (.sum? node) (push-str! (mut b) " :f") (number! (mut b) i))
           (push-str! (mut b) " x")
           (number! (mut b) i))
-        (push-str! (mut b) "))] (push! (mut (.origins")
-        (number! (mut b) target)
+        (if (get (load interned) target)
+            (push-str! (mut b)
+                       ") origin) (Ok [v] v) (Err [e] (break :done (Err (TransformIntern e)))))] ")
+            (do
+              (push-str! (mut b) "))] (push! (mut (.origins")
+              (number! (mut b) target)
+              (push-str! (mut b) " store)) origin) ")))
         (push-str! (mut b)
-                   " store)) origin) (push! (mut (.traces store)) (source/Trace :target-schema ")
+                   "(push! (mut (.traces store)) (source/Trace :origin origin :target-schema ")
         (number! (mut b) target)
         (push-str! (mut b) " :target-node (.index out) :source-schema ")
         (number! (mut b) source)
@@ -678,7 +699,11 @@
   (-> (Result (slice u8) Diag))
   (block
     :done
-      (let [(mut context)
+      (let [(mut interned)
+              (match (interning/selection a s forms)
+                (Ok [v] v)
+                (Err [d] (break :done (Err d))))
+            (mut context)
               (match (context-fields a forms)
                 (Ok [v] v)
                 (Err [d] (break :done (Err d))))
@@ -745,7 +770,11 @@
                      "(import \"rewrite.lexical\" :as transform-lexical)\n"))
 
         (push-str! (mut b)
-                   "(import \"coil.primitive\" :as transform-primitive)\n(defsum TransformError (TransformAliasedStores) (TransformSequence [(error sequence/SequenceError)]) (TransformSource [(error source/SourceError)]) (TransformReference [(schema i64) (node i64)]) (TransformCycle [(schema i64) (node i64)]) (TransformOriginMissing [(schema i64) (node i64)]) (TransformSourceChanged [(schema i64)]))\n(defstruct TransformState [(sharing? bool) (source (ptr Store)) (target (ptr Store)) (copied (HashMap i64 bool)) ")
+                   "(import \"coil.primitive\" :as transform-primitive)\n(defsum TransformError ")
+        (when (interning/any? (mut interned))
+          (push-str! (mut b) "(TransformIntern [(error InternError)]) "))
+        (push-str! (mut b)
+                   "(TransformAliasedStores) (TransformSequence [(error sequence/SequenceError)]) (TransformSource [(error source/SourceError)]) (TransformReference [(schema i64) (node i64)]) (TransformCycle [(schema i64) (node i64)]) (TransformOriginMissing [(schema i64) (node i64)]) (TransformSourceChanged [(schema i64)]))\n(defstruct TransformState [(sharing? bool) (source (ptr Store)) (target (ptr Store)) (copied (HashMap i64 bool)) ")
         (for [c 0 (len context)]
           (push-str! (mut b) "(context")
           (number! (mut b) c)
@@ -927,6 +956,7 @@
                                 (mut passes)
                                 forms
                                 (mut context)
+                                (mut interned)
                                 source
                                 v
                                 (sexp-nth rule 1)

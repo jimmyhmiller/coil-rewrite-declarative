@@ -196,3 +196,5 @@
   (Application (Application name arguments))
   (Constant (Constant value)))
 (equality CanonicalType)
+
+(intern CanonicalType)

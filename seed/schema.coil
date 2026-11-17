@@ -248,6 +248,7 @@
                                         "pair-selection")
                            (sexp-sym-is (sexp-nth (elem forms i) 0)
                                         "text-classifier")
+                           (sexp-sym-is (sexp-nth (elem forms i) 0) "intern")
                            (sexp-sym-is (sexp-nth (elem forms i) 0)
                                         "transform-context")
                            (sexp-sym-is (sexp-nth (elem forms i) 0) "selection")

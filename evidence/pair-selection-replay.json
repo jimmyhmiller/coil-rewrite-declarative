@@ -1,9 +1,9 @@
 {
   "host_version": "coil 0.1.0 (commit dcbbfee64333, 2026-11-17)",
   "host_sha256": "a0e3f4c481945e8c29607cf022283ece170299f795c79b9487af75a931a55869",
-  "seed_sha256": "a717f502d16c5207ec19db2d84dc2031bed059f16b68d2cfa74ab730a5004c1b",
+  "seed_sha256": "1c3cda201c5c388d5aa956cd03e48e64974cae24d34e935be36ec07cc1253feb",
   "driver_sha256": "8c448428d16d53a0e7404bc0cc99accc20648c2a7a777257f985cc17b67dee03",
-  "independent_generated_sha256": "c2d315cf559fd92aed1a8295cb9c508c81188641570ec927ca37fff387005287",
+  "independent_generated_sha256": "d0d2fd98241e106414d598a9a3f52a383f9befd357d86ec6c32753cbc64140aa",
   "scope": "Generated pair selection and selected syntax occurrence preservation; derive registry and full admission are not replayed.",
   "observations": 62,
   "configurations": [
@@ -16,8 +16,8 @@
     "tools/check-pairs.py": "02d481159783b7303c818fd47f8463b4f3e1c9e04cd31f14dd86280d4604a703",
     "seed/pair_selection.coil": "846047da05dd94541106436a3aaac259038fc02e9a1ebe025b00ea848198c8b9",
     "languages/pair_selection.schema": "cea7197d8dd3d5752d8eea847ffcf741ef5e67118a840c24fb9219fcff75ec41",
-    "seed/generated/pair_forms.coil": "d10d61e000d64bbf123dd0bd95f6c76d60b13c79721f95c7abce1c61fde88c02",
+    "seed/generated/pair_forms.coil": "82faa0e3a44bf2c07ca6e168256374fb015b70cf07e11c0d3529935ea6e9852f",
     "languages/code.schema": "fa5c550e29d697de8e88d1c4a1c0d3585cf9b2bfd65f3e0f614e71b20f6dff1f",
-    "seed/generated/code_forms.coil": "ee0e0377bb16f3622589057895312c77651d91056655dc9945ad54dc4de19e1d"
+    "seed/generated/code_forms.coil": "c9c251b6bc314b91a6c2c1dc1ffbc4e1c3b51cadfa203808bfcd726ce278a5e6"
   }
 }

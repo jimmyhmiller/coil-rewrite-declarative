@@ -9,11 +9,11 @@
   "reference_sha256": "70822c1658b3daebb947db25e72ad9898b56a18c13926e0b5c95d0467b9c6a68",
   "driver_sha256": "c7ecc4434d472ae648c2871250dbdcc3db37f6f8c3ea01afae2a1cf5d9ca7338",
   "inputs": {
-    "tests/type-classified.coil": "2d1a99d3d408eb509df97b4e2d40930dfef082cd00880dbcf36ba80f7f787447",
+    "tests/type-classified.coil": "a30d4035b77092dabf1c761b4c3b87ef18376989185c59e1a8f1d441548fd39c",
     "tools/check-type-elaboration.py": "d82a02336464622d1fa492e7c9acbf75b7ef5442e86af10614097e8ded5946e1",
-    "languages/type_syntax.schema": "965124e59e35e331aeb2e5fc930f4f4e54a1aab8f309bc07f1adc4618c1a966d",
-    "seed/generated/type_syntax.coil": "7e634e10378e564c6eca50443f66be2ed0fef4e42e52ad639283699ba3561396",
-    "seed/transform.coil": "19681d881a81b8cf63a8942b6abc5db01fe0b097fe2826ef82a5b47121c578d7",
+    "languages/type_syntax.schema": "34f0f7059e686862b61129a67ddb3f7194f35c6a7c5f1ea91a835b6f1253f5e1",
+    "seed/generated/type_syntax.coil": "b27f1f5d554c91ddd4b469c7198132e6fd984d1d0be8e43e4f5fa2329547392d",
+    "seed/transform.coil": "09904645bb9d0b511f312cbc51d6515730d01bd37e2efd810e232c2956fee780",
     "seed/lexical.coil": "0c5f048886da8ba0147b8530c86375f94ec9814a6ea9736b4563ceea57e3d2a6",
     "seed/text_runtime.coil": "4df8f4bed7ca2af8b8e0aef2de51a7c01788555fe64cf7fdf94acb0563b96b10"
   }

@@ -13,10 +13,13 @@
     (push! (mut b) byte))
   (push! (mut b) (: 34 u8)))
 
-(defn emit [(a (dyn Allocator)) (s (ptr Schema))] (-> (slice u8))
+(defn emit [(a (dyn Allocator)) (s (ptr Schema)) (intern? bool)] (-> (slice u8))
   (let [(mut b) (StrBuf::new a)]
     (push-str! (mut b)
                "(import \"coil.reader\" :use *)\n(import \"coil.result\" :use *)\n(import \"coil.alloc\" :use *)\n(import \"rewrite.source\" :as source)\n(import \"rewrite.sequence\" :as sequence)\n(defstruct Store [(source-data source/Sources) (traces (ArrayList source/Trace)) ")
+    (when intern?
+      (push-str! (mut b)
+                 "(canonical (HashMap (slice u8) i64)) (canonical-counts (ArrayList i64)) "))
     (for [i 0 (len (.nodes s))]
       (push-str! (mut b) "(rows")
       (number! (mut b) i)
@@ -31,6 +34,9 @@
       (push-str! (mut b) "Id))"))
     (push-str! (mut b)
                "])\n(defn store-new [(a (dyn Allocator))] (-> Store) (Store :source-data (source/create a) :traces (ArrayList::new [source/Trace] a) ")
+    (when intern?
+      (push-str! (mut b)
+                 ":canonical (HashMap::new [(slice u8) i64] a (keyops-borrowed)) :canonical-counts (canonical-counts-new a) "))
     (for [i 0 (len (.nodes s))]
       (push-str! (mut b) ":rows")
       (number! (mut b) i)
@@ -44,7 +50,10 @@
       (number! (mut b) i)
       (push-str! (mut b) "Id] a) "))
     (push-str! (mut b)
-               "))\n(defn store-free! [(store (mut Store))] (-> void) (free! (mut (.traces store))) (source/release! (mut (.source-data store))) ")
+               "))\n(defn store-free! [(store (mut Store))] (-> void) (free! (mut (.traces store))) ")
+    (when intern?
+      (push-str! (mut b)
+                 "(free! (mut (.canonical store))) (free! (mut (.canonical-counts store))) "))
     (for [i 0 (len (.nodes s))]
       (push-str! (mut b) "(free! (mut (.rows")
       (number! (mut b) i)
@@ -55,7 +64,12 @@
       (number! (mut b) i)
       (push-str! (mut b) " store))) "))
     (push-str! (mut b)
-               ")\n(defn store-text! [(store (mut Store)) (text (slice u8))] (-> (slice u8)) (source/intern! (mut (.source-data store)) text))\n(defn origin-of [(form (ptr Sexp))] (-> source/Origin) (source/origin form))\n(defn store-source! [(store (mut Store)) (id i64) (name (slice u8)) (text (slice u8))] (-> (Result bool source/SourceError)) (source/register! (mut (.source-data store)) id name text))\n(defn input-error [(form (ptr Sexp)) (message (slice u8))] (-> Diag) (Diag :lo (.lo form) :hi (.hi form) :source (.source form) :ctxt 0 :msg message))\n")
+               "(source/release! (mut (.source-data store))))\n(defn store-text! [(store (mut Store)) (text (slice u8))] (-> (slice u8)) (source/intern! (mut (.source-data store)) text))\n(defn origin-of [(form (ptr Sexp))] (-> source/Origin) (source/origin form))\n(defn store-source! [(store (mut Store)) (id i64) (name (slice u8)) (text (slice u8))] (-> (Result bool source/SourceError)) (source/register! (mut (.source-data store)) id name text))\n(defn input-error [(form (ptr Sexp)) (message (slice u8))] (-> Diag) (Diag :lo (.lo form) :hi (.hi form) :source (.source form) :ctxt 0 :msg message))\n")
+    (when intern?
+      (push-str! (mut b)
+                 "(import \"coil.str\" :use [keyops-borrowed])\n(defn canonical-counts-new [(a (dyn Allocator))] (-> (ArrayList i64)) (let [(mut counts) (ArrayList::new [i64] a)] (for [i 0 ")
+      (number! (mut b) (len (.nodes s)))
+      (push-str! (mut b) "] (push! (mut counts) 0)) counts))\n"))
     (for [i 0 (len (.nodes s))]
       (push-str! (mut b) "(defstruct N")
       (number! (mut b) i)

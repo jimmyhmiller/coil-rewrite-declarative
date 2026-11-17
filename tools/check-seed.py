@@ -456,3 +456,5 @@ subprocess.run(['python3', 'tools/check-occurrences.py'], cwd=ROOT, check=True)
 subprocess.run(['python3', 'tools/check-classified-maps.py'], cwd=ROOT, check=True)
 
 subprocess.run(['python3', 'tools/check-type-elaboration.py'], cwd=ROOT, check=True)
+
+subprocess.run(['python3', 'tools/check-interning.py'], cwd=ROOT, check=True)

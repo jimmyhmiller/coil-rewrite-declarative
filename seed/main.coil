@@ -9,6 +9,7 @@
 (import "rewrite.equalgen" :as equalgen)
 (import "rewrite.selectiongen" :as selectiongen)
 (import "rewrite.readers" :as readers)
+(import "rewrite.interning" :as interning)
 (import "rewrite.walk" :as walk)
 (import "rewrite.pairselection" :as pairselection)
 (import "rewrite.classification" :as classification)
@@ -105,7 +106,17 @@
               (match (transform/emit a sp forms)
                 (Err [d] (break :done (Err d)))
                 (Ok [text] (push-str! (mut output) text)))
-            (= stage "readers") (push-str! (mut output) (readers/emit a sp))
+            (= stage "readers")
+              (match (interning/selection a sp forms)
+                (Err [d] (break :done (Err d)))
+                (Ok [selection]
+                    (let [(mut selected) selection]
+                      (push-str! (mut output)
+                                 (readers/emit a
+                                               sp
+                                               (interning/any? (mut selected))))
+                      (push-str! (mut output)
+                                 (interning/emit a sp (mut selected))))))
             (= stage "alpha")
               (push-str! (mut output) (alpha/emit a sp bindings))
             (= stage "resolution")
