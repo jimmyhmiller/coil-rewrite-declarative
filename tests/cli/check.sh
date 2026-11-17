@@ -222,6 +222,11 @@ mkdir -p package/src
         status=0
         "$compiler" run || status=$?
         [ "$status" -eq 31 ]
+        rm -f package-app
+        "$compiler" build -o package-app
+        status=0
+        ./package-app || status=$?
+        [ "$status" -eq 31 ]
     done
     printf '[package]\nname = "demo"\n' > Coil.toml
     echo '(defn main [] (-> i64) 17)' > src/main.coil
@@ -230,5 +235,18 @@ mkdir -p package/src
         status=0
         "$compiler" run || status=$?
         [ "$status" -eq 17 ]
+        rm -f package-app
+        "$compiler" build -o package-app
+        status=0
+        ./package-app || status=$?
+        [ "$status" -eq 17 ]
+    done
+    for entry in missing.coil src; do
+        printf '[package]\nname = "demo"\nentry = "%s"\n' "$entry" > Coil.toml
+        for compiler in coil ../rewrite; do
+            if "$compiler" build -o rejected > diagnostic 2>&1; then exit 1; fi
+            grep -F "Coil.toml: [package] entry '$entry' is not a file" diagnostic >/dev/null
+            [ ! -e rejected ]
+        done
     done
 )

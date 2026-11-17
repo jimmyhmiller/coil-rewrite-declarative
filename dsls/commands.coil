@@ -72,23 +72,32 @@
             (let [path (get rule 2)
                   expanded (expand-pipeline forms rule)
                   src (primitive/datum->syntax rule "source-bytes")
-                  opt (get rule 3)
+                  input (get rule 3)
+                  default? (primitive/code-eq (get input 0) `default-input)
+                  option-index (if default? 4 3)
+                  opt (get rule option-index)
                   output? (primitive/code-eq (get opt 0) `output)
-                  default? (primitive/code-eq (get opt 0) `default-input)
+                  first-stage (+ option-index (if output? 1 0))
+                  implicit? (if output? `(= ~argc 4) `(= ~argc 2))
+                  explicit? (if output? `(= ~argc 5) `(= ~argc 3))
+                  count-test (if default? `(or ~implicit? ~explicit?) explicit?)
                   argc-test
                     (if output?
-                        `(and (= ~argc 5)
-                              (= (coil.str.from-cstr (load (index ~argv 3)))
+                        `(and ~count-test
+                              (= (coil.str.from-cstr (load (index ~argv
+                                                                  (- (cast i64
+                                                                           ~argc)
+                                                                     2))))
                                  ~(get opt 1)))
-                        (if default? `(or (= ~argc 2) (= ~argc 3)) `(= ~argc 3)))]
+                        count-test)]
               `(if (and ~argc-test
                         (= (coil.str.from-cstr (load (index ~argv 1)))
                            ~(get rule 1)))
                    (let [~allocator (coil.alloc.malloc-allocator)
                          ~path
                            ~(if default?
-                                `(if (= ~argc 2)
-                                     ~(get opt 1)
+                                `(if ~implicit?
+                                     ~(get input 1)
                                      (coil.str.from-cstr (load (index ~argv 2))))
                                 `(coil.str.from-cstr (load (index ~argv 2))))
                          ~src
@@ -98,9 +107,12 @@
                                                         1)]
                      ~(if output?
                           `(let [~(get opt 2)
-                                   (coil.str.from-cstr (load (index ~argv 4)))]
-                             ~(stages expanded 4 path src allocator))
-                          (stages expanded (if default? 4 3) path src allocator)))
+                                   (coil.str.from-cstr (load (index ~argv
+                                                                    (- (cast i64
+                                                                             ~argc)
+                                                                       1))))]
+                             ~(stages expanded first-stage path src allocator))
+                          (stages expanded first-stage path src allocator)))
                    ~rest))
             rest))))
 

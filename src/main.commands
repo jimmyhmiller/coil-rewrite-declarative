@@ -1,16 +1,25 @@
 (use "coil.project" :as project)
+(use "coil.fs" :as fs)
+(use "coil.text" :as text)
 (use "rewrite.native")
 (use "rewrite.signatures")
 (use "rewrite.check")
 (use "rewrite.command-tools")
-(usage "usage: rewrite check|run [file.coil]\n       rewrite build|emit-obj <file.coil> -o <output>\n")
+(usage "usage: rewrite check|run [file.coil]\n       rewrite build [file.coil] -o <output>\n       rewrite emit-obj <file.coil> -o <output>\n")
 
 (input-path package-entry allocator
-    (let [manifest (project/parse-manifest allocator
-                     (coil.source.cli.read-source allocator (coil.str.to-cstr allocator "Coil.toml") 1))]
-      (if (project/m-workspace? manifest)
-          (do (project/m-error allocator "workspace commands are not implemented") "")
-          (if (= (len (.entry manifest)) 0) "src/main.coil" (.entry manifest)))))
+  (let [manifest (project/parse-manifest allocator
+                   (coil.source.cli.read-source allocator (coil.str.to-cstr allocator "Coil.toml") 1))
+        entry (.entry manifest)]
+    (cond
+      (project/m-workspace? manifest)
+        (do (project/m-error allocator "workspace commands are not implemented") "")
+      (= (len entry) 0) "src/main.coil"
+      :else
+        (let [path (coil.str.to-cstr allocator entry)]
+          (when (or (!= (fs/access path 0) (: 0 i32)) (project/dir? path))
+            (project/m-error allocator (text/sconcat3 allocator "Coil.toml: [package] entry '" entry "' is not a file")))
+          entry))))
 
 (pipeline check-source
   (read-forms forms)
@@ -36,6 +45,7 @@
   (exit 0))
 
 (source-command "build" path
+  (default-input (package-entry allocator))
   (output "-o" destination)
   (include check-source)
   (include compile-object)
