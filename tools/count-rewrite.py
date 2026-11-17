@@ -10,6 +10,10 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def category(path):
+    if path.startswith('seed/generated/') and path.endswith('.coil'):
+        return 'generated-language-toolchain'
+    if path.startswith('languages/'):
+        return 'authored-language-specifications'
     if path.startswith(('seed/', 'runtime/')):
         return 'authored-seed-and-runtime'
     if path.startswith('tests/'):
@@ -52,7 +56,7 @@ result = dict(
     caveats='Physical lines include comments and blanks. Templates count as authored source. '
             'This is not a code-only LOC count or a complete toolchain reduction claim. '
             'Host Coil/stdlib bootstrap dependencies are not vendored or included. '
-            'Generated seed output is ephemeral and not included; retained generated backend is separate.',
+            'General seed output is ephemeral; the checked-in generated language parser and retained generated backend are separate.',
     totals=dict(sorted(totals.items())), files=files)
 output = ROOT/'evidence/rewrite-source-inventory.json'
 output.write_text(json.dumps(result, indent=2)+'\n')

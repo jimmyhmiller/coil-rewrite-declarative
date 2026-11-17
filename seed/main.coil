@@ -29,6 +29,7 @@
 (defn compile-stage [(a (dyn Allocator))
                      (sp (ptr schema/Schema))
                      (bindings (ptr binding/Bindings))
+                     (module-name (slice u8))
                      (forms (ptr (ArrayList Sexp)))
                      (stage (slice u8))]
   (-> (Result (slice u8) Diag))
@@ -50,7 +51,8 @@
                  :ctxt 0
                  :msg "unknown seed phase implementation"))))
     (let [(mut output) (StrBuf::new a)]
-      (cond (= stage "tables") (push-str! (mut output) (emit/emit a sp))
+      (cond (= stage "tables")
+              (push-str! (mut output) (emit/emit a sp module-name))
             (= stage "transform")
               (match (transform/emit a sp forms)
                 (Err [d] (break :done (Err d)))
@@ -154,11 +156,68 @@
                       (Ok [text] (push-str! (mut output) text)))))))
       (Ok (str (load output))))))
 
+(defn output-module [(forms (ptr (ArrayList Sexp)))]
+  (-> (Result (slice u8) Diag))
+  (block
+    :done
+      (let [(mut name) "rewrite.generated"
+            (mut seen) false]
+        (for [i 0 (len (load forms))]
+          (let [form (elem forms i)]
+            (when (and (sexp-list? form)
+                       (> (sexp-count form) 0)
+                       (sexp-sym-is (sexp-nth form 0) "module"))
+              (when seen
+                (break
+                  :done (Err (schema/problem form "duplicate output module"))))
+              (unless (and (= (sexp-count form) 2)
+                           (sexp-sym? (sexp-nth form 1)))
+                (break
+                  :done
+                    (Err (schema/problem form
+                                         "expected (module qualified.name)"))))
+              (set! seen true)
+              (set! name (sexp-sym (sexp-nth form 1)))
+              (let [(mut segment) 0
+                    (mut dots) 0]
+                (for byte name
+                  (if (= byte 46)
+                      (do
+                        (when (= segment 0)
+                          (break
+                            :done
+                              (Err (schema/problem form
+                                                   "invalid output module name"))))
+                        (set! dots (+ dots 1))
+                        (set! segment 0))
+                      (do
+                        (unless (or (and (>= byte 97) (<= byte 122))
+                                    (and (>= byte 65) (<= byte 90))
+                                    (= byte 95)
+                                    (and (> segment 0)
+                                         (or (= byte 45)
+                                             (and (>= byte 48) (<= byte 57)))))
+                          (break
+                            :done
+                              (Err (schema/problem form
+                                                   "invalid output module name"))))
+                        (set! segment (+ segment 1)))))
+                (unless (and (> dots 0) (> segment 0))
+                  (break
+                    :done
+                      (Err (schema/problem form
+                                           "output module needs at least two nonempty segments"))))))))
+        (Ok name))))
+
 (defn compile-forms [(a (dyn Allocator)) (forms (ptr (ArrayList Sexp)))]
   (-> (Result (slice u8) Diag))
   (block
     :done
-      (let [schema
+      (let [module-name
+              (match (output-module forms)
+                (Err [d] (break :done (Err d)))
+                (Ok [name] name))
+            schema
               (match (schema/parse-forms a forms)
                 (Err [d] (break :done (Err d)))
                 (Ok [schema] (box! a schema/Schema schema)))
@@ -172,7 +231,12 @@
                 (Ok [order] order))
             (mut output) (StrBuf::new a)]
         (for [i 0 (len order)]
-          (match (compile-stage a schema bindings forms (get order i))
+          (match (compile-stage a
+                                schema
+                                bindings
+                                module-name
+                                forms
+                                (get order i))
             (Err [d] (break :done (Err d)))
             (Ok [text] (push-str! (mut output) text))))
         (Ok (str (load output))))))

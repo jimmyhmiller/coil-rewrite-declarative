@@ -75,3 +75,10 @@ Only node-reference sequences are supported. Binding rules over collections, typ
 Reference fields and child-local name visibility now come from one binding declaration consumed by typing and lowering. Existing unary let and installed-Coil surface comparisons remain covered. A separate parallel-binding language exercises multiple names, outer-scope initializer evaluation, shadowing, sibling isolation and mixed payload types. A declaration-only name-order change is checked against both inferred type and native output.
 
 This covers lexical topology, not full Coil binding compatibility. Names still resolve by Text in each consumer; canonical IDs, namespaces/imports, recursive groups, capture rules and binding-aware transforms remain missing.
+
+
+## Schema parser self-description checkpoint
+
+The seed now parses schema declarations through code generated from `languages/schema.schema`; its handwritten shape parser has been removed. The schema/syntax compilers regenerate that parser, and an isolated seed rebuild using the regenerated copy emits identical bytes. Input hashes and host compiler identity are recorded in `evidence/schema-bootstrap.json`.
+
+A comparison with revision `62b83dd` covers 95 seed-language cases, including 72 seeded schemas: acceptance agrees throughout and the 77 accepted cases emit identical Coil. Six rejected cases change message wording or span specificity; both versions are recorded in `evidence/schema-parser-differential.json`. Semantic schema validation and model adaptation remain handwritten. Full Coil self-hosting, all-language self-description and bootstrap trust/distribution gates remain incomplete.

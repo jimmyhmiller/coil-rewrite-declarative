@@ -38,10 +38,13 @@
 
 ;;; Numeric generated names cannot collide with keywords or user-provided symbols.
 ;;; Schema order defines the local numbering; artifacts must include schema identity.
-(defn emit [(a (dyn Allocator)) (s (ptr Schema))] (-> (slice u8))
+(defn emit [(a (dyn Allocator)) (s (ptr Schema)) (module-name (slice u8))]
+  (-> (slice u8))
   (let [(mut b) (StrBuf::new a)]
+    (push-str! (mut b) "(module ")
+    (push-str! (mut b) module-name)
     (push-str! (mut b)
-               "(module rewrite.generated)\n(import \"rewrite.types\" :as types)\n(import \"coil.result\" :use *)\n(import \"coil.arraylist\" :use *)\n")
+               ")\n(import \"rewrite.types\" :as types)\n(import \"coil.result\" :use *)\n(import \"coil.arraylist\" :use *)\n")
     (push-str! (mut b)
                "(defsum Judgment (Typed [(type i64)]) (Classified [(type i64) (category (slice u8))]) (CategoryMismatch [(node i64) (actual (slice u8)) (rule-lo i64) (rule-hi i64)]) (Mismatch [(node i64) (field i64) (expected i64) (actual i64) (rule-lo i64) (rule-hi i64)]) (InvalidReference [(node i64)]) (CyclicInput [(node i64)]) (UnboundName [(node i64) (name (slice u8))]) (TypeConstruction [(error types/TypeError)]) (ExpectedFunction [(node i64) (actual i64)]))\n")
     (push-str! (mut b)

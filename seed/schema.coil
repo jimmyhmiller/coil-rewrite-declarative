@@ -4,6 +4,7 @@
 (import "coil.arraylist" :use *)
 (import "coil.reader" :use *)
 (import "coil.result" :use *)
+(import "rewrite.schemaforms" :as grammar)
 
 (defstruct Field
   [(name (slice u8))
@@ -36,122 +37,163 @@
       (when (= (.name (elem nodes i)) name) (break :found true)))
     false))
 
-(defn parse-field [(form (ptr Sexp))] (-> (Result Field Diag))
-  (block :done
-    (unless (and (sexp-list? form)
-                 (or (= (sexp-count form) 2) (= (sexp-count form) 3)))
-      (break :done (Err (problem form "expected (field-name Type [:key])"))))
-    (let [name (sexp-nth form 0)
-          ty (sexp-nth form 1)
-          many? (sexp-list? ty)]
-      (unless (and (sexp-sym? name)
-                   (or (sexp-sym? ty)
-                       (and many?
-                            (= (sexp-count ty) 2)
-                            (sexp-sym-is (sexp-nth ty 0) "many")
-                            (sexp-sym? (sexp-nth ty 1))))
-                   (or (= (sexp-count form) 2)
-                       (and (sexp-kw? (sexp-nth form 2))
-                            (= (sexp-kw (sexp-nth form 2)) "key"))))
-        (break
-          :done
-            (Err (problem form
-                          "field needs symbol name/type or (many Node), and optional :key"))))
-      (let [element (if many? (sexp-sym (sexp-nth ty 1)) (sexp-sym ty))]
-        (when (and many? (scalar? element))
+;;; The generated parser owns shape checking; these adapters retain the current
+;;; semantic model and its original syntax locations until those clients migrate.
+(defn decode-field [(store (ptr grammar/Store))
+                    (id grammar/N2Id)
+                    (form (ptr Sexp))]
+  (-> (Result Field Diag))
+  (block
+    :done
+      (let [row (get (.rows2 store) (.index id))
+            ty (get (.rows1 store) (.index (.f1 row)))
+            many? (match ty (grammar/N1V1 [_] true) (_ false))
+            name
+              (match ty (grammar/N1V0 [name] name) (grammar/N1V1 [name] name))
+            attributes
+              (match (grammar/sequence-size-0 store (.f2 row))
+                (Some [n] n)
+                (None [] (panic "generated attribute sequence")))]
+        (when (> attributes 1)
+          (break :done (Err (problem form "expected (field-name Type [:key])"))))
+        (when (= attributes 1)
+          (let [attribute
+                  (match (grammar/sequence-item-0 store (.f2 row) 0)
+                    (Some [id] (get (.rows0 store) (.index id)))
+                    (None [] (panic "generated attribute")))]
+            (unless (= (.f0 attribute) "key")
+              (break :done (Err (problem form "unknown field attribute; only optional :key is supported"))))))
+        (when (and many? (scalar? name))
           (break
-            :done (Err (problem ty "sequence fields require node elements"))))
+            :done
+              (Err (problem (sexp-nth form 1)
+                            "sequence fields require node elements"))))
         (Ok (Field
-              :name (sexp-sym name)
-              :type-name element
+              :name (.f0 row)
+              :type-name name
               :many? many?
-              :key? (= (sexp-count form) 3)
-              :origin (load form)))))))
+              :key? (= attributes 1)
+              :origin (load form))))))
 
-(defn parse-variant [(a (dyn Allocator)) (form (ptr Sexp)) (offset i64)]
-  (-> (Result Variant Diag))
-  (block :result
-    (unless (and (sexp-list? form) (> (sexp-count form) offset))
-      (break :result (Err (problem form "expected named variant"))))
-    (let [name (sexp-nth form offset)
-          (mut fields) (ArrayList::new [Field] a)]
-      (unless (sexp-sym? name)
-        (break :result (Err (problem name "variant name must be a symbol"))))
-      (for [i (+ offset 1) (sexp-count form)]
-        (match (parse-field (sexp-nth form i))
-          (Err [d] (break :result (Err d)))
-          (Ok [f]
-              (do
-                (for [j 0 (len fields)]
-                  (when (= (.name (elem (mut fields) j)) (.name f))
-                    (break
-                      :result
-                        (Err (problem (sexp-nth form i) "duplicate field")))))
-                (push! (mut fields) f)))))
-      (Ok (Variant
-            :name (sexp-sym name)
-            :fields fields
-            :origin (load form))))))
+(defn decode-fields [(a (dyn Allocator))
+                     (store (ptr grammar/Store))
+                     (ids grammar/N2Seq)
+                     (form (ptr Sexp))
+                     (offset i64)] (-> (Result (ArrayList Field) Diag))
+  (block
+    :done
+      (let [(mut fields) (ArrayList::new [Field] a)
+            count
+              (match (grammar/sequence-size-2 store ids)
+                (Some [n] n)
+                (None [] (panic "generated field sequence")))]
+        (for [i 0 count]
+          (let [id
+                  (match (grammar/sequence-item-2 store ids i)
+                    (Some [id] id)
+                    (None [] (panic "generated field")))
+                at (sexp-nth form (+ offset i))
+                field
+                  (match (decode-field store id at)
+                    (Ok [field] field)
+                    (Err [d] (break :done (Err d))))]
+            (for prior fields
+              (when (= (.name prior) (.name field))
+                (break :done (Err (problem at "duplicate field")))))
+            (push! (mut fields) field)))
+        (Ok fields))))
 
-(defn parse-node [(a (dyn Allocator)) (form (ptr Sexp))] (-> (Result Node Diag))
-  (block :result
-    (unless (and (sexp-list? form) (>= (sexp-count form) 2))
-      (break :result (Err (problem form "expected node or sum declaration"))))
-    (let [head (sexp-nth form 0)
-          name (sexp-nth form 1)
-          sum? (sexp-sym-is head "sum")
-          (mut variants) (ArrayList::new [Variant] a)]
-      (unless (or sum? (sexp-sym-is head "node"))
-        (break :result (Err (problem head "expected node or sum declaration"))))
-      (unless (sexp-sym? name)
-        (break :result (Err (problem name "node name must be a symbol"))))
-      (when (scalar? (sexp-sym name))
-        (break
-          :result (Err (problem name "node name is reserved for a scalar type"))))
-      (if sum?
-          (do
-            (when (= (sexp-count form) 2)
-              (break
-                :result (Err (problem form "sum requires at least one variant"))))
-            (for [i 2 (sexp-count form)]
-              (match (parse-variant a (sexp-nth form i) 0)
-                (Err [d] (break :result (Err d)))
-                (Ok [v]
-                    (do
-                      (for [j 0 (len variants)]
-                        (when (= (.name (elem (mut variants) j)) (.name v))
-                          (break
-                            :result
-                              (Err (problem (sexp-nth form i)
-                                            "duplicate variant")))))
-                      (push! (mut variants) v))))))
-          (match (parse-variant a form 1)
-            (Err [d] (break :result (Err d)))
-            (Ok [v] (push! (mut variants) v))))
-      (Ok (Node
-            :name (sexp-sym name)
-            :variants variants
-            :sum? sum?
-            :origin (load form))))))
+(defn decode-node [(a (dyn Allocator))
+                   (store (ptr grammar/Store))
+                   (id grammar/N4Id)
+                   (form (ptr Sexp))] (-> (Result Node Diag))
+  (block
+    :done
+      (let [row (get (.rows4 store) (.index id))
+            name
+              (match row
+                (grammar/N4V0 [name _] name)
+                (grammar/N4V1 [name _] name))
+            sum? (match row (grammar/N4V1 [_ _] true) (_ false))
+            (mut variants) (ArrayList::new [Variant] a)]
+        (when (scalar? name)
+          (break
+            :done
+              (Err (problem (sexp-nth form 1)
+                            "node name is reserved for a scalar type"))))
+        (match row
+          (grammar/N4V0 [_ fields]
+                        (let [fields
+                                (match (decode-fields a store fields form 2)
+                                  (Ok [fields] fields)
+                                  (Err [d] (break :done (Err d))))]
+                          (push! (mut variants)
+                                 (Variant
+                                   :name name
+                                   :fields fields
+                                   :origin (load form)))))
+          (grammar/N4V1 [_ ids]
+                        (let [count
+                                (match (grammar/sequence-size-3 store ids)
+                                  (Some [n] n)
+                                  (None [] (panic "generated variant sequence")))]
+                          (when (= count 0)
+                            (break
+                              :done
+                                (Err (problem form
+                                              "sum requires at least one variant"))))
+                          (for [i 0 count]
+                            (let [id
+                                    (match (grammar/sequence-item-3 store ids i)
+                                      (Some [id] id)
+                                      (None [] (panic "generated variant")))
+                                  variant (get (.rows3 store) (.index id))
+                                  at (sexp-nth form (+ i 2))
+                                  fields
+                                    (match (decode-fields a
+                                                          store
+                                                          (.f1 variant)
+                                                          at
+                                                          1)
+                                      (Ok [fields] fields)
+                                      (Err [d] (break :done (Err d))))]
+                              (for prior variants
+                                (when (= (.name prior) (.f0 variant))
+                                  (break
+                                    :done (Err (problem at "duplicate variant")))))
+                              (push! (mut variants)
+                                     (Variant
+                                       :name (.f0 variant)
+                                       :fields fields
+                                       :origin (load at))))))))
+        (Ok (Node
+              :name name
+              :variants variants
+              :sum? sum?
+              :origin (load form))))))
 
 ;;; Storage and source text must outlive the returned schema, including diagnostics.
-;;; Pass an arena: unsuccessful parsing also belongs to that allocation lifetime.
+;;; Pass an arena: generated parse tables, interned names and failed parses share its lifetime.
 (defn parse-forms [(a (dyn Allocator)) (forms (ptr (ArrayList Sexp)))]
   (-> (Result Schema Diag))
   (block
     :result
-      (let [(mut nodes) (ArrayList::new [Node] a)]
+      (let [(mut nodes) (ArrayList::new [Node] a)
+            (mut parsed) (grammar/store-new a)]
         (for [i 0 (len (load forms))]
           (unless (and (sexp-list? (elem forms i))
                        (> (sexp-count (elem forms i)) 0)
-                       (or (sexp-sym-is (sexp-nth (elem forms i) 0) "bindings")
+                       (or (sexp-sym-is (sexp-nth (elem forms i) 0) "module")
+                           (sexp-sym-is (sexp-nth (elem forms i) 0) "bindings")
                            (sexp-sym-is (sexp-nth (elem forms i) 0) "transform")
                            (sexp-sym-is (sexp-nth (elem forms i) 0) "syntax")
                            (sexp-sym-is (sexp-nth (elem forms i) 0) "judgment")
                            (or (sexp-sym-is (sexp-nth (elem forms i) 0) "lower")
                                (sexp-sym-is (sexp-nth (elem forms i) 0)
                                             "program"))))
-            (match (parse-node a (elem forms i))
+            (match (match (grammar/surface-4 (mut parsed) (elem forms i))
+                     (Err [d] (Err [Node Diag] d))
+                     (Ok [id] (decode-node a (mut parsed) id (elem forms i))))
               (Err [d] (break :result (Err d)))
               (Ok [n]
                   (do

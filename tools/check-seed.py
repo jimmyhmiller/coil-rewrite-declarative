@@ -7,11 +7,12 @@ import shutil
 
 ROOT = Path(__file__).resolve().parents[1]
 (ROOT / 'build').mkdir(exist_ok=True)
+subprocess.run(['python3', 'tools/gen-schema.py', '--check', '--bootstrap-check'], cwd=ROOT, check=True)
 for flags in [[], ['--debug-checks'], ['--release']]:
+    subprocess.run(['coil', 'run', 'tests/schema.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/phases.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/types.coil', *flags], cwd=ROOT, check=True)
     subprocess.run(['coil', 'run', 'tests/sequences.coil', *flags], cwd=ROOT, check=True)
-subprocess.run(['coil', 'build', 'seed/main.coil', '-o', 'build/schema-seed'], cwd=ROOT, check=True)
 source = (ROOT / 'tests/schemas/expressions.schema').read_bytes()
 generated = subprocess.check_output([str(ROOT / 'build/schema-seed')], input=source)
 assert generated == subprocess.check_output([str(ROOT / 'build/schema-seed')], input=source)
@@ -307,3 +308,17 @@ for invalid, diagnostic in [
     result = subprocess.run([str(ROOT/'build/schema-seed')], input=invalid, capture_output=True)
     assert result.returncode != 0 and not result.stdout and diagnostic in result.stderr, result
 print('Shared binding declaration and semantic-client contracts passed')
+
+
+for invalid, diagnostic in [
+    (b'(node A) (module rewrite.a) (module rewrite.b)', b'duplicate output module'),
+    (b'(node A) (module single)', b'at least two nonempty segments'),
+    (b'(node A) (module rewrite..a)', b'invalid output module name'),
+    (b'(node A) (module rewrite/a)', b'invalid output module name'),
+    (b'(node A) (module "rewrite.a")', b'expected (module qualified.name)'),
+    (b'(node A) (syntax A :expect 1 (A (list)))', b'expected :expect string'),
+    (b'(node A) (syntax A :unknown "expected A" (A (list)))', b'expected :expect string'),
+]:
+    result = subprocess.run([str(ROOT/'build/schema-seed')], input=invalid, capture_output=True)
+    assert result.returncode != 0 and not result.stdout and diagnostic in result.stderr, result
+print('Named output modules and syntax expectation contracts passed')

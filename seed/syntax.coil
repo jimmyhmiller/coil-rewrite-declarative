@@ -26,6 +26,7 @@
             (push-str! (mut b) "(sexp-")
             (push-str! (mut b)
                        (cond (= mode "symbol") "sym"
+                             (= mode "keyword") "kw"
                              (= mode "text") "str"
                              (= mode "vector") "vec"
                              :else mode))
@@ -116,6 +117,7 @@
                              (= mode "bool")
                              (= mode "text")
                              (= mode "symbol")
+                             (= mode "keyword")
                              (= mode "ref")
                              (= mode "rest")))
               (break
@@ -132,7 +134,9 @@
                 (unless (and (= many? (= mode "rest"))
                              (cond (= mode "int") (= ty "Int")
                                    (= mode "bool") (= ty "Bool")
-                                   (or (= mode "symbol") (= mode "text"))
+                                   (or (= mode "symbol")
+                                       (= mode "keyword")
+                                       (= mode "text"))
                                      (= ty "Text")
                                    :else (not (scalar? ty))))
                   (break
@@ -168,6 +172,7 @@
                      (= mode "bool")
                      (= mode "text")
                      (= mode "symbol")
+                     (= mode "keyword")
                      (= mode "list")
                      (= mode "vector")))
             (Err (problem pattern
@@ -214,8 +219,17 @@
         :done
           (Err (problem form
                         "expected (syntax Schema (Constructor pattern) ...)"))))
-    (let [(mut ni) (- 0 1)
+    (let [labeled? (sexp-kw? (sexp-nth form 2))
+          start (if labeled? 4 2)
+          (mut ni) (- 0 1)
           (mut b) (StrBuf::new a)]
+      (when labeled?
+        (unless (and (>= (sexp-count form) 5)
+                     (= (sexp-kw (sexp-nth form 2)) "expect")
+                     (sexp-str? (sexp-nth form 3)))
+          (break
+            :done
+              (Err (problem form "expected :expect string before syntax rules")))))
       (for [i 0 (len (.nodes s))]
         (when (sexp-sym-is (sexp-nth form 1) (.name (elem (field s nodes) i)))
           (set! ni i)))
@@ -229,7 +243,7 @@
                    " [(store (mut Store)) (form (ptr Sexp))] (-> (Result N")
         (number! (mut b) ni)
         (push-str! (mut b) "Id Diag)) (block :parsed ")
-        (for [r 2 (sexp-count form)]
+        (for [r start (sexp-count form)]
           (let [rule (sexp-nth form r)
                 (mut vi) (- 0 1)]
             (unless (and (sexp-list? rule) (= (sexp-count rule) 2))
@@ -249,7 +263,7 @@
               (match (dispatch! (mut b) pattern)
                 (Err [d] (break :done (Err d)))
                 (Ok [_]))
-              (for [previous 2 r]
+              (for [previous start r]
                 (when (shadows? (sexp-nth (sexp-nth form previous) 1) pattern)
                   (break
                     :done
@@ -315,17 +329,22 @@
                           (number! (mut b) target)
                           (push-str! (mut b) " (mut store) (mut children))) ")))
                       (do
-                        (when (or (= mode "text") (= mode "symbol"))
+                        (when (or (= mode "text")
+                                  (= mode "symbol")
+                                  (= mode "keyword"))
                           (push-str! (mut b) "(store-text! (mut store) "))
                         (push-str! (mut b)
                                    (cond (= mode "int") "(sexp-int "
                                          (= mode "text") "(sexp-str "
                                          (= mode "symbol") "(sexp-sym "
+                                         (= mode "keyword") "(sexp-kw "
                                          :else "(sexp-sym-is "))
                         (push-str! (mut b) path)
                         (when (= mode "bool") (push-str! (mut b) " \"true\""))
                         (push-str! (mut b)
-                                   (if (or (= mode "text") (= mode "symbol"))
+                                   (if (or (= mode "text")
+                                           (= mode "symbol")
+                                           (= mode "keyword"))
                                        ")) "
                                        ") "))))))
               (push-str! (mut b) "id (append-")
@@ -353,6 +372,10 @@
               :done
                 (Err (problem form
                               "each constructor needs exactly one syntax rule")))))
-        (push-str! (mut b)
-                   "(Err (input-error form \"no syntax rule matches\"))))\n")
+        (push-str! (mut b) "(Err (input-error form ")
+        (quoted! (mut b)
+                 (if labeled?
+                     (sexp-str (sexp-nth form 3))
+                     "no syntax rule matches"))
+        (push-str! (mut b) "))))\n")
         (Ok (str (load b)))))))
