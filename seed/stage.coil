@@ -1,0 +1,174 @@
+;;; Compilation-scoped stage partitioning. Shape comes from the syntax language;
+;;; copies and context removal come from generated transforms and context policies.
+(module rewrite.stage)
+(import "rewrite.code" :as code)
+(import "rewrite.codeforms" :as forms)
+(import "rewrite.syntaxreader" :as projection)
+(import "rewrite.source" :as source)
+(import "coil.alloc" :use *)
+(import "coil.arraylist" :use *)
+(import "coil.hashmap" :use [HashMap])
+(import "coil.str" :use [keyops-borrowed])
+(import "coil.scratch" :use [ScratchArena])
+(import "coil.reader" :use *)
+(import "coil.result" :use *)
+(import "coil.primitive" :as primitive)
+
+(defstruct Tagged [(form forms/N0Id) (module (Option (slice u8)))])
+
+(defstruct Split
+  [(syntax code/Syntax)
+   (runtime (ArrayList Tagged))
+   (staged (ArrayList Tagged))
+   (markers (ArrayList (slice u8)))
+   (marker-index (HashMap (slice u8) bool))])
+
+(defsum Error
+  (Projection [(error projection/ProjectionError)])
+  (Declaration [(at source/Origin)])
+  (Copy [(error code/PromotionError)]))
+
+(defn create [(a (dyn Allocator))] (-> Split)
+  (Split
+    :syntax (code/create a)
+    :runtime (ArrayList::new [Tagged] a)
+    :staged (ArrayList::new [Tagged] a)
+    :markers (ArrayList::new [(slice u8)] a)
+    :marker-index (HashMap::new [(slice u8) bool] a (keyops-borrowed))))
+
+(defn release! [(output (mut Split))] (-> void)
+  (free! (mut (.runtime output)))
+  (free! (mut (.staged output)))
+  (free! (mut (.markers output)))
+  (free! (mut (.marker-index output)))
+  (code/release! (mut (.syntax output))))
+
+(defn marker! [(output (mut Split)) (name (slice u8))] (-> void)
+  (match (get (.marker-index output) name)
+    (Some [_])
+    (None []
+          (let [owned (forms/store-text! (mut (.store (.syntax output))) name)]
+            (push! (mut (.markers output)) owned)
+            (set! (mut (.marker-index output)) owned true)))))
+
+(defn own-module! [(output (mut Split)) (module (Option (slice u8)))]
+  (-> (Option (slice u8)))
+  (match module
+    (None [] (None))
+    (Some [name]
+          (Some (forms/store-text! (mut (.store (.syntax output))) name)))))
+
+(defn copy! [(output (mut Split))
+             (input (ptr code/Syntax))
+             (state (ptr forms/TransformState))
+             (root forms/N0Id)
+             (stage? bool)]
+  (-> (Result forms/N0Id Error))
+  (let [(mut user) 0]
+    (match (code/promote-state! (mut (.syntax output))
+                                input
+                                root
+                                state
+                                (mut user)
+                                (if stage?
+                                    (primitive/fnptr-of code/stage-context)
+                                    (primitive/fnptr-of code/preserve-context)))
+      (Ok [id] (Ok id))
+      (Err [e] (Err (Copy e))))))
+
+;;; Inputs and previous markers are borrowed for this call. Success owns all
+;;; output syntax, source documents, module names and cumulative marker strings.
+;;; Failure publishes nothing and leaves both borrowed inputs unchanged.
+(defn split [(a (dyn Allocator))
+             (input (ptr code/Syntax))
+             (entries (ptr (ArrayList Tagged)))
+             (previous (ptr (ArrayList (slice u8))))]
+  (-> (Result Split Error))
+  (let [(mut output) (create a)
+        (mut complete?) false
+        (mut scratch) (zeroed ScratchArena)
+        initialized (init (mut scratch) (malloc-allocator))
+        sa (allocator (mut scratch))
+        (mut memo) (ArrayList::new [(Option Sexp)] sa)
+        (mut active) (ArrayList::new [bool] sa)
+        (mut runtime-state)
+          (forms/transform-state-new a
+                                     (field input store)
+                                     (field (mut (.syntax output)) store))
+        (mut stage-state)
+          (forms/transform-state-new a
+                                     (field input store)
+                                     (field (mut (.syntax output)) store))]
+    (defer (unless complete? (release! (mut output))))
+    (defer (close! (mut scratch)))
+    (defer (forms/transform-state-free! (mut runtime-state)))
+    (defer (forms/transform-state-free! (mut stage-state)))
+    (set! (.sharing? stage-state) false)
+    (for [i 0 (len (.rows0 (.store input)))]
+      (push! (mut memo) (None))
+      (push! (mut active) false))
+    (for name (load previous) (marker! (mut output) name))
+    (block :done
+      (for entry (load entries)
+        (let [(mut form)
+                (match (projection/project-row sa
+                                               input
+                                               (.form entry)
+                                               (mut memo)
+                                               (mut active))
+                  (Ok [form] form)
+                  (Err [e] (break :done (Err (Projection e)))))
+              view
+                (match (forms/view-3 sa (mut form))
+                  (Ok [view] view)
+                  (Err [_]
+                       (break
+                         :done (Err (Declaration (source/origin (mut form)))))))
+              module (own-module! (mut output) (.module entry))]
+          (match view
+            (None []
+                  (let [id
+                          (match (copy! (mut output)
+                                        input
+                                        (mut runtime-state)
+                                        (.form entry)
+                                        false)
+                            (Ok [id] id)
+                            (Err [e] (break :done (Err e))))]
+                    (push! (mut (.runtime output))
+                           (Tagged :form id :module module))))
+            (Some [view]
+                  (let [marker (get (.captures view) 0)
+                        body (get (.captures view) 1)
+                        items
+                          (match (get (.rows0 (.store input))
+                                      (.index (.form entry)))
+                            (forms/N0V6 [items] items)
+                            (_ (panic "stage view is not a list")))]
+                    ; The declaration schema is a flat stage body, not a nested splice.
+                    (unless (and (.rest? body)
+                                 (= (primitive/cast i64 (.source body))
+                                    (primitive/cast i64
+                                                    (primitive/cast (ptr Sexp)
+                                                                    (mut form)))))
+                      (panic "stage declaration view contract"))
+                    (marker! (mut output) (sexp-sym (.source marker)))
+                    (for [i (.start body) (sexp-count (.source body))]
+                      (let [child
+                              (match (forms/sequence-item-0 (field input store)
+                                                            items
+                                                            i)
+                                (Some [id] id)
+                                (None [] (panic "validated stage body")))
+                            id
+                              (match (copy! (mut output)
+                                            input
+                                            (mut stage-state)
+                                            child
+                                            true)
+                                (Ok [id] id)
+                                (Err [e] (break :done (Err e))))]
+                        (push! (mut (.staged output))
+                               (Tagged :form id :module module)))))))))
+      (set! complete? true)
+      (Ok output))))

@@ -234,7 +234,8 @@
     (let [labeled? (sexp-kw? (sexp-nth form 2))
           start (if labeled? 4 2)
           (mut ni) (- 0 1)
-          (mut b) (StrBuf::new a)]
+          (mut b) (StrBuf::new a)
+          (mut views) (StrBuf::new a)]
       (when labeled?
         (unless (and (>= (sexp-count form) 5)
                      (= (sexp-kw (sexp-nth form 2)) "expect")
@@ -249,6 +250,10 @@
       (let [node (elem (field s nodes) ni)
             (mut seen) (ArrayList::new [i64] a)]
         (for [i 0 (len (.variants node))] (push! (mut seen) 0))
+        (push-str! (mut views) "(defn view-")
+        (number! (mut views) ni)
+        (push-str! (mut views)
+                   " [(a (dyn Allocator)) (form (ptr Sexp))] (-> (Result (Option SyntaxView) Diag)) (block :parsed ")
         (push-str! (mut b) "(defn surface-")
         (number! (mut b) ni)
         (push-str! (mut b)
@@ -270,7 +275,8 @@
             (set! (mut seen) vi (+ (get seen vi) 1))
             (let [v (elem (field node variants) vi)
                   pattern (sexp-nth rule 1)
-                  (mut captures) (ArrayList::new [Capture] a)]
+                  (mut captures) (ArrayList::new [Capture] a)
+                  (mut guards) (StrBuf::new a)]
               (push-str! (mut b) "(when ")
               (match (dispatch! (mut b) pattern)
                 (Err [d] (break :done (Err d)))
@@ -282,13 +288,38 @@
                       (Err (problem pattern
                                     "syntax rule shadowed by an earlier root pattern")))))
               (push-str! (mut b) " ")
-              (match (pattern! a (mut b) v pattern "form" 0 (mut captures))
+              (match (pattern! a (mut guards) v pattern "form" 0 (mut captures))
                 (Err [d] (break :done (Err d)))
                 (Ok [_]))
               (unless (= (len captures) (len (.fields v)))
                 (break
                   :done
                     (Err (problem rule "syntax must capture every schema field"))))
+              (push-str! (mut b) (str (load guards)))
+              (push-str! (mut views) "(when ")
+              (match (dispatch! (mut views) pattern)
+                (Err [d] (break :done (Err d)))
+                (Ok [_]))
+              (push-str! (mut views) " ")
+              (push-str! (mut views) (str (load guards)))
+              (push-str! (mut views)
+                         "(let [(mut captures) (ArrayList::new [SyntaxCapture] a)] ")
+              (for [f 0 (len (.fields v))]
+                (for capture captures
+                  (when (= f (.field capture))
+                    (push-str! (mut views)
+                               "(push! (mut captures) (SyntaxCapture :source ")
+                    (push-str! (mut views) (.path capture))
+                    (push-str! (mut views) " :start ")
+                    (number! (mut views) (.start capture))
+                    (push-str! (mut views)
+                               (if (= (.mode capture) "rest")
+                                   " :rest? true)) "
+                                   " :rest? false)) ")))))
+              (push-str! (mut views)
+                         "(break :parsed (Ok (Some (SyntaxView :variant ")
+              (number! (mut views) vi)
+              (push-str! (mut views) " :captures captures)))))) ")
               (push-str! (mut b) "(let [")
               (for [c 0 (len captures)]
                 (let [capture (elem (mut captures) c)
@@ -395,4 +426,6 @@
                      (sexp-str (sexp-nth form 3))
                      "no syntax rule matches"))
         (push-str! (mut b) "))))\n")
+        (push-str! (mut views) "(Ok (None))))\n")
+        (push-str! (mut b) (str (load views)))
         (Ok (str (load b)))))))

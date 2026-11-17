@@ -130,24 +130,20 @@
 ;;; metadata to each emitted row. A policy may edit owned metadata; returned Text
 ;;; must borrow that owned value or have a lifetime at least as long as target.
 ;;; Failed promotion publishes no root but may retain unreachable target rows.
-(defn promote-with! [C] [(target (mut Syntax))
-                         (input (ptr Syntax))
-                         (root forms/N0Id)
-                         (sharing? bool)
-                         (user (ptr C))
-                         (policy (fnptr (eqcc/C)
-                                        [(ptr C)
-                                         (ptr forms/N0Row)
-                                         (ptr forms/N1Row)]
-                                        forms/N1Row))]
+;;; A supplied state belongs to these exact stores and one fixed policy; reuse
+;;; it only after successful calls. Discard it after any shape/metadata failure.
+(defn promote-state! [C] [(target (mut Syntax))
+                          (input (ptr Syntax))
+                          (root forms/N0Id)
+                          (state (mut forms/TransformState))
+                          (user (ptr C))
+                          (policy (fnptr (eqcc/C)
+                                         [(ptr C)
+                                          (ptr forms/N0Row)
+                                          (ptr forms/N1Row)]
+                                         forms/N1Row))]
   (-> (Result forms/N0Id PromotionError))
-  (let [trace-start (len (.traces (.store target)))
-        (mut state)
-          (forms/transform-state-new (.allocator (.source-data (.store target)))
-                                     (field input store)
-                                     (field target store))]
-    (set! (.sharing? state) sharing?)
-    (defer (forms/transform-state-free! (mut state)))
+  (let [trace-start (len (.traces (.store target)))]
     (let [result (forms/transform-0-0 (mut state) root)]
       (while (< (len (.contexts target)) (len (.rows0 (.store target))))
         (push! (mut (.contexts target))
@@ -188,6 +184,26 @@
                           destination
                           (policy user (mut kind) (mut owned)))))))
             (Ok out))))))
+
+;;; The standalone entry point creates and releases its own traversal state.
+(defn promote-with! [C] [(target (mut Syntax))
+                         (input (ptr Syntax))
+                         (root forms/N0Id)
+                         (sharing? bool)
+                         (user (ptr C))
+                         (policy (fnptr (eqcc/C)
+                                        [(ptr C)
+                                         (ptr forms/N0Row)
+                                         (ptr forms/N1Row)]
+                                        forms/N1Row))]
+  (-> (Result forms/N0Id PromotionError))
+  (let [(mut state)
+          (forms/transform-state-new (.allocator (.source-data (.store target)))
+                                     (field input store)
+                                     (field target store))]
+    (defer (forms/transform-state-free! (mut state)))
+    (set! (.sharing? state) sharing?)
+    (promote-state! (mut target) input root (mut state) user policy)))
 
 (defn preserve-context :cc (eqcc/C) [(user (ptr i64))
                                      (kind (ptr forms/N0Row))

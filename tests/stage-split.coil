@@ -1,0 +1,157 @@
+(module rewrite.teststagesplit)
+(import "rewrite.stage" :as stage)
+(import "rewrite.code" :as code)
+(import "rewrite.codeforms" :as forms)
+(import "coil.alloc" :use *)
+(import "coil.arraylist" :use *)
+(import "coil.result" :use *)
+
+(defn child [(syntax (ptr code/Syntax)) (root forms/N0Id) (i i64)]
+  (-> forms/N0Id)
+  (let [items
+          (match (get (.rows0 (.store syntax)) (.index root))
+            (forms/N0V6 [items] items)
+            (_ (panic "list")))]
+    (match (forms/sequence-item-0 (field syntax store) items i)
+      (Some [id] id)
+      (None [] (panic "child")))))
+
+(defn symbol [(syntax (ptr code/Syntax)) (root forms/N0Id)] (-> (slice u8))
+  (match (get (.rows0 (.store syntax)) (.index root))
+    (forms/N0V2 [name] name)
+    (_ (panic "symbol"))))
+
+(defn main [] (-> i64)
+  (let [a (malloc-allocator)
+        (mut input) (code/create a)
+        (mut entries) (ArrayList::new [stage/Tagged] a)
+        (mut previous) (ArrayList::new [(slice u8)] a)
+        roots
+          (match (code/read! (mut input)
+                             1
+                             "split.coil"
+                             "(keep 1) (stage token (defn a [] (-> i64) 1) (stage nested payload)) (quote (stage quoted x)) [stage token] (stage token) (stage other (defn b [] (-> i64) 2)) (tail 2) (stage empty)")
+            (Ok [ids] ids)
+            (Err [_] (panic "source")))
+        alpha (forms/store-text! (mut (.store input)) "alpha.module")
+        beta (forms/store-text! (mut (.store input)) "beta.module")]
+    (defer (free! (mut entries)))
+    (defer (free! (mut previous)))
+    (push! (mut previous) (forms/store-text! (mut (.store input)) "prior"))
+    (for [i 0 8]
+      (let [id
+              (match (forms/sequence-item-0 (field (mut input) store) roots i)
+                (Some [id] id)
+                (None [] (panic "root")))
+            module
+              (cond (= i 1) (Some alpha)
+                    (= i 5) (Some beta)
+                    (= i 2) (Some "")
+                    :else (None))]
+        (push! (mut entries) (stage/Tagged :form id :module module))))
+    (push! (mut entries) (get entries 0))
+    (push! (mut entries) (get entries 1))
+    (for [i 0 (len (.contexts input))]
+      (let [context (elem (field (mut input) contexts) i)]
+        (set! (.f0 context) 17)
+        (set! (.f1 context)
+              (forms/store-text! (mut (.store input)) "transform.module"))
+        (set! (.f3 context) 71)))
+    (let [(mut output)
+            (match (stage/split a (mut input) (mut entries) (mut previous))
+              (Ok [output] output)
+              (Err [_] (panic "partition")))]
+      (defer (stage/release! (mut output)))
+      (unless (and (= (len (.runtime output)) 5)
+                   (= (len (.staged output)) 5)
+                   (= (len (.markers output)) 4)
+                   (= (get (.markers output) 0) "prior")
+                   (= (get (.markers output) 1) "token")
+                   (= (get (.markers output) 2) "other")
+                   (= (get (.markers output) 3) "empty"))
+        (panic "partition order"))
+      (unless (= (len previous) 1) (panic "mutated prior markers"))
+      (code/release! (mut input))
+      (unless (= (get (.markers output) 1) "token") (panic "borrowed marker"))
+      (unless (= (.index (.form (get (.runtime output) 0)))
+                 (.index (.form (get (.runtime output) 4))))
+        (panic "runtime batch sharing"))
+      (when (= (.f5 (get (.contexts (.syntax output))
+                         (.index (.form (get (.staged output) 0)))))
+               (.f5 (get (.contexts (.syntax output))
+                         (.index (.form (get (.staged output) 3))))))
+        (panic "stage root identities shared"))
+      (for [i 0 5]
+        (let [entry (get (.staged output) i)
+              head (child (field (mut output) syntax) (.form entry) 0)
+              context (get (.contexts (.syntax output)) (.index head))]
+          (unless (and (= (.f0 context) 0)
+                       (= (.f1 context) "")
+                       (= (.f3 context) 5))
+            (panic "stage isolation"))
+          (match (.module entry)
+            (Some [name]
+                  (unless (= name (if (= i 2) "beta.module" "alpha.module"))
+                    (panic "stage module")))
+            (None [] (panic "lost module")))))
+      (unless (= (symbol (field (mut output) syntax)
+                         (child (field (mut output) syntax)
+                                (.form (get (.staged output) 1))
+                                0))
+                 "stage")
+        (panic "nested stage was split recursively"))
+      (let [entry (get (.runtime output) 0)
+            id (child (field (mut output) syntax) (.form entry) 0)
+            context (get (.contexts (.syntax output)) (.index id))]
+        (unless (and (= (symbol (field (mut output) syntax) id) "keep")
+                     (= (.f0 context) 17)
+                     (= (.f1 context) "transform.module"))
+          (panic "runtime context changed"))
+        (match (.module entry) (None []) (_ (panic "anonymous tag changed"))))
+      (match (.module (get (.runtime output) 1))
+        (Some [name] (unless (= name "") (panic "empty module tag")))
+        (None [] (panic "empty tag became anonymous")))
+      (unless (= (symbol (field (mut output) syntax)
+                         (child (field (mut output) syntax)
+                                (.form (get (.runtime output) 3))
+                                0))
+                 "tail")
+        (panic "runtime order")))
+    ; A malformed declaration after valid output publishes no partial result.
+    (let [(mut invalids) (ArrayList::new [(slice u8)] a)]
+      (defer (free! (mut invalids)))
+      (push! (mut invalids) "(ok) (stage)")
+      (push! (mut invalids) "(ok) (stage :marker x)")
+      (push! (mut invalids) "(ok) (stage \"marker\" x)")
+      (for text invalids
+        (let [(mut syntax) (code/create a)
+              (mut tagged) (ArrayList::new [stage/Tagged] a)
+              (mut markers) (ArrayList::new [(slice u8)] a)
+              ids
+                (match (code/read! (mut syntax) 2 "invalid.coil" text)
+                  (Ok [ids] ids)
+                  (Err [_] (panic "invalid reader")))]
+          (defer (code/release! (mut syntax)))
+          (defer (free! (mut tagged)))
+          (defer (free! (mut markers)))
+          (for [i 0 2]
+            (let [id
+                    (match (forms/sequence-item-0 (field (mut syntax) store)
+                                                  ids
+                                                  i)
+                      (Some [id] id)
+                      (None [] (panic "invalid root")))]
+              (push! (mut tagged) (stage/Tagged :form id :module (None)))))
+          (match (stage/split a (mut syntax) (mut tagged) (mut markers))
+            (Err [e]
+                 (match e
+                   (stage/Declaration [at]
+                                      (unless (= (.source at) 2)
+                                        (panic "diagnostic origin")))
+                   (_ (panic "wrong error"))))
+            (Ok [output]
+                (let [(mut owned) output] (stage/release! (mut owned)))
+                (panic "malformed stage accepted")))
+          (unless (= (len tagged) 2) (panic "mutated input")))))
+    (println "stage partition: grammar views, top-level boundaries, module tags, markers, isolation, lifetime and malformed declarations passed")
+    0))

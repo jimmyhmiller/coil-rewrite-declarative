@@ -4,6 +4,8 @@
 (import "rewrite.native" :as native)
 (import "rewrite.stageprotocol" :as protocol)
 (import "rewrite.rounds" :as rounds)
+(import "rewrite.stage" :as stage)
+(import "coil.str" :use [StrBuf])
 (import "rewrite.code" :as code)
 (import "rewrite.codeforms" :as forms)
 (import "rewrite.syntaxreader" :as projection)
@@ -17,20 +19,6 @@
 (import "coil.cc" :as cc)
 (import "declarative.rt.jit" :as jit)
 (import "declarative.rt.image" :as image)
-
-(defn declarations [(a (dyn Allocator)) (store (mut p/Store)) (text (slice u8))]
-  (-> (ArrayList p/N1Id))
-  (let [fs
-          (match (read-all a text 2)
-            (Ok [fs] fs)
-            (Err [_] (panic "phase source")))
-        (mut ids) (ArrayList::new [p/N1Id] a)]
-    (for [i 0 (len (load fs))]
-      (push! (mut ids)
-             (match (p/parse-1 (mut store) (elem fs i))
-               (Ok [id] id)
-               (Err [_] (panic "phase parse")))))
-    ids))
 
 (defn execute [(a (dyn Allocator))
                (im image/Image)
@@ -85,10 +73,84 @@
    (pending (ptr code/Syntax))
    (pending-root forms/N0Id)
    (output (ptr rounds/Generation))
+   (markers (ArrayList (slice u8)))
    (image (Option image/Image))
    (stage i64)
    (rounds i64)
    (ok bool)])
+
+(defn declarations [(context (ptr Expansion)) (source (slice u8))]
+  (-> (ArrayList p/N1Id))
+  (let [a (.allocator context)
+        (mut input) (code/create a)
+        (mut text) (StrBuf::new a)
+        (mut tagged) (ArrayList::new [stage/Tagged] a)
+        (mut ids) (ArrayList::new [p/N1Id] a)
+        (mut body) (ArrayList::new [forms/N0Id] a)
+        source-id (+ 2 (.stage context))]
+    (defer (code/release! (mut input)))
+    (defer (free! (mut text)))
+    (defer (free! (mut tagged)))
+    (defer (free! (mut body)))
+    (push-str! (mut text) "(stage phase-request ")
+    (push-str! (mut text) source)
+    (push-str! (mut text) ")")
+    (let [roots
+            (match (code/read! (mut input)
+                               source-id
+                               "phase.coil"
+                               (str (load text)))
+              (Ok [ids] ids)
+              (Err [_] (panic "stage source")))
+          root
+            (match (forms/sequence-item-0 (field (mut input) store) roots 0)
+              (Some [id] id)
+              (None [] (panic "stage root")))]
+      (push! (mut tagged) (stage/Tagged :form root :module (None))))
+    (let [(mut split)
+            (match (stage/split a
+                                (mut input)
+                                (mut tagged)
+                                (field context markers))
+              (Ok [split] split)
+              (Err [_] (panic "stage partition")))]
+      (defer (stage/release! (mut split)))
+      (unless (= (len (.runtime split)) 0) (panic "stage leaked into runtime"))
+      (free! (mut (.markers context)))
+      (set! (.markers context) (ArrayList::new [(slice u8)] a))
+      (for marker (.markers split)
+        (push! (mut (.markers context)) (p/store-text! (.store context) marker)))
+      (match (p/store-source! (.store context)
+                              source-id
+                              "phase.coil"
+                              (str (load text)))
+        (Ok [_])
+        (Err [_] (panic "phase document")))
+      (for entry (.staged split)
+        (let [(mut form)
+                (match (projection/project a
+                                           (field (mut split) syntax)
+                                           (.form entry))
+                  (Ok [form] form)
+                  (Err [_] (panic "isolated phase projection")))
+              id
+                (match (p/parse-1 (.store context) (mut form))
+                  (Ok [id] id)
+                  (Err [_] (panic "phase parse")))
+              owned
+                (match (code/promote! (field (.output context) syntax)
+                                      (field (mut split) syntax)
+                                      (.form entry))
+                  (Ok [id] id)
+                  (Err [_] (panic "owned stage declaration")))]
+          (push! (mut ids) id)
+          (push! (mut body) owned)))
+      (let [output (.output context)
+            roots (forms/sequence-0 (mut (.store (.syntax output))) (mut body))]
+        (set! (mut (.rows2 (.store (.syntax output))))
+              (.index (.introduced output))
+              (forms/N2Row :f0 roots))))
+    ids))
 
 (defn route :cc (cc/C) [(context (ptr Expansion))]
   (-> (Result protocol/Event StageFailure))
@@ -115,10 +177,7 @@
           (if (= (.stage context) 0)
               "(Function \"earlier-helper\" \"n\" (Call (Variable \"last\") (Variable \"n\"))) (Function \"phase-a\" \"n\" (Call (Variable \"earlier-helper\") (Variable \"n\")))"
               "(Function \"phase-b\" \"n\" (Call (Variable \"earlier-helper\") (Variable \"n\")))")
-        (mut added) (declarations a (.store context) source)]
-    (match (rounds/read! (.output context) true 2 "phase.coil" source)
-      (Ok [_])
-      (Err [_] (panic "introduced stage syntax")))
+        (mut added) (declarations context source)]
     (when (= (.stage context) 1)
       (let [(mut empty) (p/program-history-new a (.store context))]
         (match (p/extend-program a (mut empty) (mut added))
@@ -220,6 +279,7 @@
             :pending (zeroed (ptr code/Syntax))
             :pending-root (forms/N0Id :index 0)
             :output (zeroed (ptr rounds/Generation))
+            :markers (ArrayList::new [(slice u8)] a)
             :image (None)
             :stage 0
             :rounds 0
@@ -282,6 +342,10 @@
           (set! (.ok context) false))
         (jit/unload! loaded)))
     (let [ok (.ok context)]
+      (unless (and (= (len (.markers context)) 1)
+                   (= (get (.markers context) 0) "phase-request"))
+        (panic "marker history"))
+      (free! (mut (.markers context)))
       (p/program-history-free! (mut history))
       (rounds/close! (mut session))
       (close! (mut scratch))

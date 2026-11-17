@@ -39,3 +39,8 @@
   (Symbol (scope 0) (module "") (origin 5) (identity fresh))
   (List (identity fresh))
   (Vector (identity fresh)))
+
+(node StageDeclaration (marker Text) (body (many Syntax)))
+(syntax StageDeclaration
+  :expect "stage: expected (stage MARKER FORM...), with a symbol marker"
+  (StageDeclaration (list "stage" (symbol marker) (rest body))))
