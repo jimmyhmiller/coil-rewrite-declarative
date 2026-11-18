@@ -757,3 +757,40 @@ run_both 42 '(defn inc-code [(x Code)] (-> Code) `(+ ~x 1))
 (defn twice [(x Code)] (-> Code)
   (let [part (inc-code x) rhs (let [x part] (inc-code x))] `(+ ~rhs ~part)))
 (defn main [] (-> i64) (+ (twice 19) 1))'
+
+mkdir custom-prelude
+(
+    cd custom-prelude
+    cat > Coil.toml <<'TOML'
+[package]
+name = "tiny"
+entry = "main.coil"
+[language]
+stdlib = false
+prelude = "tiny.core"
+[modules]
+"tiny.core" = "core.coil"
+"coil.primitive" = "primitive.coil"
+"coil.cc" = "cc.coil"
+TOML
+    echo '(module coil.primitive)' > primitive.coil
+    echo '(module coil.cc)' > cc.coil
+    echo '(module tiny.core) (defn* answer [] (-> i64) 42)' > core.coil
+    for body in '(answer)' '(c/answer)'; do
+        case "$body" in
+            '(answer)') imports='' ;;
+            *) imports='(import "tiny.core" :as c)' ;;
+        esac
+        echo "(module tiny.main) $imports (defn* main [] (-> i64) $body)" > main.coil
+        for compiler in coil ../rewrite; do
+            status=0
+            "$compiler" run || status=$?
+            [ "$status" -eq 42 ]
+        done
+    done
+    echo '(module tiny.main) (import "tiny.core" :as c) (defn* main [] (-> i64) (answer))' > main.coil
+    for compiler in coil ../rewrite; do
+        if "$compiler" check >diagnostic 2>&1; then exit 1; fi
+        grep -F 'main.coil:' diagnostic >/dev/null
+    done
+)
