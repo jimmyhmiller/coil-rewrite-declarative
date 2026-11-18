@@ -17,6 +17,7 @@
 (context Checked
   [(allocator (dyn coil.alloc.Allocator))
    (nominal-state (coil.hashmap.HashMap i64 bool))
+   (implementations (coil.hashmap.HashMap (slice u8) bool))
    (parameters (Option (ptr coil.reader.Sexp)))
    (layout-parameters (coil.hashmap.HashMap i64 (slice u8)))
    (payload-sizes (coil.hashmap.HashMap i64 i64))
@@ -256,12 +257,15 @@
   (obtain result (inspect-type lookup (mut checked) type true)
     (cases result ((Some [layout]) (conclude layout)) (_ (reject type "type has no native layout")))))
 
+(value parameter-name [(parameter (ptr coil.reader.Sexp))] (ptr coil.reader.Sexp)
+  (match (bounded-parameter parameter) (Bounded [name] name) (_ parameter)))
+
 (predicate parameter-type? [(parameters (Option (ptr coil.reader.Sexp))) (name (slice u8))]
   (match parameters
     (Some [items]
       (block :found
         (for [i 0 (coil.reader.sexp-count items)]
-          (when (coil.reader.sexp-sym-is (coil.reader.sexp-nth items i) name) (return-from :found true)))
+          (when (coil.reader.sexp-sym-is (parameter-name (coil.reader.sexp-nth items i)) name) (return-from :found true)))
         false))
     (_ false)))
 
@@ -642,7 +646,7 @@
               ((Function [_ _ parameters result])
                 (cases (function-generics found)
                   ((GenericParameters [types])
-                    (obtain t (generic-call signatures (mut checked) locals expr types parameters result expected) (conclude t)))
+                    (obtain t (generic-call signatures (rewrite.modules.lookup-for (.unit signatures) found) (mut checked) locals expr types parameters result expected) (conclude t)))
                   (_))
                 (require (= (coil.reader.sexp-count parameters) (- (coil.reader.sexp-count expr) (argument-start expr)))
                          expr "wrong number of arguments")
@@ -654,7 +658,7 @@
               (_ (reject found "invalid function signature")))))))
     (_ (reject expr "unsupported expression"))))
 
-(derive generic-call [(lookup rewrite.modules.Lookup) (checked (mut Checked)) (locals (coil.amap.AMap (slice u8) i64))
+(derive generic-call [(lookup rewrite.modules.Lookup) (definition rewrite.modules.Lookup) (checked (mut Checked)) (locals (coil.amap.AMap (slice u8) i64))
                       (expr (ptr coil.reader.Sexp)) (types (ptr coil.reader.Sexp)) (params (ptr coil.reader.Sexp))
                       (result (ptr coil.reader.Sexp)) (expected Expectation)] (slice u8)
   (with start (call-start expr)
@@ -666,7 +670,7 @@
           (each-child t supplied 0 i
             (require (coil.reader.sexp-sym? t) t "expected a scalar type argument")
             (when (not (parameter-type? (.parameters checked) (coil.reader.sexp-sym t))) (prove (check-type t)))
-            (record bindings (coil.reader.sexp-sym (coil.reader.sexp-nth types i)) (scalar-type t)))))
+            (record bindings (coil.reader.sexp-sym (parameter-name (coil.reader.sexp-nth types i))) (scalar-type t)))))
       (when (and (= start (argument-start expr)) (coil.reader.sexp-sym? result)
                  (parameter-type? (Some types) (scalar-type result)))
         (cases expected ((Expect [wanted]) (record bindings (scalar-type result) wanted)) (_)))
@@ -688,8 +692,12 @@
             (_ (reject param "invalid generic parameter")))))
       (with (mut arguments) (coil.arraylist.ArrayList::new [(slice u8)] (.allocator checked))
         (each-child t types 0 i
-          (cases (get bindings (coil.reader.sexp-sym t))
-            ((Some [actual]) (perform (push! (mut arguments) actual)))
+          (cases (get bindings (coil.reader.sexp-sym (parameter-name t)))
+            ((Some [actual])
+              (each-child bound t 1 j
+                (obtain trait (resolve-trait definition bound)
+                  (prove (verify-bound lookup (mut checked) actual trait expr))))
+              (perform (push! (mut arguments) actual)))
             (_ (reject expr "cannot infer type argument"))))
         (record (.type-arguments checked) (.node-id expr) (load arguments)))
       (require (coil.reader.sexp-sym? result) result "unsupported generic result type")
@@ -840,10 +848,101 @@
       (_)))
   (reject name "expected a native calling convention constructor from coil.cc"))
 
+(derive resolve-trait [(lookup rewrite.modules.Lookup) (name (ptr coil.reader.Sexp))] (ptr coil.reader.Sexp)
+  (require (coil.reader.sexp-sym? name) name "expected a trait name")
+  (obtain resolved (rewrite.modules.find-name lookup name (rewrite.modules.TraitNames))
+    (cases resolved ((Some [trait]) (conclude trait)) (_ (reject name "unknown trait")))))
+
+(predicate mentions-type? [(type (ptr coil.reader.Sexp)) (name (slice u8))]
+  (block :found
+    (when (coil.reader.sexp-sym-is type name) (return-from :found true))
+    (for [i 0 (coil.reader.sexp-count type)]
+      (when (mentions-type? (coil.reader.sexp-nth type i) name) (return-from :found true)))
+    false))
+
+(judgment check-trait [(lookup rewrite.modules.Lookup) (form (ptr coil.reader.Sexp))]
+  (cases (trait-declaration form)
+    ((Trait [_ types])
+      (each-child t types 0 i (require (coil.reader.sexp-sym? t) t "expected a trait type parameter"))
+      (cases (required-traits form)
+        ((Requires [bases]) (each-child base bases 0 i (prove (resolve-trait lookup base))))
+        (_))
+      (each-child method form (rewrite.modules.trait-method-start form) i
+        (cases (trait-method method)
+          ((Method [_ params _])
+            (with (mut receiver) false
+              (each-child param params 0 j
+                (cases (typed-parameter param)
+                  ((Parameter [_ type])
+                    (when (mentions-type? type (coil.reader.sexp-sym (coil.reader.sexp-nth types 0)))
+                      (perform (set! receiver true))))
+                  (_ (reject param "expected a typed method parameter"))))
+              (require (load receiver) method "trait method needs a Self parameter")))
+          (_ (reject method "invalid trait method signature")))))
+    (_ (reject form "expected a trait name and nonempty type parameter vector"))))
+
+(value implementation-key [(lookup rewrite.modules.Lookup) (trait (ptr coil.reader.Sexp)) (actual (slice u8))
+                           (allocator (dyn coil.alloc.Allocator))] (slice u8)
+  (coil.text.sconcat3 allocator actual ":" (rewrite.modules.symbol-for lookup trait)))
+
+(judgment register-marker [(lookup rewrite.modules.Lookup) (checked (mut Checked)) (form (ptr coil.reader.Sexp))]
+  (cases (marker-implementation form)
+    ((MarkerImpl [name target])
+      (obtain trait (resolve-trait lookup name)
+        (require (= (coil.reader.sexp-count trait) (rewrite.modules.trait-method-start trait)) form "implementation is missing trait methods")
+        (prove (check-type target))
+        (with key (implementation-key lookup trait (scalar-type target) (.allocator checked))
+          (require (not (contains? (.implementations checked) key)) form "duplicate trait implementation")
+          (record (.implementations checked) key true))))
+    (_)))
+
+(judgment check-marker-bases [(lookup rewrite.modules.Lookup) (checked (mut Checked)) (form (ptr coil.reader.Sexp))]
+  (cases (marker-implementation form)
+    ((MarkerImpl [name target])
+      (obtain trait (resolve-trait lookup name)
+        (cases (required-traits trait)
+          ((Requires [bases])
+            (each-child base bases 0 i
+              (obtain parent (resolve-trait (rewrite.modules.lookup-for (.unit lookup) trait) base)
+                (require (contains? (.implementations checked) (implementation-key lookup parent (scalar-type target) (.allocator checked)))
+                         form "missing implementation of a required supertrait"))))
+          (_))))
+    (_)))
+
+(derive trait-implies [(unit (ptr rewrite.modules.SourceUnit)) (trait (ptr coil.reader.Sexp)) (required (ptr coil.reader.Sexp))
+                       (seen (mut (coil.hashmap.HashMap i64 bool)))] bool
+  (when (= (.node-id trait) (.node-id required)) (conclude true))
+  (when (contains? (load seen) (.node-id trait)) (conclude false))
+  (perform (set! (mut seen) (.node-id trait) true))
+  (cases (required-traits trait)
+    ((Requires [bases])
+      (each-child base bases 0 i
+        (obtain parent (resolve-trait (rewrite.modules.lookup-for unit trait) base)
+          (obtain inherited (trait-implies unit parent required (mut seen))
+            (when inherited (conclude true))))))
+    (_))
+  (conclude false))
+
+(judgment verify-bound [(caller rewrite.modules.Lookup) (checked (mut Checked)) (actual (slice u8)) (trait (ptr coil.reader.Sexp))
+                        (site (ptr coil.reader.Sexp))]
+  (when (contains? (.implementations checked) (implementation-key caller trait actual (.allocator checked))) (accept))
+  (cases (.parameters checked)
+    ((Some [parameters])
+      (each-child param parameters 0 i
+        (when (coil.reader.sexp-sym-is (parameter-name param) actual)
+          (each-child inherited param 1 j
+            (obtain available (resolve-trait caller inherited)
+              (with (mut seen) (coil.hashmap.HashMap::new-scalar [i64 bool] (.allocator checked))
+                (obtain inherited (trait-implies (.unit caller) available trait (mut seen))
+                  (when inherited (accept)))))))))
+    (_))
+  (reject site "type argument does not implement the required trait"))
+
 (judgment check-signatures
   [(allocator (dyn coil.alloc.Allocator))
    (unit (ptr rewrite.modules.SourceUnit))]
   (each-form form (.declarations unit)
+    (when (trait-form? form) (prove (check-trait (rewrite.modules.lookup-for unit form) form)))
     (cases (primitive-header form)
       ((Primitive [_])
         (require (and (>= (coil.reader.sexp-count form) 3)
@@ -857,7 +956,10 @@
     (cases (ordinary-function form)
       ((Function [_ name parameters result])
         (cases (function-generics form)
-          ((GenericParameters [types]) (each-child t types 0 i (require (coil.reader.sexp-sym? t) t "expected a type parameter name")))
+          ((GenericParameters [types])
+            (each-child t types 0 i
+              (require (coil.reader.sexp-sym? (parameter-name t)) t "expected a type parameter name")
+              (each-child bound t 1 j (prove (resolve-trait (rewrite.modules.lookup-for unit form) bound)))))
           (_))
         (require (not (or (explicit-call-name? name) (layout-name? name) (offset-name? name))) name "cannot define a function named for a built-in form")
         (when (not (coil.reader.sexp-sym-is result "void")) (prove (check-signature-type form result)))
@@ -875,7 +977,7 @@
                         "linker symbol must be nonempty and contain no NUL byte"))
              (when (not (coil.reader.sexp-sym-is result "void")) (prove (check-type result)))
              (each-child parameter parameters 0 position (prove (check-type parameter))))
-           (_ (require (or (match (primitive-header form) (Primitive [_] true) (_ false)) (match (rewrite.modules.type-name form) (Some [_] true) (_ false)) (match (constant-declaration form) (Constant [_ _] true) (_ false))) form "unsupported declaration")))))))
+           (_ (require (or (trait-form? form) (marker-impl? form) (match (primitive-header form) (Primitive [_] true) (_ false)) (match (rewrite.modules.type-name form) (Some [_] true) (_ false)) (match (constant-declaration form) (Constant [_ _] true) (_ false))) form "unsupported declaration")))))))
 
 (judgment check-contains [(lookup rewrite.modules.Lookup) (checked (mut Checked)) (type (ptr coil.reader.Sexp))]
   (cases (array-layout type)
@@ -929,7 +1031,8 @@
 (derive check-functions
   [(allocator (dyn coil.alloc.Allocator))
    (unit (ptr rewrite.modules.SourceUnit))] Checked
-  (with (mut checked) (Checked :nominal-state (coil.hashmap.HashMap::new-scalar [i64 bool] allocator) :parameters (None [(ptr coil.reader.Sexp)]) :layout-parameters (coil.hashmap.HashMap::new-scalar [i64 (slice u8)] allocator)
+  (with (mut checked) (Checked :implementations (coil.hashmap.HashMap::new [(slice u8) bool] allocator (coil.str.keyops-borrowed))
+                               :nominal-state (coil.hashmap.HashMap::new-scalar [i64 bool] allocator) :parameters (None [(ptr coil.reader.Sexp)]) :layout-parameters (coil.hashmap.HashMap::new-scalar [i64 (slice u8)] allocator)
                                :payload-sizes (coil.hashmap.HashMap::new-scalar [i64 i64] allocator)
                                :field-offsets (coil.hashmap.HashMap::new-scalar [i64 i64] allocator)
                                :layouts (coil.hashmap.HashMap::new-scalar [i64 Layout] allocator)
@@ -950,6 +1053,9 @@
                                :cells (coil.hashmap.HashMap::new-scalar [i64 bool] allocator)
                                :operators (coil.hashmap.HashMap::new-scalar [i64 rewrite.operators.Operator] allocator))
     (each-form form (.declarations unit)
+      (when (marker-impl? form) (prove (register-marker (rewrite.modules.lookup-for unit form) (mut checked) form))))
+    (each-form form (.declarations unit)
+      (when (marker-impl? form) (prove (check-marker-bases (rewrite.modules.lookup-for unit form) (mut checked) form)))
       (cases (ordinary-function form)
         ((Function [_ _ parameters result])
           (cases (inline-annotation form)
@@ -972,5 +1078,5 @@
                          (Expect (scalar-type result))))
             (perform (set! (.parameters checked) (None [(ptr coil.reader.Sexp)]))))))
         (_ (cases (rewrite.modules.type-name form) ((Some [_]) (prove (check-nominal unit (mut checked) form)))
-             (_ (when (not (or (rewrite.modules.external? form) (match (primitive-header form) (Primitive [_] true) (_ false)))) (prove (constant-value unit (mut checked) form))))))))
+             (_ (when (not (or (trait-form? form) (marker-impl? form) (rewrite.modules.external? form) (match (primitive-header form) (Primitive [_] true) (_ false)))) (prove (constant-value unit (mut checked) form))))))))
     (conclude checked)))

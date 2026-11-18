@@ -318,7 +318,7 @@
         (bind (mut suffix) (: "" (slice u8)))
         (walk i param params 0
           (bind actual (concrete (.types (.instance f)) (get arguments i)))
-          (perform (set! (mut types) (sexp-sym param) actual))
+          (perform (set! (mut types) (sexp-sym (checker/parameter-name param)) actual))
           (perform (set! suffix (text/sconcat3 (.a f) (load suffix) "." actual)))
           (yield 0))
         (bind key (text/sconcat3 (.a f) (load suffix) ":" (modules/symbol-for lookup function)))
@@ -389,6 +389,7 @@
 (translate lower-function
   [(a (dyn Allocator)) (im (mut image/Image))
    (signatures modules/Lookup) (checked checker/Checked) (instances (ptr Instances)) (instance Instance) (form (ptr Sexp))] (Result i64 Diag)
+  (where (or (trait-form? form) (marker-impl? form)) (yield (Ok 0)))
   (on (primitive-header form) (Primitive [_]) (yield (Ok 0)))
   (on (modules/type-name form) (Some [_]) (yield (Ok 0)))
   (where (static-definition? form)
