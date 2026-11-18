@@ -794,3 +794,11 @@ TOML
         grep -F 'main.coil:' diagnostic >/dev/null
     done
 )
+
+run_both 42 '(module app) (module numbers) (defn answer [] (-> i64) 42)
+(module mid) (import "numbers" :reexport)
+(module api) (import "mid" :use [answer] :reexport) (export answer)
+(module app) (import "api" :as a) (defn main [] (-> i64) (a/answer))'
+compare 1 '(module app) (module numbers) (defn hidden [] (-> i64) 42)
+(module mid) (import "numbers" :use * :exclude [hidden] :reexport)
+(module app) (import "mid" :use *) (defn main [] (-> i64) (hidden))'
