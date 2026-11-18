@@ -814,3 +814,11 @@ run_both 42 '(import "coil.primitive" :as p)
 compare 1 '(import "coil.primitive" :as p)
 (defn pick [(xs Code)] (-> Code) (p/code-nth xs 1))
 (defn main [] (-> i64) (pick [0]))'
+run_both 42 '(import "coil.primitive" :as p)
+(defn trimmed [(xs Code)] (-> Code) (p/code-slice (p/code-rest xs) 1 (p/code-count (p/code-rest xs))))
+(defn main [] (-> i64) (let [v 40] (trimmed [junk junk + v 2])))'
+run_both 42 '(import "coil.primitive" :as p)
+(defn sum [(xs Code) (empty Code)] (-> Code) `(+ ~@(p/code-rest xs) ~@(p/code-rest empty)))
+(defn main [] (-> i64) (sum (skip 40 2) []))'
+compare 1 '(import "coil.primitive" :as p)
+(defn bad [(xs Code)] (-> Code) (p/code-slice xs 2 1)) (defn main [] (-> i64) (bad [1 2]))'

@@ -6,11 +6,13 @@
 (domain CodeIndex
   (LiteralIndex [(value i64)])
   (ReadIndex [(source (ptr Recipe)) (count? bool)]))
+(context SliceBounds [(lo CodeIndex) (hi CodeIndex)])
 (domain CodeTest
   (Truth [(value bool)])
   (KindTest [(opcode (slice u8)) (source (ptr Recipe))]))
 (domain Recipe
   (Choose [(test CodeTest) (yes (ptr Recipe)) (no (ptr Recipe))])
+  (Window [(source (ptr Recipe)) (bounds (Option SliceBounds))])
   (SelectChild [(source (ptr Recipe)) (index CodeIndex)])
   (Atom [(value (ptr coil.reader.Sexp))])
   (Scoped [(bindings (ptr (coil.arraylist.ArrayList Recipe))) (body (ptr (coil.arraylist.ArrayList Recipe)))])
@@ -22,7 +24,15 @@
 (context Macro [(fixed i64) (rest bool) (body (coil.arraylist.ArrayList Recipe))])
 
 (predicate sequence? [(node (ptr coil.reader.Sexp))]
-  (or (coil.reader.sexp-list? node) (coil.reader.sexp-vec? node)))
+  (or (coil.reader.sexp-list? node) (coil.reader.sexp-vec? node) (match (.kind node) (coil.reader.KView [_] true) (_ false))))
+
+(value elements [(node (ptr coil.reader.Sexp))] coil.reader.SexpView
+  (match (.kind node)
+    (coil.reader.KView [view] (load view))
+    (_ (coil.reader.SexpView :items (coil.reader.sexp-items node) :off 0 :len (coil.reader.sexp-count node)))))
+
+(value child [(view coil.reader.SexpView) (i i64)] (ptr coil.reader.Sexp)
+  (elem (.items view) (+ (.off view) i)))
 
 (value primitive-tag [(decl (ptr coil.reader.Sexp))] (slice u8)
   (match (primitive-header decl)
@@ -103,6 +113,15 @@
         (obtain found (rewrite.modules.find-declaration lookup head)
           (cases found
             ((Some [callee])
+              (with tag (primitive-tag callee)
+                (when (or (= tag "code-rest") (= tag "code-slice"))
+                  (with start (if (explicit-call? node) 2 1)
+                    (require (= (coil.reader.sexp-count node) (+ start (if (= tag "code-rest") 1 3))) node "wrong compile-time sequence operand count")
+                    (obtain source (compile-code a lookup params slots (coil.reader.sexp-nth node start) 0 false)
+                      (when (= tag "code-rest") (conclude (Window (box! a Recipe source) (None [SliceBounds]))))
+                      (obtain lo (compile-index a lookup params slots (coil.reader.sexp-nth node (+ start 1)))
+                        (obtain hi (compile-index a lookup params slots (coil.reader.sexp-nth node (+ start 2)))
+                          (conclude (Window (box! a Recipe source) (Some (SliceBounds :lo lo :hi hi))))))))))
               (when (= (primitive-tag callee) "code-nth")
                 (with start (if (explicit-call? node) 2 1)
                   (require (= (coil.reader.sexp-count node) (+ start 2)) node "code-nth expects two operands")
@@ -166,12 +185,11 @@
 (value sequence-kind [(source (ptr coil.reader.Sexp)) (items (ptr (coil.arraylist.ArrayList coil.reader.Sexp)))] coil.reader.SexpKind
   (if (coil.reader.sexp-vec? source) (coil.reader.KVec items) (coil.reader.KList items)))
 
-;; Each substitution gets fresh node IDs. Its lexical identity and source range travel with it.
-(value copy-argument [(a (dyn coil.alloc.Allocator)) (node (ptr coil.reader.Sexp))] coil.reader.Sexp
-  (if (or (coil.reader.sexp-list? node) (coil.reader.sexp-vec? node))
-      (let [(mut items) (coil.arraylist.ArrayList::new [coil.reader.Sexp] a)]
-        (for [i 0 (coil.reader.sexp-count node)]
-          (push! (mut items) (copy-argument a (coil.reader.sexp-nth node i))))
+;; Copy at the expansion boundary so repeated syntax gets distinct IDs and views become ordinary lists.
+(value promote [(a (dyn coil.alloc.Allocator)) (node (ptr coil.reader.Sexp))] coil.reader.Sexp
+  (if (sequence? node)
+      (let [view (elements node) (mut items) (coil.arraylist.ArrayList::new [coil.reader.Sexp] a)]
+        (for [i 0 (.len view)] (push! (mut items) (promote a (child view i))))
         (coil.reader.mk-sexp-src (sequence-kind node (coil.reader.box-items a (load items))) node))
       (coil.reader.mk-sexp-src (.kind node) node)))
 
@@ -192,7 +210,7 @@
       (obtain (mut value) (evaluate call (load source))
         (when count?
           (require (sequence? (mut value)) (.site call) "code-count expects a list or vector")
-          (conclude (coil.reader.sexp-count (mut value))))
+          (conclude (.len (elements (mut value)))))
         (require (coil.reader.sexp-int? (mut value)) (.site call) "code-int expects an integer")
         (conclude (coil.reader.sexp-int (mut value)))))))
 
@@ -214,14 +232,28 @@
     ((Choose [condition yes no])
       (obtain taken (evaluate-test call condition)
         (obtain result (evaluate call (load (if taken yes no))) (conclude result))))
+    ((Window [source bounds])
+      (obtain (mut value) (evaluate call (load source))
+        (require (sequence? (mut value)) (.site call) "expected a Code list or vector")
+        (with view (elements (mut value))
+          (with (mut lo) (if (> (.len view) 0) 1 0)
+            (with (mut hi) (.len view)
+              (cases bounds
+                ((Some [range])
+                  (obtain n (evaluate-index call (.lo range)) (perform (set! lo n)))
+                  (obtain n (evaluate-index call (.hi range)) (perform (set! hi n)))
+                  (require (and (>= (load lo) 0) (<= (load lo) (load hi)) (<= (load hi) (.len view))) (.site call) "code-slice bounds out of range"))
+                (_))
+              (with result (coil.reader.SexpView :items (.items view) :off (+ (.off view) (load lo)) :len (- (load hi) (load lo)))
+                (conclude (coil.reader.mk-sexp-src (coil.reader.KView (box! (.allocator call) coil.reader.SexpView result)) (mut value)))))))))
     ((SelectChild [source index])
       (obtain (mut value) (evaluate call (load source))
         (obtain i (evaluate-index call index)
           (require (sequence? (mut value)) (.site call) "code-nth expects a list or vector")
-          (require (and (>= i 0) (< i (coil.reader.sexp-count (mut value)))) (.site call) "code-nth index out of range")
-          (conclude (load (coil.reader.sexp-nth (mut value) i))))))
+          (require (and (>= i 0) (< i (.len (elements (mut value))))) (.site call) "code-nth index out of range")
+          (conclude (load (child (elements (mut value)) i))))))
     ((Atom [node]) (conclude (introduced call node (.kind node))))
-    ((Argument [i]) (conclude (copy-argument (.allocator call) (get (.arguments call) i))))
+    ((Argument [i]) (conclude (load (get (.arguments call) i))))
     ((Scoped [bindings body])
       (with (mut inner) call
         (perform (set! (.arguments inner) (coil.arraylist.ArrayList::new [(ptr coil.reader.Sexp)] (.allocator call))))
@@ -253,9 +285,10 @@
             (cases part
               ((Splice [inner])
                 (obtain (mut seq) (evaluate call (load inner))
-                  (require (or (coil.reader.sexp-list? (mut seq)) (coil.reader.sexp-vec? (mut seq))) (.site call)
+                  (require (sequence? (mut seq)) (.site call)
                            "splice expects a Code list or vector")
-                  (each-child item (mut seq) 0 j (perform (push! (mut output) (load item))))))
+                  (with view (elements (mut seq))
+                    (each-index j (.len view) (perform (push! (mut output) (load (child view j))))))))
               (_ (obtain value (evaluate call part) (perform (push! (mut output) value)))))))
         (conclude (introduced call node (sequence-kind node (coil.reader.box-items (.allocator call) (load output)))))))
     ((Splice [_]) (reject (.site call) "unexpected top-level splice"))))
@@ -281,4 +314,4 @@
                 (macro Macro) (site (ptr coil.reader.Sexp)) (start i64)] (ptr coil.reader.Sexp)
   (with (mut args) (coil.arraylist.ArrayList::new [(ptr coil.reader.Sexp)] a)
     (each-child arg site start i (perform (push! (mut args) arg)))
-    (obtain expanded (invoke a registry lookup macro site args 0) (conclude expanded))))
+    (obtain expanded (invoke a registry lookup macro site args 0) (conclude (box! a coil.reader.Sexp (promote a expanded))))))
