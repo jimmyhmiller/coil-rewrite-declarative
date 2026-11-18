@@ -753,3 +753,7 @@ run_both 42 '(defn with-temp [(x Code)] (-> Code) `(let [t 2] (+ t ~x)))
 compare 1 '(defn id [(x Code)] (-> Code) x) (defn main [] (-> i64) (id))'
 run_both 42 '(defn later [(e Code)] (-> Code) `(defer ~e))
 (defn main [] (-> i64) (let [(mut x) 0] (do (later (set! x 42)) 1) (load x)))'
+run_both 42 '(defn inc-code [(x Code)] (-> Code) `(+ ~x 1))
+(defn twice [(x Code)] (-> Code)
+  (let [part (inc-code x) rhs (let [x part] (inc-code x))] `(+ ~rhs ~part)))
+(defn main [] (-> i64) (+ (twice 19) 1))'

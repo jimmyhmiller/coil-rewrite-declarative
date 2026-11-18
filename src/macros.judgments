@@ -1,9 +1,11 @@
 (use "coil.alloc")
+(use "coil.amap")
 (use "rewrite.modules")
 (use "rewrite.declarations")
 
 (domain Recipe
   (Atom [(value (ptr coil.reader.Sexp))])
+  (Scoped [(bindings (ptr (coil.arraylist.ArrayList Recipe))) (body (ptr (coil.arraylist.ArrayList Recipe)))])
   (Argument [(index i64)])
   (Invoke [(callee (ptr coil.reader.Sexp)) (site (ptr coil.reader.Sexp)) (args (ptr (coil.arraylist.ArrayList Recipe)))])
   (Splice [(expression (ptr Recipe))])
@@ -11,7 +13,7 @@
 
 (context Macro [(fixed i64) (rest bool) (body (coil.arraylist.ArrayList Recipe))])
 
-(derive compile-code [(a (dyn coil.alloc.Allocator)) (lookup rewrite.modules.Lookup) (params (coil.hashmap.HashMap (slice u8) i64))
+(derive compile-code [(a (dyn coil.alloc.Allocator)) (lookup rewrite.modules.Lookup) (params (coil.amap.AMap (slice u8) i64)) (slots i64)
                       (node (ptr coil.reader.Sexp)) (depth i64) (element bool)] Recipe
   (when (= depth 0)
     (when (coil.reader.sexp-sym? node)
@@ -20,8 +22,25 @@
         (_ (reject node "unbound compile-time identifier"))))
     (cases (quoted-code node)
       ((Quotation [kind value])
-        (obtain recipe (compile-code a lookup params value (if (coil.reader.sexp-sym-is kind "quote") -1 1) false)
+        (obtain recipe (compile-code a lookup params slots value (if (coil.reader.sexp-sym-is kind "quote") -1 1) false)
           (conclude recipe)))
+      (_))
+    (cases (local-bindings node)
+      ((Bindings [pairs])
+        (require (= (% (coil.reader.sexp-count pairs) 2) 0) pairs "let needs binding/value pairs")
+        (with (mut inner) (coil.amap.amap-edit params a)
+          (with bindings (box! a (coil.arraylist.ArrayList Recipe) (coil.arraylist.ArrayList::new [Recipe] a))
+            (each-pair name init pairs
+              (require (identifier? name) name "expected a Code binding name")
+              (obtain recipe (compile-code a lookup inner (+ slots (len (load bindings))) init 0 false)
+                (when (not (coil.reader.sexp-sym-is name "_"))
+                  (record inner (coil.reader.sexp-sym name) (+ slots (len (load bindings)))))
+                (perform (push! bindings recipe))))
+            (with body (box! a (coil.arraylist.ArrayList Recipe) (coil.arraylist.ArrayList::new [Recipe] a))
+              (each-child term node 2 i
+                (obtain recipe (compile-code a lookup inner (+ slots (len (load bindings))) term 0 false)
+                  (perform (push! body recipe))))
+              (conclude (Scoped bindings body))))))
       (_))
     (cases (application node)
       ((Apply [head])
@@ -31,7 +50,7 @@
               (require (rewrite.modules.macro-function? callee) head "expected a compile-time Code function")
               (with args (box! a (coil.arraylist.ArrayList Recipe) (coil.arraylist.ArrayList::new [Recipe] a))
                 (each-child item node (if (explicit-call? node) 2 1) i
-                  (obtain recipe (compile-code a lookup params item 0 false)
+                  (obtain recipe (compile-code a lookup params slots item 0 false)
                     (perform (push! args recipe))))
                 (conclude (Invoke callee node args))))
             (_ (reject head "undefined compile-time function")))))
@@ -39,7 +58,7 @@
   (when (= depth 1)
     (cases (escaped-code node)
       ((Escape [kind value])
-        (obtain recipe (compile-code a lookup params value 0 false)
+        (obtain recipe (compile-code a lookup params slots value 0 false)
           (when (coil.reader.sexp-sym-is kind "unquote-splicing")
             (require element node "splice is only valid in a list or vector")
             (conclude (Splice (box! a Recipe recipe))))
@@ -52,7 +71,7 @@
                        (match (escaped-code node) (Escape [_ _] true) (_ false)) (- depth 1)
                        :else depth)
         (each-child child node 0 i
-          (obtain part (compile-code a lookup params child (if (= i 0) depth next) true)
+          (obtain part (compile-code a lookup params slots child (if (= i 0) depth next) true)
             (perform (push! items part)))))
       (conclude (Group node items))))
   (conclude (Atom node)))
@@ -60,7 +79,7 @@
 (derive compile-macro [(a (dyn coil.alloc.Allocator)) (lookup rewrite.modules.Lookup) (form (ptr coil.reader.Sexp))] Macro
   (cases (ordinary-function form)
     ((Function [_ _ params _])
-      (with (mut names) (coil.hashmap.HashMap::new [(slice u8) i64] a (coil.str.keyops-borrowed))
+      (with (mut names) (coil.amap.amap-new [(slice u8) i64] (coil.str.keyops-borrowed) a)
         (with (mut arity) 0
           (with (mut rest) false
             (each-child param params 0 i
@@ -77,7 +96,7 @@
                   (_ (reject param "invalid macro parameter")))))
             (with (mut body) (coil.arraylist.ArrayList::new [Recipe] a)
               (each-child item form (rewrite.modules.function-body-start form params) i
-                (obtain recipe (compile-code a lookup names item 0 false) (perform (push! (mut body) recipe))))
+                (obtain recipe (compile-code a lookup names (load arity) item 0 false) (perform (push! (mut body) recipe))))
               (require (> (len body) 0) form "macro body must produce Code")
               (conclude (Macro :fixed (- (load arity) (if (load rest) 1 0)) :rest (load rest) :body (load body))))))))
     (_ (reject form "invalid macro declaration"))))
@@ -108,6 +127,18 @@
   (cases recipe
     ((Atom [node]) (conclude (introduced call node (.kind node))))
     ((Argument [i]) (conclude (copy-argument (.allocator call) (get (.arguments call) i))))
+    ((Scoped [bindings body])
+      (with (mut inner) call
+        (perform (set! (.arguments inner) (coil.arraylist.ArrayList::new [(ptr coil.reader.Sexp)] (.allocator call))))
+        (each-index i (len (.arguments call))
+          (perform (push! (mut (.arguments inner)) (get (.arguments call) i))))
+        (each-index i (len (load bindings))
+          (obtain value (evaluate (load inner) (get (load bindings) i))
+            (perform (push! (mut (.arguments inner)) (box! (.allocator call) coil.reader.Sexp value)))))
+        (with (mut result) (load (.site call))
+          (each-index i (len (load body))
+            (obtain value (evaluate (load inner) (get (load body) i)) (perform (set! result value))))
+          (conclude (load result)))))
     ((Invoke [callee site terms])
       (require (< (.depth call) 128) site "compile-time call exceeded the nesting limit")
       (cases (get (.registry call) (.node-id callee))
