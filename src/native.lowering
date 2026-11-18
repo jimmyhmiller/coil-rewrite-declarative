@@ -235,7 +235,7 @@
                    (load result)))))
   (on (application expr) (Apply [operator])
     (choose
-      (on (get (.callees (.checked f)) (.node-id expr)) (Some [function])
+      (on (selected-function (mut f) signatures expr) (Some [function])
         (choose
           (on (modules/callable function) (Function [_ name parameters result])
             (bind (mut args) (al/ArrayList::new [i32] (.a f)))
@@ -308,6 +308,12 @@
       (yield 0))
     (need done (run-cleanups (mut f) (mut im) signatures expr) (< (.control f) 0))
     (yield (Ok (load last-value)))))
+
+(translate selected-function [(f (mut Frame)) (lookup modules/Lookup) (expr (ptr Sexp))] (Option (ptr Sexp))
+  (on (get (.dispatches (.checked f)) (.node-id expr)) (Some [dispatch])
+    (bind actual (concrete (.types (.instance f)) (.target dispatch)))
+    (yield (get (.method-bodies (.checked f)) (checker/method-key lookup (.trait dispatch) actual (.member dispatch) (.a f)))))
+  (otherwise (yield (get (.callees (.checked f)) (.node-id expr)))))
 
 (translate call-instance [(f (mut Frame)) (lookup modules/Lookup) (function (ptr Sexp)) (expr (ptr Sexp))]
   (Result Instance Diag)
@@ -389,7 +395,7 @@
 (translate lower-function
   [(a (dyn Allocator)) (im (mut image/Image))
    (signatures modules/Lookup) (checked checker/Checked) (instances (ptr Instances)) (instance Instance) (form (ptr Sexp))] (Result i64 Diag)
-  (where (or (trait-form? form) (marker-impl? form)) (yield (Ok 0)))
+  (where (or (trait-form? form) (scalar-impl? form)) (yield (Ok 0)))
   (on (primitive-header form) (Primitive [_]) (yield (Ok 0)))
   (on (modules/type-name form) (Some [_]) (yield (Ok 0)))
   (where (static-definition? form)

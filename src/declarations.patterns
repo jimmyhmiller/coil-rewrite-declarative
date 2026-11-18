@@ -109,11 +109,11 @@
   (list "deftrait" (capture name symbol) (capture parameters (vector _ ...)) ...))
 (extract trait-method TraitMethod Method NoMethod
   (list (capture name symbol) (optional (keyword "inline") _) (capture parameters (vector ...)) (list "->" (capture result _)) ...))
-(extract marker-implementation MarkerImplementation MarkerImpl NoMarkerImpl
-  (list "impl" (capture trait symbol) (capture target symbol)))
+(extract scalar-implementation ScalarImplementation ScalarImpl NoScalarImpl
+  (list "impl" (capture trait symbol) (capture target symbol) ...))
 (extract bounded-parameter BoundedParameter Bounded NoBounds
   (list (capture name symbol) symbol ...))
 (recognize trait-form? (list "deftrait" ...))
-(recognize marker-impl? (list "impl" symbol symbol))
+(recognize scalar-impl? (list "impl" symbol symbol ...))
 (extract required-traits RequiredTraits Requires NoRequires
   (list "deftrait" symbol (vector ...) (keyword "requires") (capture bases (vector ...)) ...))
