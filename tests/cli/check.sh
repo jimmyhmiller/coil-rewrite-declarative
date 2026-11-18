@@ -802,3 +802,15 @@ run_both 42 '(module app) (module numbers) (defn answer [] (-> i64) 42)
 compare 1 '(module app) (module numbers) (defn hidden [] (-> i64) 42)
 (module mid) (import "numbers" :use * :exclude [hidden] :reexport)
 (module app) (import "mid" :use *) (defn main [] (-> i64) (hidden))'
+
+run_both 42 '(import "coil.primitive" :as p)
+(defn pick [(xs Code) (i Code)] (-> Code)
+  (if (p/code-list? xs) (p/code-nth xs (p/code-int i)) xs))
+(defn main [] (-> i64) (let [x 40] (+ (pick [8 x] 1) (pick 2 9))))'
+run_both 42 '(import "coil.primitive" :as p)
+(defn select [(xs Code) (prefix Code)] (-> Code)
+  (if (p/code-vector? xs) (p/code-nth xs (p/code-count prefix)) (p/code-nth xs 0)))
+(defn main [] (-> i64) (+ (select [0 40] [a]) (select (2 3) [])))'
+compare 1 '(import "coil.primitive" :as p)
+(defn pick [(xs Code)] (-> Code) (p/code-nth xs 1))
+(defn main [] (-> i64) (pick [0]))'

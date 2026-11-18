@@ -3,7 +3,15 @@
 (use "rewrite.modules")
 (use "rewrite.declarations")
 
+(domain CodeIndex
+  (LiteralIndex [(value i64)])
+  (ReadIndex [(source (ptr Recipe)) (count? bool)]))
+(domain CodeTest
+  (Truth [(value bool)])
+  (KindTest [(opcode (slice u8)) (source (ptr Recipe))]))
 (domain Recipe
+  (Choose [(test CodeTest) (yes (ptr Recipe)) (no (ptr Recipe))])
+  (SelectChild [(source (ptr Recipe)) (index CodeIndex)])
   (Atom [(value (ptr coil.reader.Sexp))])
   (Scoped [(bindings (ptr (coil.arraylist.ArrayList Recipe))) (body (ptr (coil.arraylist.ArrayList Recipe)))])
   (Argument [(index i64)])
@@ -12,6 +20,47 @@
   (Group [(source (ptr coil.reader.Sexp)) (children (ptr (coil.arraylist.ArrayList Recipe)))]))
 
 (context Macro [(fixed i64) (rest bool) (body (coil.arraylist.ArrayList Recipe))])
+
+(predicate sequence? [(node (ptr coil.reader.Sexp))]
+  (or (coil.reader.sexp-list? node) (coil.reader.sexp-vec? node)))
+
+(value primitive-tag [(decl (ptr coil.reader.Sexp))] (slice u8)
+  (match (primitive-header decl)
+    (Primitive [_] (let [tag (coil.reader.sexp-nth decl (- (coil.reader.sexp-count decl) 1))]
+                     (if (coil.reader.sexp-kw? tag) (coil.reader.sexp-kw tag) "")))
+    (_ "")))
+
+(predicate kind-test? [(tag (slice u8))]
+  (or (= tag "code-list?") (= tag "code-vector?") (= tag "code-sym?") (= tag "code-keyword?")
+      (= tag "code-int?") (= tag "code-float?") (= tag "code-string?")))
+
+(derive unary-read [(lookup rewrite.modules.Lookup) (node (ptr coil.reader.Sexp))] (slice u8)
+  (cases (application node)
+    ((Apply [head])
+      (obtain resolved (rewrite.modules.find-declaration lookup head)
+        (cases resolved
+          ((Some [callee])
+            (require (= (coil.reader.sexp-count node) (if (explicit-call? node) 3 2)) node "expected one compile-time operand")
+            (conclude (primitive-tag callee)))
+          (_))))
+    (_))
+  (reject node "expected a compile-time primitive operation"))
+
+(derive compile-test [(a (dyn coil.alloc.Allocator)) (lookup rewrite.modules.Lookup) (params (coil.amap.AMap (slice u8) i64)) (slots i64)
+                      (node (ptr coil.reader.Sexp))] CodeTest
+  (when (or (true-literal? node) (false-literal? node)) (conclude (Truth (true-literal? node))))
+  (obtain tag (unary-read lookup node)
+    (require (kind-test? tag) node "expected a boolean compile-time predicate")
+    (obtain source (compile-code a lookup params slots (coil.reader.sexp-nth node (if (explicit-call? node) 2 1)) 0 false)
+      (conclude (KindTest tag (box! a Recipe source))))))
+
+(derive compile-index [(a (dyn coil.alloc.Allocator)) (lookup rewrite.modules.Lookup) (params (coil.amap.AMap (slice u8) i64)) (slots i64)
+                       (node (ptr coil.reader.Sexp))] CodeIndex
+  (when (int-literal? node) (conclude (LiteralIndex (coil.reader.sexp-int node))))
+  (obtain tag (unary-read lookup node)
+    (require (or (= tag "code-int") (= tag "code-count")) node "expected an integer compile-time expression")
+    (obtain source (compile-code a lookup params slots (coil.reader.sexp-nth node (if (explicit-call? node) 2 1)) 0 false)
+      (conclude (ReadIndex (box! a Recipe source) (= tag "code-count"))))))
 
 (derive compile-code [(a (dyn coil.alloc.Allocator)) (lookup rewrite.modules.Lookup) (params (coil.amap.AMap (slice u8) i64)) (slots i64)
                       (node (ptr coil.reader.Sexp)) (depth i64) (element bool)] Recipe
@@ -24,6 +73,13 @@
       ((Quotation [kind value])
         (obtain recipe (compile-code a lookup params slots value (if (coil.reader.sexp-sym-is kind "quote") -1 1) false)
           (conclude recipe)))
+      (_))
+    (cases (conditional node)
+      ((Branches [cond yes no])
+        (obtain test (compile-test a lookup params slots cond)
+          (obtain taken (compile-code a lookup params slots yes 0 false)
+            (obtain other (compile-code a lookup params slots no 0 false)
+              (conclude (Choose test (box! a Recipe taken) (box! a Recipe other)))))))
       (_))
     (cases (local-bindings node)
       ((Bindings [pairs])
@@ -47,6 +103,12 @@
         (obtain found (rewrite.modules.find-declaration lookup head)
           (cases found
             ((Some [callee])
+              (when (= (primitive-tag callee) "code-nth")
+                (with start (if (explicit-call? node) 2 1)
+                  (require (= (coil.reader.sexp-count node) (+ start 2)) node "code-nth expects two operands")
+                  (obtain source (compile-code a lookup params slots (coil.reader.sexp-nth node start) 0 false)
+                    (obtain index (compile-index a lookup params slots (coil.reader.sexp-nth node (+ start 1)))
+                      (conclude (SelectChild (box! a Recipe source) index))))))
               (require (rewrite.modules.macro-function? callee) head "expected a compile-time Code function")
               (with args (box! a (coil.arraylist.ArrayList Recipe) (coil.arraylist.ArrayList::new [Recipe] a))
                 (each-child item node (if (explicit-call? node) 2 1) i
@@ -123,8 +185,41 @@
     (set! (.hmod node) (.scope call))
     (load node)))
 
+(derive evaluate-index [(call Invocation) (index CodeIndex)] i64
+  (cases index
+    ((LiteralIndex [i]) (conclude i))
+    ((ReadIndex [source count?])
+      (obtain (mut value) (evaluate call (load source))
+        (when count?
+          (require (sequence? (mut value)) (.site call) "code-count expects a list or vector")
+          (conclude (coil.reader.sexp-count (mut value))))
+        (require (coil.reader.sexp-int? (mut value)) (.site call) "code-int expects an integer")
+        (conclude (coil.reader.sexp-int (mut value)))))))
+
+(derive evaluate-test [(call Invocation) (test CodeTest)] bool
+  (cases test
+    ((Truth [value]) (conclude value))
+    ((KindTest [tag source])
+      (obtain (mut value) (evaluate call (load source))
+        (conclude (cond (= tag "code-list?") (sequence? (mut value))
+                        (= tag "code-vector?") (coil.reader.sexp-vec? (mut value))
+                        (= tag "code-sym?") (coil.reader.sexp-sym? (mut value))
+                        (= tag "code-keyword?") (coil.reader.sexp-kw? (mut value))
+                        (= tag "code-int?") (coil.reader.sexp-int? (mut value))
+                        (= tag "code-float?") (coil.reader.sexp-float? (mut value))
+                        :else (coil.reader.sexp-str? (mut value))))))))
+
 (derive evaluate [(call Invocation) (recipe Recipe)] coil.reader.Sexp
   (cases recipe
+    ((Choose [condition yes no])
+      (obtain taken (evaluate-test call condition)
+        (obtain result (evaluate call (load (if taken yes no))) (conclude result))))
+    ((SelectChild [source index])
+      (obtain (mut value) (evaluate call (load source))
+        (obtain i (evaluate-index call index)
+          (require (sequence? (mut value)) (.site call) "code-nth expects a list or vector")
+          (require (and (>= i 0) (< i (coil.reader.sexp-count (mut value)))) (.site call) "code-nth index out of range")
+          (conclude (load (coil.reader.sexp-nth (mut value) i))))))
     ((Atom [node]) (conclude (introduced call node (.kind node))))
     ((Argument [i]) (conclude (copy-argument (.allocator call) (get (.arguments call) i))))
     ((Scoped [bindings body])
