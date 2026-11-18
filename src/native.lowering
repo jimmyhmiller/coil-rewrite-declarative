@@ -395,7 +395,7 @@
 (translate lower-function
   [(a (dyn Allocator)) (im (mut image/Image))
    (signatures modules/Lookup) (checked checker/Checked) (instances (ptr Instances)) (instance Instance) (form (ptr Sexp))] (Result i64 Diag)
-  (where (or (trait-form? form) (modules/implementation-form? form)) (yield (Ok 0)))
+  (where (or (modules/macro-function? form) (trait-form? form) (modules/implementation-form? form)) (yield (Ok 0)))
   (on (primitive-header form) (Primitive [_]) (yield (Ok 0)))
   (on (modules/type-name form) (Some [_]) (yield (Ok 0)))
   (where (static-definition? form)

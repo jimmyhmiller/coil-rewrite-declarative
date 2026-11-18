@@ -33,6 +33,9 @@
     (External [name parameters result] (Function form name parameters result))
     (_ (ordinary-function form))))
 
+(predicate macro-function? [(form (ptr coil.reader.Sexp))]
+  (match (ordinary-function form) (Function [_ _ _ result] (coil.reader.sexp-sym-is result "Code")) (_ false)))
+
 (value type-name [(form (ptr coil.reader.Sexp))] (Option (ptr coil.reader.Sexp))
   (match (structure form)
     (Struct [name _] (Some name))
@@ -90,7 +93,8 @@
    (locals (coil.hashmap.HashMap (slice u8) (ptr coil.reader.Sexp)))])
 (context VisibilityCheck [(scope (ptr ModuleScope)) (name (ptr coil.reader.Sexp)) (definition? bool)])
 (context SourceUnit
-  [(visibility (coil.arraylist.ArrayList VisibilityCheck))
+  [(scopes (ptr (coil.hashmap.HashMap (slice u8) (ptr ModuleScope))))
+   (visibility (coil.arraylist.ArrayList VisibilityCheck))
    (declarations (ptr (coil.arraylist.ArrayList coil.reader.Sexp)))
    (owners (coil.hashmap.HashMap i64 (ptr ModuleScope)))
    (symbols (coil.hashmap.HashMap i64 (slice u8)))
@@ -125,6 +129,12 @@
   (obtain result (find-name lookup site (ValueNames)) (conclude result)))
 
 (derive find-name [(lookup Lookup) (site (ptr coil.reader.Sexp)) (space NameSpace)] (Option (ptr coil.reader.Sexp))
+  (with scope (if (= (.hyg site) 0) (.scope lookup)
+                  (match (get (load (.scopes (.unit lookup))) (coil.reader.hmod-name (.hmod site)))
+                    (Some [owner] owner) (_ (.scope lookup))))
+    (obtain result (find-in-scope (Lookup :unit (.unit lookup) :scope scope) site space) (conclude result))))
+
+(derive find-in-scope [(lookup Lookup) (site (ptr coil.reader.Sexp)) (space NameSpace)] (Option (ptr coil.reader.Sexp))
   (with name (coil.reader.sexp-sym site)
     (each-index i (len name)
       (when (and (> i 0) (= (get name i) (: 47 u8)))
@@ -713,7 +723,7 @@
   (when (and (> (len (load forms)) 0)
              (match (.manifest sources) (Some [m] (coil.project.m-workspace? m)) (_ false)))
     (prove (index-package allocator sources (elem forms 0))))
-  (with (mut unit) (SourceUnit
+  (with (mut unit) (SourceUnit :scopes (field sources scopes)
     :visibility (coil.arraylist.ArrayList::new [VisibilityCheck] allocator)
     :declarations (box! allocator (coil.arraylist.ArrayList coil.reader.Sexp) (coil.arraylist.ArrayList::new [coil.reader.Sexp] allocator))
     :owners (coil.hashmap.HashMap::new-scalar [i64 (ptr ModuleScope)] allocator)

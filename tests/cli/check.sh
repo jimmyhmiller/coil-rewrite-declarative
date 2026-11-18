@@ -742,3 +742,14 @@ mkdir -p default-output/src
         rm build/debug/named-app build/debug/multi.part
     done
 )
+
+run_both 42 '(defn main [] (-> i64) (twice 21))
+(defn twice [(x Code)] (-> Code) (sum x x))
+(defn sum [(x Code) (y Code)] (-> Code) `(+ ~x ~y))'
+run_both 42 '(defn add [(x Code) & (xs Code)] (-> Code) `(+ ~x ~@xs))
+(defn main [] (-> i64) (add 19 23))'
+run_both 42 '(defn with-temp [(x Code)] (-> Code) `(let [t 2] (+ t ~x)))
+(defn main [] (-> i64) (let [t 40] (with-temp t)))'
+compare 1 '(defn id [(x Code)] (-> Code) x) (defn main [] (-> i64) (id))'
+run_both 42 '(defn later [(e Code)] (-> Code) `(defer ~e))
+(defn main [] (-> i64) (let [(mut x) 0] (do (later (set! x 42)) 1) (load x)))'

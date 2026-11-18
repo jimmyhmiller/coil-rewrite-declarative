@@ -15,6 +15,7 @@ source-roots = ["dsls", "src"]
 ".patterns" = "rewrite.pattern-reader"
 
 [modules]
+"rewrite.macros" = "src/macros.judgments"
 "rewrite.workspace" = "src/workspace.judgments"
 "rewrite.link" = "src/link.judgments"
 "rewrite.modules" = "src/modules.judgments"

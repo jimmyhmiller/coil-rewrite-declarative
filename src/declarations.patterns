@@ -124,3 +124,7 @@
   (list "impl" (vector ...) (capture target (list symbol ...)) (list ...) ...))
 (extract impl-type-parameters ImplTypeParameters ImplParameters NoImplParameters
   (list "impl" (capture types (vector ...)) (list symbol ...) ...))
+(extract quoted-code QuotedCode Quotation NoQuotation
+  (list (capture kind (spellings "quote" "quasiquote")) (capture value _)))
+(extract escaped-code EscapedCode Escape NoEscape
+  (list (capture kind (spellings "unquote" "unquote-splicing")) (capture value _)))

@@ -1,0 +1,158 @@
+(use "coil.alloc")
+(use "rewrite.modules")
+(use "rewrite.declarations")
+
+(domain Recipe
+  (Atom [(value (ptr coil.reader.Sexp))])
+  (Argument [(index i64)])
+  (Invoke [(callee (ptr coil.reader.Sexp)) (site (ptr coil.reader.Sexp)) (args (ptr (coil.arraylist.ArrayList Recipe)))])
+  (Splice [(expression (ptr Recipe))])
+  (Group [(source (ptr coil.reader.Sexp)) (children (ptr (coil.arraylist.ArrayList Recipe)))]))
+
+(context Macro [(fixed i64) (rest bool) (body (coil.arraylist.ArrayList Recipe))])
+
+(derive compile-code [(a (dyn coil.alloc.Allocator)) (lookup rewrite.modules.Lookup) (params (coil.hashmap.HashMap (slice u8) i64))
+                      (node (ptr coil.reader.Sexp)) (depth i64) (element bool)] Recipe
+  (when (= depth 0)
+    (when (coil.reader.sexp-sym? node)
+      (cases (get params (coil.reader.sexp-sym node))
+        ((Some [i]) (conclude (Argument i)))
+        (_ (reject node "unbound compile-time identifier"))))
+    (cases (quoted-code node)
+      ((Quotation [kind value])
+        (obtain recipe (compile-code a lookup params value (if (coil.reader.sexp-sym-is kind "quote") -1 1) false)
+          (conclude recipe)))
+      (_))
+    (cases (application node)
+      ((Apply [head])
+        (obtain found (rewrite.modules.find-declaration lookup head)
+          (cases found
+            ((Some [callee])
+              (require (rewrite.modules.macro-function? callee) head "expected a compile-time Code function")
+              (with args (box! a (coil.arraylist.ArrayList Recipe) (coil.arraylist.ArrayList::new [Recipe] a))
+                (each-child item node (if (explicit-call? node) 2 1) i
+                  (obtain recipe (compile-code a lookup params item 0 false)
+                    (perform (push! args recipe))))
+                (conclude (Invoke callee node args))))
+            (_ (reject head "undefined compile-time function")))))
+      (_ (reject node "expected an expression producing Code"))))
+  (when (= depth 1)
+    (cases (escaped-code node)
+      ((Escape [kind value])
+        (obtain recipe (compile-code a lookup params value 0 false)
+          (when (coil.reader.sexp-sym-is kind "unquote-splicing")
+            (require element node "splice is only valid in a list or vector")
+            (conclude (Splice (box! a Recipe recipe))))
+          (conclude recipe)))
+      (_)))
+  (when (or (coil.reader.sexp-list? node) (coil.reader.sexp-vec? node))
+    (with items (box! a (coil.arraylist.ArrayList Recipe) (coil.arraylist.ArrayList::new [Recipe] a))
+      (with next (cond (< depth 0) depth
+                       (match (quoted-code node) (Quotation [kind _] (coil.reader.sexp-sym-is kind "quasiquote")) (_ false)) (+ depth 1)
+                       (match (escaped-code node) (Escape [_ _] true) (_ false)) (- depth 1)
+                       :else depth)
+        (each-child child node 0 i
+          (obtain part (compile-code a lookup params child (if (= i 0) depth next) true)
+            (perform (push! items part)))))
+      (conclude (Group node items))))
+  (conclude (Atom node)))
+
+(derive compile-macro [(a (dyn coil.alloc.Allocator)) (lookup rewrite.modules.Lookup) (form (ptr coil.reader.Sexp))] Macro
+  (cases (ordinary-function form)
+    ((Function [_ _ params _])
+      (with (mut names) (coil.hashmap.HashMap::new [(slice u8) i64] a (coil.str.keyops-borrowed))
+        (with (mut arity) 0
+          (with (mut rest) false
+            (each-child param params 0 i
+              (when (coil.reader.sexp-sym-is param "&")
+                (require (and (not (load rest)) (= (+ i 2) (coil.reader.sexp-count params))) param "rest marker requires one final Code parameter")
+                (perform (set! rest true)))
+              (when (not (coil.reader.sexp-sym-is param "&"))
+                (cases (typed-parameter param)
+                  ((Parameter [name type])
+                    (require (coil.reader.sexp-sym-is type "Code") type "macro parameter must have type Code")
+                    (require (not (contains? names (coil.reader.sexp-sym name))) name "duplicate macro parameter")
+                    (record names (coil.reader.sexp-sym name) (load arity))
+                    (perform (set! arity (+ (load arity) 1))))
+                  (_ (reject param "invalid macro parameter")))))
+            (with (mut body) (coil.arraylist.ArrayList::new [Recipe] a)
+              (each-child item form (rewrite.modules.function-body-start form params) i
+                (obtain recipe (compile-code a lookup names item 0 false) (perform (push! (mut body) recipe))))
+              (require (> (len body) 0) form "macro body must produce Code")
+              (conclude (Macro :fixed (- (load arity) (if (load rest) 1 0)) :rest (load rest) :body (load body))))))))
+    (_ (reject form "invalid macro declaration"))))
+
+(value sequence-kind [(source (ptr coil.reader.Sexp)) (items (ptr (coil.arraylist.ArrayList coil.reader.Sexp)))] coil.reader.SexpKind
+  (if (coil.reader.sexp-vec? source) (coil.reader.KVec items) (coil.reader.KList items)))
+
+;; Each substitution gets fresh node IDs. Its lexical identity and source range travel with it.
+(value copy-argument [(a (dyn coil.alloc.Allocator)) (node (ptr coil.reader.Sexp))] coil.reader.Sexp
+  (if (or (coil.reader.sexp-list? node) (coil.reader.sexp-vec? node))
+      (let [(mut items) (coil.arraylist.ArrayList::new [coil.reader.Sexp] a)]
+        (for [i 0 (coil.reader.sexp-count node)]
+          (push! (mut items) (copy-argument a (coil.reader.sexp-nth node i))))
+        (coil.reader.mk-sexp-src (sequence-kind node (coil.reader.box-items a (load items))) node))
+      (coil.reader.mk-sexp-src (.kind node) node)))
+
+(context Invocation [(registry (coil.hashmap.HashMap i64 Macro)) (unit (ptr rewrite.modules.SourceUnit)) (depth i64)
+                     (allocator (dyn coil.alloc.Allocator)) (scope (ptr coil.reader.HygModule)) (mark i64)
+                     (arguments (coil.arraylist.ArrayList (ptr coil.reader.Sexp))) (site (ptr coil.reader.Sexp))])
+
+(value introduced [(call Invocation) (source (ptr coil.reader.Sexp)) (kind coil.reader.SexpKind)] coil.reader.Sexp
+  (let [(mut node) (coil.reader.mk-sexp-src kind source)]
+    (set! (.hyg node) (.mark call))
+    (set! (.hmod node) (.scope call))
+    (load node)))
+
+(derive evaluate [(call Invocation) (recipe Recipe)] coil.reader.Sexp
+  (cases recipe
+    ((Atom [node]) (conclude (introduced call node (.kind node))))
+    ((Argument [i]) (conclude (copy-argument (.allocator call) (get (.arguments call) i))))
+    ((Invoke [callee site terms])
+      (require (< (.depth call) 128) site "compile-time call exceeded the nesting limit")
+      (cases (get (.registry call) (.node-id callee))
+        ((Some [macro])
+          (with (mut args) (coil.arraylist.ArrayList::new [(ptr coil.reader.Sexp)] (.allocator call))
+            (each-index i (len (load terms))
+              (obtain value (evaluate call (get (load terms) i))
+                (perform (push! (mut args) (box! (.allocator call) coil.reader.Sexp value)))))
+            (obtain result (invoke (.allocator call) (.registry call) (rewrite.modules.lookup-for (.unit call) callee)
+                                   macro site args (+ (.depth call) 1))
+              (conclude (load result)))))
+        (_ (reject site "compile-time function was not compiled"))))
+    ((Group [node children])
+      (with (mut output) (coil.arraylist.ArrayList::new [coil.reader.Sexp] (.allocator call))
+        (each-index i (len (load children))
+          (with part (get (load children) i)
+            (cases part
+              ((Splice [inner])
+                (obtain (mut seq) (evaluate call (load inner))
+                  (require (or (coil.reader.sexp-list? (mut seq)) (coil.reader.sexp-vec? (mut seq))) (.site call)
+                           "splice expects a Code list or vector")
+                  (each-child item (mut seq) 0 j (perform (push! (mut output) (load item))))))
+              (_ (obtain value (evaluate call part) (perform (push! (mut output) value)))))))
+        (conclude (introduced call node (sequence-kind node (coil.reader.box-items (.allocator call) (load output)))))))
+    ((Splice [_]) (reject (.site call) "unexpected top-level splice"))))
+
+(derive invoke [(a (dyn coil.alloc.Allocator)) (registry (coil.hashmap.HashMap i64 Macro)) (lookup rewrite.modules.Lookup)
+                (macro Macro) (site (ptr coil.reader.Sexp)) (supplied (coil.arraylist.ArrayList (ptr coil.reader.Sexp))) (depth i64)] (ptr coil.reader.Sexp)
+  (with argc (len supplied)
+    (require (if (.rest macro) (>= argc (.fixed macro)) (= argc (.fixed macro))) site "wrong number of macro arguments")
+    (with (mut args) (coil.arraylist.ArrayList::new [(ptr coil.reader.Sexp)] a)
+      (each-index i (.fixed macro) (perform (push! (mut args) (get supplied i))))
+      (when (.rest macro)
+        (with (mut tail) (coil.arraylist.ArrayList::new [coil.reader.Sexp] a)
+          (each-index i (- argc (.fixed macro)) (perform (push! (mut tail) (load (get supplied (+ i (.fixed macro)))))))
+          (perform (push! (mut args) (box! a coil.reader.Sexp (coil.reader.mk-sexp-src (coil.reader.KList (coil.reader.box-items a (load tail))) site))))))
+      (with call (Invocation :allocator a :scope (coil.reader.hmod-intern (.namespace (.scope lookup))) :mark (coil.reader.next-node-id)
+                             :registry registry :unit (.unit lookup) :depth depth :arguments (load args) :site site)
+        (with (mut result) (load site)
+          (each-index i (len (.body macro))
+            (obtain value (evaluate call (get (.body macro) i)) (perform (set! result value))))
+          (conclude (box! a coil.reader.Sexp (load result))))))))
+
+(derive expand [(a (dyn coil.alloc.Allocator)) (registry (coil.hashmap.HashMap i64 Macro)) (lookup rewrite.modules.Lookup)
+                (macro Macro) (site (ptr coil.reader.Sexp)) (start i64)] (ptr coil.reader.Sexp)
+  (with (mut args) (coil.arraylist.ArrayList::new [(ptr coil.reader.Sexp)] a)
+    (each-child arg site start i (perform (push! (mut args) arg)))
+    (obtain expanded (invoke a registry lookup macro site args 0) (conclude expanded))))
