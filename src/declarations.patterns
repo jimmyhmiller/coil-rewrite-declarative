@@ -117,3 +117,10 @@
 (recognize scalar-impl? (list "impl" symbol symbol ...))
 (extract required-traits RequiredTraits Requires NoRequires
   (list "deftrait" symbol (vector ...) (keyword "requires") (capture bases (vector ...)) ...))
+
+(extract inherent-implementation InherentImplementation InherentImpl NoInherentImpl
+  (list "impl" (capture target symbol))
+  (list "impl" (capture target symbol) (list ...) ...)
+  (list "impl" (vector ...) (capture target (list symbol ...)) (list ...) ...))
+(extract impl-type-parameters ImplTypeParameters ImplParameters NoImplParameters
+  (list "impl" (capture types (vector ...)) (list symbol ...) ...))

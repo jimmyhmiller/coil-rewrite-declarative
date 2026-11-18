@@ -1,4 +1,5 @@
 (use "rewrite.declarations")
+(use "rewrite.host")
 (use "coil.alloc")
 (use "coil.text")
 (use "coil.fs")
@@ -95,6 +96,8 @@
    (symbols (coil.hashmap.HashMap i64 (slice u8)))
    (variants (coil.hashmap.HashMap (slice u8) (ptr coil.reader.Sexp)))
    (method-traits (coil.hashmap.HashMap i64 (ptr coil.reader.Sexp)))
+   (inherent-methods (coil.hashmap.HashMap (slice u8) (ptr coil.reader.Sexp)))
+   (inherent-names (coil.hashmap.HashMap (slice u8) bool))
    (method-functions (coil.hashmap.HashMap i64 (ptr coil.reader.Sexp)))
    (qualified-methods (coil.hashmap.HashMap (slice u8) (ptr coil.reader.Sexp)))
    (traits (coil.hashmap.HashMap (slice u8) (ptr coil.reader.Sexp)))
@@ -577,6 +580,7 @@
                   (with canonical (definition-name allocator (load namespace) false spelling)
                     (require (not (contains? (.type-globals unit) canonical)) name "duplicate type declaration")
                     (record (.type-globals unit) canonical form)
+                    (record (.symbols unit) (.node-id form) canonical)
                     (record (.type-locals scope) spelling form)
                     (with member (if (= (load namespace) "") spelling (subslice canonical (+ (len (load namespace)) 1) (len canonical)))
                       (record (.type-members scope) member form)))))
@@ -619,35 +623,89 @@
                         (record (.members scope) member form))))))
               (_))))))))
 
-(value method-function [(allocator (dyn coil.alloc.Allocator)) (method (ptr coil.reader.Sexp))] (ptr coil.reader.Sexp)
-  (let [(mut items) (coil.arraylist.ArrayList::new [coil.reader.Sexp] allocator)]
+(predicate implementation-form? [(form (ptr coil.reader.Sexp))]
+  (or (scalar-impl? form) (match (inherent-implementation form) (InherentImpl [_] true) (_ false))))
+
+(value parameter-name [(parameter (ptr coil.reader.Sexp))] (ptr coil.reader.Sexp)
+  (match (bounded-parameter parameter) (Bounded [name] name) (_ parameter)))
+
+(value word-name [(name (slice u8))] (slice u8)
+  (cond (= name "isize") (rewrite.host.signed-word-type)
+        (= name "usize") (rewrite.host.unsigned-word-type) :else name))
+
+(derive owner-name [(lookup Lookup) (name (ptr coil.reader.Sexp))] (slice u8)
+  (obtain resolved (find-name lookup name (TypeNames))
+    (cases resolved
+      ((Some [form]) (conclude (symbol-for lookup form)))
+      (_ (conclude (word-name (coil.reader.sexp-sym name)))))))
+
+(value inherent-key [(allocator (dyn coil.alloc.Allocator)) (owner (slice u8)) (member (slice u8))] (slice u8)
+  (coil.text.sconcat3 allocator owner "::" member))
+
+(value method-function [(allocator (dyn coil.alloc.Allocator)) (method (ptr coil.reader.Sexp))
+                        (parameters (Option (ptr coil.reader.Sexp)))] (ptr coil.reader.Sexp)
+  (let [(mut items) (coil.arraylist.ArrayList::new [coil.reader.Sexp] allocator)
+        (mut pending) parameters]
     (push! (mut items) (coil.reader.mk-sexp-src (coil.reader.KSym "defn") method))
-    (for [i 0 (coil.reader.sexp-count method)] (push! (mut items) (load (coil.reader.sexp-nth method i))))
+    (for [i 0 (coil.reader.sexp-count method)]
+      (let [item (coil.reader.sexp-nth method i)]
+        (when (coil.reader.sexp-vec? item)
+          (match (load pending)
+            (Some [types] (do (push! (mut items) (load types)) (set! pending (None [(ptr coil.reader.Sexp)]))))
+            (_ 0)))
+        (push! (mut items) (load item))))
     (box! allocator coil.reader.Sexp (coil.reader.mk-sexp-src (coil.reader.KList (coil.reader.box-items allocator items)) method))))
+
+(judgment index-method-list [(allocator (dyn coil.alloc.Allocator)) (unit (mut SourceUnit)) (declaration (ptr coil.reader.Sexp))
+                             (start i64) (prefix (slice u8)) (inherent bool) (parameters (Option (ptr coil.reader.Sexp)))
+                             (added (mut (coil.arraylist.ArrayList coil.reader.Sexp)))]
+  (with lookup (lookup-for unit declaration)
+    (each-child method declaration start i
+      (with function (method-function allocator method parameters)
+        (cases (ordinary-function function)
+          ((Function [_ name _ _])
+            (with spelling (coil.reader.sexp-sym name)
+              (with key (inherent-key allocator prefix spelling)
+                (record (.method-functions unit) (.node-id method) function)
+                (record (.owners unit) (.node-id function) (.scope lookup))
+                (when inherent
+                  (when (match parameters (None [] true) (_ false))
+                    (require (match (function-generics function) (Monomorphic [] true) (_ false)) method
+                             "inherent type parameters belong on the impl declaration"))
+                  (require (not (contains? (.inherent-methods unit) key)) name "duplicate inherent method for type")
+                  (record (.inherent-methods unit) key function)
+                  (record (.inherent-names unit) spelling true))
+                (record (.symbols unit) (.node-id function) (if inherent key
+                          (coil.text.sconcat3 allocator key "::" (coil.text.i64->str allocator i))))
+                (perform (push! (mut added) (load function))))))
+          (_ (reject method "invalid implementation method")))))))
 
 (judgment index-method-bodies [(allocator (dyn coil.alloc.Allocator)) (unit (mut SourceUnit))]
   (with (mut added) (coil.arraylist.ArrayList::new [coil.reader.Sexp] allocator)
     (each-form declaration (.declarations unit)
-      (cases (scalar-implementation declaration)
-        ((ScalarImpl [trait target])
-          (with lookup (lookup-for unit declaration)
+      (with lookup (lookup-for unit declaration)
+        (cases (scalar-implementation declaration)
+          ((ScalarImpl [trait target])
             (obtain resolved (find-name lookup trait (TraitNames))
               (cases resolved
                 ((Some [owner])
-                  (with prefix (coil.text.sconcat3 allocator (symbol-for lookup owner) "::" (coil.reader.sexp-sym target))
-                    (each-child method declaration 3 i
-                      (with function (method-function allocator method)
-                        (cases (ordinary-function function)
-                          ((Function [_ name _ _])
-                            (record (.method-functions unit) (.node-id method) function)
-                            (record (.owners unit) (.node-id function) (.scope lookup))
-                            (with member (coil.text.sconcat3 allocator prefix "::" (coil.reader.sexp-sym name))
-                              (record (.symbols unit) (.node-id function)
-                                      (coil.text.sconcat3 allocator member "::" (coil.text.i64->str allocator i))))
-                            (perform (push! (mut added) (load function))))
-                          (_ (reject method "invalid implementation method")))))))
-                (_ (reject trait "unknown trait"))))))
-        (_)))
+                  (with prefix (inherent-key allocator (symbol-for lookup owner) (coil.reader.sexp-sym target))
+                    (prove (index-method-list allocator (mut unit) declaration 3 prefix false (None [(ptr coil.reader.Sexp)]) (mut added)))))
+                (_ (reject trait "unknown trait")))))
+          (_))
+        (cases (inherent-implementation declaration)
+          ((InherentImpl [target])
+            (cases (impl-type-parameters declaration)
+              ((ImplParameters [types])
+                (require (= (coil.reader.sexp-count target) (+ 1 (coil.reader.sexp-count types))) target "unsupported inherent type pattern")
+                (each-child param types 0 i
+                  (require (and (coil.reader.sexp-sym? (parameter-name param)) (coil.reader.sexp-sym-is (coil.reader.sexp-nth target (+ i 1)) (coil.reader.sexp-sym (parameter-name param))))
+                           target "unsupported specialized inherent type pattern"))
+                (obtain owner (owner-name lookup (coil.reader.sexp-nth target 0))
+                  (prove (index-method-list allocator (mut unit) declaration 3 owner true (Some types) (mut added)))))
+              (_ (obtain owner (owner-name lookup target)
+                   (prove (index-method-list allocator (mut unit) declaration 2 owner true (None [(ptr coil.reader.Sexp)]) (mut added)))))))
+          (_))))
     (perform (for function added (push! (.declarations unit) function)))))
 
 (derive read-unit [(allocator (dyn coil.alloc.Allocator)) (sources (ptr Sources))
@@ -661,6 +719,8 @@
     :owners (coil.hashmap.HashMap::new-scalar [i64 (ptr ModuleScope)] allocator)
     :symbols (coil.hashmap.HashMap::new-scalar [i64 (slice u8)] allocator)
     :variants (coil.hashmap.HashMap::new [(slice u8) (ptr coil.reader.Sexp)] allocator (coil.str.keyops-borrowed))
+    :inherent-methods (coil.hashmap.HashMap::new [(slice u8) (ptr coil.reader.Sexp)] allocator (coil.str.keyops-borrowed))
+    :inherent-names (coil.hashmap.HashMap::new [(slice u8) bool] allocator (coil.str.keyops-borrowed))
     :method-functions (coil.hashmap.HashMap::new-scalar [i64 (ptr coil.reader.Sexp)] allocator)
     :method-traits (coil.hashmap.HashMap::new-scalar [i64 (ptr coil.reader.Sexp)] allocator)
     :qualified-methods (coil.hashmap.HashMap::new [(slice u8) (ptr coil.reader.Sexp)] allocator (coil.str.keyops-borrowed))
